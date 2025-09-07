@@ -9,6 +9,8 @@ import ConfirmPassModal from './ConfirmPassModal';
 import LaydownModal from './LaydownModal';
 import TurnBanner from './TurnBanner';
 import MessageBubbles from './MessageBubbles';
+import Celebration from './Celebration';
+import MessageBox from './MessageBox';
 import Card from './Card';
 import { RANKS_LOWER, RANKS_UPPER, SUITS } from '../lib/deck';
 
@@ -19,7 +21,7 @@ const TEAM_RING = {
 };
 
 export default function Table() {
-  const { state, me, ws, pendingAsk, toast, handoffFor, setWS } = useStore();
+  const { state, me, ws, pendingAsk, handoffFor, setWS } = useStore();
   const [selectingTarget, setSelectingTarget] = useState(false);
   const [targetPlayer, setTargetPlayer] = useState(null);
   const [setPickerOpen, setSetPickerOpen] = useState(false);
@@ -171,9 +173,10 @@ export default function Table() {
 
   return (
     <div className="p-6 relative min-h-screen flex flex-col">
+      <Celebration />
       <TurnBanner state={state} />
 
-      {/* Handoff prompt (only for the declaimer) */}
+      {/* Handoff prompt */}
       {handoffFor && handoffFor.who_id === me.id && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[95] bg-zinc-900/90 backdrop-blur px-4 py-2 rounded-xl card-shadow flex items-center gap-2">
           <span className="text-sm opacity-80">Pass turn to teammate:</span>
@@ -186,7 +189,7 @@ export default function Table() {
         </div>
       )}
 
-      {/* HUD */}
+      {/* HUD (top-left) */}
       <div className="fixed top-3 left-3 bg-zinc-800/80 backdrop-blur px-4 py-2 rounded-xl card-shadow text-sm z-[95]">
         <div className="font-semibold">{my?.name ?? 'Me'}</div>
         <div className="opacity-80">Seat {typeof my?.seat === 'number' ? my.seat+1 : '-'}</div>
@@ -199,14 +202,10 @@ export default function Table() {
       <MessageBubbles seatEls={seatEls} seatVersion={seatVersion} />
       <div className="mt-16" />
 
-      {/* Side boxes */}
-      <SideBox side="left" title="Team A Sets" color="blue"><SetList sets={setsA} /></SideBox>
-      <SideBox side="right" title="Team B Sets" color="rose"><SetList sets={setsB} /></SideBox>
-
-      {/* TABLE */}
-      <div className="relative mx-auto bg-zinc-900/30 rounded-3xl card-shadow" style={{ width: `${AREA_W}px`, height: `${AREA_H}px` }}>
+      {/* TABLE AREA */}
+      <div className="relative mx-auto bg-zinc-900/30 rounded-3xl card-shadow" style={{ width: `900px`, height: `640px` }}>
         <div ref={tableCenterRef} className="absolute rounded-full border-4 border-zinc-700 bg-zinc-800/40"
-             style={{ width: `${TABLE_SIZE}px`, height: `${TABLE_SIZE}px`, left: `calc(50% - ${TABLE_SIZE/2}px)`, top: `calc(50% - ${TABLE_SIZE/2}px)` }} />
+             style={{ width: `420px`, height: `420px`, left: `calc(50% - 210px)`, top: `calc(50% - 210px)` }} />
 
         {Object.keys(seats).map((k) => {
           const i = Number(k);
@@ -265,6 +264,9 @@ export default function Table() {
         <button disabled={!isMyTurn} className="bg-emerald-600 px-4 py-2 rounded disabled:opacity-40" onClick={()=>setLayOpen(true)}>Laydown</button>
       </div>
 
+      {/* Single game message */}
+      <MessageBox />
+
       {/* Modals */}
       <AskSetModal open={setPickerOpen} eligibleSets={eligibleSets.map(({ suit, type }) => ({ suit, type }))} onPick={onPickSet}
                    onClose={() => { setSetPickerOpen(false); setTargetPlayer(null); }} />
@@ -275,40 +277,6 @@ export default function Table() {
         <ConfirmPassModal open asker={players[pendingAsk.asker_id]} target={players[pendingAsk.target_id]}
                           cards={pendingAsk.pending_cards} onConfirm={confirmPass} onClose={()=>{}} />
       )}
-      {toast && <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-zinc-800 px-4 py-2 rounded-xl card-shadow z-50">{toast}</div>}
-    </div>
-  );
-}
-
-/* side boxes */
-function SideBox({ side, title, color = "blue", children }) {
-  const pos = side === "left" ? "left-6" : "right-6";
-  const ring = color === "blue" ? "ring-blue-500/40" : "ring-rose-500/40";
-  const dot = color === "blue" ? "bg-blue-400" : "bg-rose-400";
-  return (
-    <div className={`hidden xl:block fixed ${pos} top-36 z-30`} style={{ width: 260, maxHeight: "60vh" }}>
-      <div className={`bg-zinc-900/60 rounded-2xl p-3 ring-1 ${ring} card-shadow h-full overflow-auto`}>
-        <div className="flex items-center gap-2 mb-2 text-sm">
-          <span className={`inline-block h-2 w-2 rounded-full ${dot}`} /><span className="font-semibold">{title}</span>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
-function SetList({ sets }) {
-  if (!sets.length) return <div className="text-xs opacity-60">No sets yet.</div>;
-  return (
-    <div className="space-y-2">
-      {sets.map((ts, idx) => {
-        const first = ts.cards?.[0];
-        return (
-          <div key={`side-ts-${idx}`} className="bg-zinc-800/70 rounded-xl p-2 flex items-center gap-2">
-            {first && <Card suit={first.suit} rank={first.rank} size="sm" />}
-            <div className="text-xs opacity-80 capitalize">{ts.suit} {ts.set_type}</div>
-          </div>
-        );
-      })}
     </div>
   );
 }
