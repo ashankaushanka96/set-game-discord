@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict
 from game import Game
-from models import WSMessage, Player
+from models import WSMessage, Player, Card
 
 app = FastAPI()
 app.add_middleware(
@@ -16,7 +16,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- In-memory rooms & sockets ---
 rooms: Dict[str, Game] = {}
 connections: Dict[str, Dict[str, WebSocket]] = {}  # room_id -> {player_id: ws}
 
@@ -43,12 +42,10 @@ class JoinReq(BaseModel):
     name: str
     avatar: str
 
-# --- HTTP endpoints ---
-
 @app.post("/rooms", response_model=CreateRoomResp)
 def create_room():
     rid = uuid.uuid4().hex[:6]
-    get_or_create_room(rid)  # init
+    get_or_create_room(rid)
     return CreateRoomResp(room_id=rid)
 
 @app.get("/rooms/{room_id}/state")
@@ -60,13 +57,8 @@ def get_state(room_id: str):
 @app.post("/rooms/{room_id}/players")
 def http_join_room(room_id: str, body: JoinReq):
     game = get_or_create_room(room_id)
-    # Register player (no team/seat yet)
     game.state.players[body.id] = Player(**body.model_dump())
-    # Broadcast to existing sockets so others see "Waiting" list update
-    # (If no sockets yet, it's fine.)
     return game.state.model_dump()
-
-# --- WebSocket endpoint ---
 
 @app.websocket("/ws/{room_id}/{player_id}")
 async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
@@ -74,15 +66,14 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
     game = get_or_create_room(room_id)
     connections[room_id][player_id] = ws
 
-    # Send snapshot to this client immediately
+    # Snapshot to newcomer + broadcast presence
     await ws.send_text(json.dumps({"type": "state", "payload": game.state.model_dump()}))
-    # Also notify everyone about current state (helps late joiners see you)
     await broadcast(room_id, "state", game.state.model_dump())
 
     try:
         while True:
-            msg = await ws.receive_text()
-            data = WSMessage.model_validate_json(msg)
+            msg_text = await ws.receive_text()
+            data = WSMessage.model_validate_json(msg_text)
             t = data.type
             p = data.payload
 
@@ -100,8 +91,42 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                 await broadcast(room_id, "dealt", game.state.model_dump())
 
             elif t == "ask":
-                res = game.ask(p["asker_id"], p["target_id"], p["suit"], p["set_type"], p["ranks"])
-                await broadcast(room_id, "ask_result", {**res, "state": game.state.model_dump()})
+                # NEW: announce ask immediately so UI shows the asker's bubble
+                await broadcast(room_id, "ask_started", {
+                    "asker_id": p["asker_id"],
+                    "target_id": p["target_id"],
+                    "suit": p["suit"], "set_type": p["set_type"], "ranks": p["ranks"],
+                    "state": game.state.model_dump(),
+                })
+
+                # Then prepare ask (check if target has the card)
+                res = game.prepare_ask(p["asker_id"], p["target_id"], p["suit"], p["set_type"], p["ranks"])
+                if not res["success"]:
+                    await broadcast(room_id, "event", {
+                        "kind": "ask_no_card",
+                        "asker_id": p["asker_id"],
+                        "target_id": p["target_id"],
+                        "suit": p["suit"], "set_type": p["set_type"], "ranks": p["ranks"],
+                        "state": game.state.model_dump(),
+                    })
+                else:
+                    await broadcast(room_id, "ask_pending", {
+                        "asker_id": p["asker_id"],
+                        "target_id": p["target_id"],
+                        "suit": p["suit"], "set_type": p["set_type"], "ranks": p["ranks"],
+                        "pending_cards": res["pending_cards"],
+                        "state": game.state.model_dump(),
+                    })
+
+            elif t == "confirm_pass":
+                cards = [Card(**c) for c in p["cards"]]
+                res = game.confirm_pass(p["asker_id"], p["target_id"], cards)
+                await broadcast(room_id, "ask_result", {
+                    "asker_id": p["asker_id"], "target_id": p["target_id"],
+                    "cards": [c.model_dump() for c in cards],
+                    "success": res["success"],
+                    "state": game.state.model_dump(),
+                })
 
             elif t == "laydown":
                 res = game.laydown(p["who_id"], p["suit"], p["set_type"], p.get("collaborators"))

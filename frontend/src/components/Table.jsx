@@ -1,16 +1,39 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store';
 import { send } from '../ws';
 import Seat from './Seat';
 import PlayerHand from './PlayerHand';
-import AskModal from './AskModal';
+import AskSetModal from './AskSetModal';
+import AskRankModal from './AskRankModal';
+import ConfirmPassModal from './ConfirmPassModal';
 import LaydownModal from './LaydownModal';
 import TurnBanner from './TurnBanner';
+import MessageBubbles from './MessageBubbles';
+import Card from './Card';
+import { RANKS_LOWER, RANKS_UPPER, SUITS } from '../lib/deck';
+
+const TEAM_RING = {
+  A: 'ring-blue-500/70',
+  B: 'ring-rose-500/70',
+  unknown: 'ring-zinc-600/60',
+};
 
 export default function Table() {
-  const { state, me, ws } = useStore();
-  const [askOpen, setAskOpen] = useState(false);
+  const { state, me, ws, pendingAsk, toast } = useStore();
+  const [selectingTarget, setSelectingTarget] = useState(false);
+  const [targetPlayer, setTargetPlayer] = useState(null);
+  const [setPickerOpen, setSetPickerOpen] = useState(false);
+  const [rankPickerOpen, setRankPickerOpen] = useState(false);
   const [layOpen, setLayOpen] = useState(false);
+  const [selectedSet, setSelectedSet] = useState({ suit: null, setType: null });
+
+  // Pass animation
+  const [anim, setAnim] = useState(null); // {suit, rank, from:{x,y}, to:{x,y}, go:boolean}
+
+  // Seat refs + version for bubbles
+  const seatEls = useRef({});
+  const [seatVersion, setSeatVersion] = useState(0);
+  const lastSeatEl = useRef({});
 
   if (!state) return null;
 
@@ -19,150 +42,260 @@ export default function Table() {
   const my = players[me.id];
   const isMyTurn = state.turn_player === me.id;
 
-  // --- layout constants
-  const AREA_W = 700;  // px, outer container width
-  const AREA_H = 520;  // px, outer container height
-  const TABLE_SIZE = 320; // px, circle diameter
-  const RADIUS = 210;  // seat orbit radius from center
+  // Larger table
+  const AREA_W = 900, AREA_H = 640, TABLE_SIZE = 420, RADIUS = 280;
 
-  // Precompute absolute positions for seats (6 around a circle)
-  // Seat indices 0..5 equally spaced; start at -90deg (top center)
+  // Rotate so my seat appears at bottom visually
+  const mySeatIndex = typeof my?.seat === 'number' ? my.seat : 0;
   const seatPositions = useMemo(() => {
-    const cx = AREA_W / 2;
-    const cy = AREA_H / 2;
-    const pos = {};
+    const cx = AREA_W / 2, cy = AREA_H / 2, pos = {};
     for (let i = 0; i < 6; i++) {
-      const angle = (-90 + i * 60) * (Math.PI / 180); // radians
-      const x = cx + RADIUS * Math.cos(angle);
-      const y = cy + RADIUS * Math.sin(angle);
-      // center each 112px seat (w-28 h-28)
+      const angle = (90 + (i - mySeatIndex) * 60) * (Math.PI / 180);
       pos[i] = {
-        left: `${x - 56}px`,
-        top: `${y - 56}px`,
+        left: `${cx + RADIUS * Math.cos(angle) - 56}px`,
+        top: `${cy + RADIUS * Math.sin(angle) - 56}px`,
       };
     }
     return pos;
+  }, [mySeatIndex]);
+
+  // eligible sets
+  const eligibleSets = useMemo(() => {
+    if (!my) return [];
+    const res = [];
+    const hasIn = (s, t) => {
+      const ranks = t==='lower'?RANKS_LOWER:RANKS_UPPER;
+      return my.hand?.some(c => c.suit===s && ranks.includes(c.rank));
+    };
+    for (const s of SUITS) {
+      if (hasIn(s,'lower')) res.push({ suit:s, type:'lower' });
+      if (hasIn(s,'upper')) res.push({ suit:s, type:'upper' });
+    }
+    return res;
+  }, [my]);
+
+  const askableRanks = useMemo(() => {
+    if (!selectedSet.suit || !selectedSet.setType || !my) return [];
+    const ranks = selectedSet.setType==='lower'?RANKS_LOWER:RANKS_UPPER;
+    const mine = new Set(my.hand.filter(c=>c.suit===selectedSet.suit).map(c=>c.rank));
+    return ranks.filter(r=>!mine.has(r));
+  }, [selectedSet, my]);
+
+  const opponents = useMemo(
+    () => Object.values(players).filter(p => p.team && p.team !== my?.team),
+    [players, my?.team]
+  );
+
+  const startAskFlow = () => { if (isMyTurn) { setSelectingTarget(true); setTargetPlayer(null); } };
+  const onSelectOpponent = (p) => {
+    if (!selectingTarget || !opponents.find(o=>o.id===p.id)) return;
+    setSelectingTarget(false);
+    setTargetPlayer(p);
+    setSelectedSet({ suit:null, setType:null });
+    setSetPickerOpen(true);
+  };
+  const onPickSet = ({ suit, setType }) => { setSelectedSet({ suit, setType }); setSetPickerOpen(false); setRankPickerOpen(true); };
+  const onPickRank = (rank) => {
+    send(ws, 'ask', { asker_id: my.id, target_id: targetPlayer.id, suit: selectedSet.suit, set_type: selectedSet.setType, ranks: [rank] });
+    setRankPickerOpen(false);
+    setTargetPlayer(null);
+    setSelectedSet({ suit:null, setType:null });
+  };
+
+  const confirmPass = () => {
+    if (!pendingAsk) return;
+    send(ws,'confirm_pass',{ asker_id: pendingAsk.asker_id, target_id: pendingAsk.target_id, cards: pendingAsk.pending_cards });
+  };
+
+  // Animate pass on global event
+  useEffect(() => {
+    function onAnim(e) {
+      const { asker_id, target_id, card } = e.detail || {};
+      if (!asker_id || !target_id || !card) return;
+      const fromEl = seatEls.current[target_id];
+      const toEl   = seatEls.current[asker_id];
+      if (!fromEl || !toEl) return;
+      const from = fromEl.getBoundingClientRect();
+      const to   = toEl.getBoundingClientRect();
+
+      setAnim({
+        suit: card.suit,
+        rank: card.rank,
+        from: { x: from.left + from.width/2, y: from.top + from.height/2 },
+        to:   { x: to.left   + to.width/2,   y: to.top  + to.height/2 },
+        go: false,
+      });
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => setAnim((a)=>a?{...a,go:true}:a));
+      });
+      setTimeout(()=>setAnim(null), 900);
+    }
+    window.addEventListener('pass_anim', onAnim);
+    return () => window.removeEventListener('pass_anim', onAnim);
   }, []);
 
-  // helper: count for any player's hand (hide ranks for others)
   const handCount = (pid) => (players[pid]?.hand?.length ?? 0);
+
+  // Safe ref setter
+  const setSeatRef = (playerId) => (el) => {
+    if (!playerId || !el) return;
+    if (lastSeatEl.current[playerId] !== el) {
+      lastSeatEl.current[playerId] = el;
+      seatEls.current[playerId] = el;
+      setSeatVersion((v) => v + 1);
+    }
+  };
+
+  const teamLabel = my?.team ? (my.team === 'A' ? 'Team A' : 'Team B') : 'No team';
 
   return (
     <div className="p-6 relative min-h-screen flex flex-col">
       <TurnBanner state={state} />
 
-      {/* Table area (fixed size so inner circle is truly round) */}
+      {/* My info HUD - TOP LEFT */}
+      <div className="fixed top-3 left-3 bg-zinc-800/80 backdrop-blur px-4 py-2 rounded-xl card-shadow text-sm z-[95]">
+        <div className="font-semibold">{my?.name ?? 'Me'}</div>
+        <div className="opacity-80">Seat {typeof my?.seat === 'number' ? my.seat+1 : '-'}</div>
+        <div className={`mt-1 inline-flex items-center gap-2 px-2 py-[2px] rounded-full text-[12px] ${my?.team==='A'?'bg-blue-600/30 text-blue-300':'bg-rose-600/30 text-rose-300'}`}>
+          <span className={`inline-block h-2 w-2 rounded-full ${my?.team==='A'?'bg-blue-400':'bg-rose-400'}`} />
+          {teamLabel}
+        </div>
+      </div>
+
+      {/* Seat-anchored bubbles */}
+      <MessageBubbles seatEls={seatEls} seatVersion={seatVersion} />
+
+      <div className="mt-16" />
+
+      {/* TABLE (bigger) */}
       <div
         className="relative mx-auto bg-zinc-900/30 rounded-3xl card-shadow"
         style={{ width: `${AREA_W}px`, height: `${AREA_H}px` }}
       >
-        {/* true round "table" */}
         <div
           className="absolute rounded-full border-4 border-zinc-700 bg-zinc-800/40"
-          style={{
-            width: `${TABLE_SIZE}px`,
-            height: `${TABLE_SIZE}px`,
-            left: `calc(50% - ${TABLE_SIZE / 2}px)`,
-            top: `calc(50% - ${TABLE_SIZE / 2}px)`,
-          }}
+          style={{ width: `${TABLE_SIZE}px`, height: `${TABLE_SIZE}px`, left: `calc(50% - ${TABLE_SIZE/2}px)`, top: `calc(50% - ${TABLE_SIZE/2}px)` }}
         />
 
-        {/* Seats around the circle */}
         {Object.keys(seats).map((k) => {
           const i = Number(k);
           const pid = seats[i];
           const p = pid ? players[pid] : null;
+          const selectable = selectingTarget && !!p && p.team !== my.team;
+          const ringClass =
+            p?.team === 'A' ? TEAM_RING.A : p?.team === 'B' ? TEAM_RING.B : TEAM_RING.unknown;
+          const isMe = p && p.id === me.id;
+
           return (
             <div
               key={`seatwrap-${i}-${pid || 'empty'}`}
               className="absolute"
               style={seatPositions[i]}
+              ref={p ? setSeatRef(p.id) : undefined}
             >
-              <Seat
-                seatIndex={i}
-                player={p}
-                highlight={p?.id === state.turn_player}
-              />
-              {/* show card count for other players */}
-              {p && p.id !== me.id && (
-                <div className="mt-1 text-center text-xs opacity-70">
-                  {handCount(p.id)} cards
-                </div>
+              <div
+                className={[
+                  'rounded-full',
+                  selectable ? 'ring-2 ring-yellow-300/80' : '',
+                  ringClass,
+                  isMe ? 'ring-4 ring-cyan-400 shadow-[0_0_0_6px_rgba(34,211,238,0.25)]' : 'ring-2',
+                ].join(' ')}
+              >
+                <Seat
+                  seatIndex={i}
+                  player={p}
+                  highlight={p?.id === state.turn_player}
+                  selectable={selectable}
+                  onSelect={onSelectOpponent}
+                  team={p?.team}
+                  isMe={isMe}
+                />
+              </div>
+              {p && p.id !== my.id && (
+                <div className="mt-1 text-center text-xs opacity-70">{handCount(p.id)} cards</div>
               )}
             </div>
           );
         })}
-      </div>
 
-      {/* My hand */}
-      <div className="mt-6">
-        <h3 className="font-bold mb-2">Your Hand</h3>
-        <PlayerHand cards={my?.hand || []} />
-      </div>
-
-      {/* Actions */}
-      <div className="mt-4 flex gap-2">
-        {/* Seat 1 (index 0) deals at any time during 'playing' */}
-        {my?.seat === 0 && state.phase === 'playing' && (
-          <button
-            className="bg-amber-600 px-4 py-2 rounded"
-            onClick={() => send(ws, 'shuffle_deal', {})}
+        {/* animated passing card */}
+        {anim && (
+          <div
+            className="fixed z-[90] pointer-events-none"
+            style={{ left: anim.from.x, top: anim.from.y, transform: 'translate(-50%,-50%)' }}
           >
+            <div
+              style={{
+                position: 'relative',
+                left: anim.go ? (anim.to.x - anim.from.x) : 0,
+                top:  anim.go ? (anim.to.y - anim.from.y) : 0,
+                transition: 'left 0.8s cubic-bezier(.2,.8,.2,1), top 0.8s cubic-bezier(.2,.8,.2,1)',
+              }}
+            >
+              <Card suit={anim.suit} rank={anim.rank} size="sm" />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* HAND (centered) */}
+      <div className="mt-8 flex flex-col items-center">
+        <h3 className="font-bold mb-2">Your Hand</h3>
+        <div className="max-w-[1120px]">
+          <PlayerHand cards={my?.hand || []} />
+        </div>
+      </div>
+
+      {/* ACTIONS (centered) */}
+      <div className="mt-4 flex items-center justify-center gap-3">
+        {my?.seat === 0 && state.phase === 'playing' && (
+          <button className="bg-amber-600 px-4 py-2 rounded" onClick={() => send(ws, 'shuffle_deal', {})}>
             Shuffle & Deal
           </button>
         )}
-        <button
-          disabled={!isMyTurn}
-          className="bg-indigo-600 px-4 py-2 rounded disabled:opacity-40"
-          onClick={() => setAskOpen(true)}
-        >
+        <button disabled={!isMyTurn} className="bg-indigo-600 px-4 py-2 rounded disabled:opacity-40" onClick={startAskFlow}>
           Ask
         </button>
-        <button
-          disabled={!isMyTurn}
-          className="bg-emerald-600 px-4 py-2 rounded disabled:opacity-40"
-          onClick={() => setLayOpen(true)}
-        >
+        <button disabled={!isMyTurn} className="bg-emerald-600 px-4 py-2 rounded disabled:opacity-40" onClick={()=>setLayOpen(true)}>
           Laydown
         </button>
       </div>
 
-      {/* Table sets */}
-      <div className="mt-6">
-        <h3 className="font-bold mb-2">Table Sets</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {(state.table_sets || []).map((ts, idx) => (
-            <div
-              key={`tableset-${ts?.suit ?? 's'}-${ts?.set_type ?? 't'}-${idx}`}
-              className="bg-zinc-800 rounded-xl p-2"
-            >
-              <div className="text-sm mb-1 capitalize">
-                {ts.suit} {ts.set_type} — Owner: Team {ts.owner_team}
-              </div>
-              <div className="flex gap-1 flex-wrap">
-                {ts.cards.map((c, i) => (
-                  <div
-                    key={`tablecard-${c?.suit ?? 's'}-${c?.rank ?? 'r'}-${i}`}
-                    className="text-xs px-2 py-1 rounded bg-zinc-700"
-                  >
-                    {c.rank}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Scores */}
-      <div className="mt-6 text-lg">
-        Scores: <b>Team A {state?.team_scores?.A || 0}</b> —{' '}
-        <b>Team B {state?.team_scores?.B || 0}</b>
-      </div>
-
       {/* Modals */}
-      {askOpen && <AskModal onClose={() => setAskOpen(false)} />}
+      <AskSetModal
+        open={setPickerOpen}
+        eligibleSets={eligibleSets.map(({ suit, type }) => ({ suit, type }))}
+        onPick={onPickSet}
+        onClose={() => { setSetPickerOpen(false); setTargetPlayer(null); }}
+      />
+      <AskRankModal
+        open={rankPickerOpen}
+        suit={selectedSet.suit}
+        setType={selectedSet.setType}
+        askableRanks={askableRanks}
+        onPick={onPickRank}
+        onClose={() => { setRankPickerOpen(false); setTargetPlayer(null); }}
+      />
       {layOpen && <LaydownModal onClose={() => setLayOpen(false)} />}
+
+      {/* Confirm pass only for the target */}
+      {pendingAsk && pendingAsk.target_id === my.id && (
+        <ConfirmPassModal
+          open
+          asker={players[pendingAsk.asker_id]}
+          target={players[pendingAsk.target_id]}
+          cards={pendingAsk.pending_cards}
+          onConfirm={confirmPass}
+          onClose={()=>{}}
+        />
+      )}
+
+      {/* Optional tiny toast */}
+      {toast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-zinc-800 px-4 py-2 rounded-xl card-shadow z-50">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }

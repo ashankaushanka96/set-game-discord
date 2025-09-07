@@ -35,9 +35,9 @@ class Game:
         hands_by_pid = {pid: [] for pid in self.state.players}
         while self._deck:
             for seat in order:
-                pid = self.state.seats.get(seat)
                 if not self._deck:
                     break
+                pid = self.state.seats.get(seat)
                 if pid:
                     hands_by_pid[pid].append(self._deck.pop())
         for pid, cards in hands_by_pid.items():
@@ -67,10 +67,6 @@ class Game:
         return "lower" if card.rank in RANKS_LOWER else "upper"
 
     @staticmethod
-    def set_key(suit: str, set_type: str) -> Tuple[str,str]:
-        return (suit, set_type)
-
-    @staticmethod
     def all_cards_of_set(suit: str, set_type: str) -> List[Card]:
         ranks = RANKS_LOWER if set_type=="lower" else RANKS_UPPER
         return [Card(suit=suit, rank=r) for r in ranks]
@@ -79,41 +75,83 @@ class Game:
         ranks = RANKS_LOWER if set_type=="lower" else RANKS_UPPER
         return any(c.suit==suit and c.rank in ranks for c in player.hand)
 
-    # --- Actions ---
-    def ask(self, asker_id: str, target_id: str, suit: str, set_type: str, ranks: List[str]):
+    # --- Ask (two-stage: prepare -> confirm pass) ---
+    def prepare_ask(self, asker_id: str, target_id: str, suit: str, set_type: str, ranks: List[str]):
+        """Validate the ask and compute which cards the target must pass if they have them.
+        Returns dict with: success(False if none), pending_cards(list), next_turn."""
         if self.state.turn_player != asker_id:
             raise ValueError("Not your turn")
         asker = self.state.players[asker_id]
         target = self.state.players[target_id]
+        if not asker or not target:
+            raise ValueError("Unknown player")
         if asker.team == target.team:
             raise ValueError("Must ask an opponent")
         if not self.has_at_least_one_in_set(asker, suit, set_type):
             raise ValueError("You must hold at least one card from that set")
 
-        take: List[Card] = []
-        remain: List[Card] = []
         wanted = set(ranks)
-        for c in list(target.hand):
+        # The rule: cannot ask a card you already hold
+        owned = {(c.suit, c.rank) for c in asker.hand}
+        wanted = {r for r in wanted if (suit, r) not in owned}
+
+        pending_cards: List[Card] = []
+        for c in target.hand:
             if c.suit==suit and c.rank in wanted:
-                take.append(c)
-            else:
-                remain.append(c)
-        target.hand = remain
+                pending_cards.append(c)
 
-        owns = {(c.suit, c.rank) for c in asker.hand}
-        actually_take = [c for c in take if (c.suit, c.rank) not in owns]
-        asker.hand.extend(actually_take)
+        if not pending_cards:
+            # turn passes to target if not found
+            self.state.turn_player = target_id
+            return {
+                "success": False,
+                "pending_cards": [],
+                "next_turn": self.state.turn_player,
+            }
 
-        success = len(actually_take) > 0
-        self.state.turn_player = asker_id if success else target_id
-        self.state.ask_chain_from = asker_id
+        # Keep turn with asker until confirmation happens; UI will show pending to target
         return {
-            "success": success,
-            "taken": [c.model_dump() for c in actually_take],
-            "remaining_in_target": len(target.hand),
-            "next_turn": self.state.turn_player,
+            "success": True,
+            "pending_cards": [c.model_dump() for c in pending_cards],
+            "next_turn": asker_id,
         }
 
+    def confirm_pass(self, asker_id: str, target_id: str, cards: List[Card]):
+        """Target confirms passing these cards to asker. Verify and transfer."""
+        target = self.state.players[target_id]
+        asker = self.state.players[asker_id]
+        to_pass: List[Card] = []
+
+        # Verify target still owns each card
+        for card in cards:
+            found = None
+            for c in target.hand:
+                if c.suit==card.suit and c.rank==card.rank:
+                    found = c
+                    break
+            if found:
+                to_pass.append(found)
+
+        # Transfer cards
+        if to_pass:
+            # remove from target
+            remain = [c for c in target.hand if all(not (c.suit==x.suit and c.rank==x.rank) for x in to_pass)]
+            target.hand = remain
+            # add to asker (avoid duplicates just in case)
+            exist = {(c.suit, c.rank) for c in asker.hand}
+            for c in to_pass:
+                if (c.suit, c.rank) not in exist:
+                    asker.hand.append(c)
+
+            # success keeps the turn with asker
+            self.state.turn_player = asker_id
+            return {"success": True, "transferred": [c.model_dump() for c in to_pass], "next_turn": asker_id}
+
+        # If nothing passed (card somehow disappeared), pass turn to target per rule
+        self.state.turn_player = target_id
+        return {"success": False, "transferred": [], "next_turn": target_id}
+
+    # --- Laydown (unchanged) ---
     def laydown(self, who_id: str, suit: str, set_type: str, collaborators: Dict[str, List[str]] | None = None):
         if self.state.turn_player != who_id:
             raise ValueError("Not your turn")
@@ -142,7 +180,9 @@ class Game:
             loser_team = my.team
             winner_team = "A" if loser_team == "B" else "B"
             self.state.team_scores[winner_team] += POINTS[set_type]
-            self._advance_turn_ccw_from(who_id)
+            # move turn CCW from the one who failed (seat - 1 mod 6)
+            seat = self.state.players[who_id].seat or 0
+            self.state.turn_player = self.state.seats[(seat - 1) % 6]
             return {"ok": False, "awarded_to": winner_team, "scores": self.state.team_scores}
 
         all_cards: List[Card] = []
@@ -154,10 +194,6 @@ class Game:
         owner_team = my.team
         self.state.table_sets.append(TableSet(suit=suit, set_type=set_type, cards=all_cards, owner_team=owner_team))
         self.state.team_scores[owner_team] += POINTS[set_type]
+        # same player keeps turn
         self.state.turn_player = who_id
         return {"ok": True, "owner": owner_team, "scores": self.state.team_scores}
-
-    def _advance_turn_ccw_from(self, pid: str):
-        seat = self.state.players[pid].seat
-        nxt = (seat - 1) % 6
-        self.state.turn_player = self.state.seats[nxt]

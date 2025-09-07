@@ -1,166 +1,147 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useStore } from '../store';
-import { connectWS, send } from '../ws';
-import { apiCreateRoom, apiGetState, apiJoinRoom } from '../api';
+import { useEffect, useMemo, useState } from "react";
+import { useStore } from "../store";
+import { connectWS, send } from "../ws";
 
-export default function Lobby(){
-  const { me, setMe, roomId, setRoom, setWS, ws, state, applyServer } = useStore();
-  const [joinRoom, setJoinRoom] = useState('');
-  const [error, setError] = useState('');
+export default function Lobby() {
+  const { me, setMe, setWS, setRoom, roomId, state, applyServer } = useStore();
+  const [name, setName] = useState(me?.name || `Player ${Math.random().toString(16).slice(2,6)}`);
+  const [avatar, setAvatar] = useState(me?.avatar || "🔥");
+  const [roomInput, setRoomInput] = useState(roomId || "");
+  const [copied, setCopied] = useState(false);
 
-  // When we have roomId and me (but no socket), do HTTP join then connect WS
-  useEffect(()=>{
-    (async ()=>{
-      if (!roomId || !me) return;
-      if (ws) return;
+  useEffect(() => {
+    setMe({ id: me?.id || crypto.randomUUID(), name, avatar });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-      try {
-        // Ensure room exists
-        await apiGetState(roomId).catch(async () => {
-          setError("Room not found. Create a new room or check the ID.");
-          throw new Error('room-missing');
-        });
-
-        // Register player (HTTP) so others see you in Waiting immediately
-        await apiJoinRoom(roomId, me);
-
-        // Connect WebSocket (state snapshot arrives on connect)
-        const sock = connectWS(roomId, me.id, applyServer);
-        setWS(sock);
-      } catch (e) {
-        if (e.message !== 'room-missing') setError(String(e.message || e));
-      }
-    })();
-  }, [roomId, me, ws, setWS, applyServer]);
-
-  const players = useMemo(()=>Object.values(state?.players||{}), [state]);
-  const teamA   = useMemo(()=>players.filter(p=>p.team==='A'), [players]);
-  const teamB   = useMemo(()=>players.filter(p=>p.team==='B'), [players]);
-  const waiting = useMemo(()=>players.filter(p=>!p.team),     [players]);
-
-  const handleQuickCreate = () => {
-    // Each tab gets a unique id & default fox avatar — name varies with id
-    const id = crypto.randomUUID();
-    const meObj = { id, name: 'Player '+id.slice(0,4), avatar: '🦊' };
-    // Store in sessionStorage via setMe (per-tab)
-    setMe(meObj);
+  const joinRoom = () => {
+    const rid = roomInput.trim();
+    if (!rid) return;
+    setRoom(rid);
+    const ws = connectWS(rid, useStore.getState().me.id, applyServer);
+    setWS(ws);
+    // Ask current state (in case server doesn't push immediately)
+    setTimeout(() => send(ws, "sync", {}), 200);
   };
 
-  const handleCreateRoom = async () => {
-    setError('');
-    const { room_id } = await apiCreateRoom();
-    setRoom(room_id);
+  const startGame = () => {
+    send(useStore.getState().ws, "start", {});
   };
 
-  const handleJoinRoom = async () => {
-    setError('');
-    if (!joinRoom) { setError('Enter a Room ID'); return; }
-    setRoom(joinRoom.trim());
+  const copyRoomId = async () => {
+    try {
+      await navigator.clipboard.writeText(roomInput);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch {}
   };
 
-  if(!me) return (
-    <div className="p-6 space-y-3 max-w-xl mx-auto">
-      <h2 className="text-xl font-bold">Step 1: Create Player (per-tab)</h2>
-      <button className="bg-indigo-600 px-4 py-2 rounded" onClick={handleQuickCreate}>
-        Quick Create (for testing tabs)
-      </button>
-    </div>
-  );
-
-  if(!roomId) return (
-    <div className="p-6 space-y-3 max-w-xl mx-auto">
-      <h2 className="text-xl font-bold">Step 2: Create / Join Room</h2>
-      {error && <div className="bg-red-900/40 border border-red-600 px-3 py-2 rounded">{error}</div>}
-      <div className="flex gap-2">
-        <button className="bg-emerald-600 px-4 py-2 rounded" onClick={handleCreateRoom}>Create Room</button>
-        <input className="flex-1 bg-zinc-800 px-3 py-2 rounded" placeholder="Enter Room ID" value={joinRoom} onChange={e=>setJoinRoom(e.target.value)} />
-        <button className="bg-indigo-600 px-4 py-2 rounded" onClick={handleJoinRoom}>Join Room</button>
-      </div>
-    </div>
-  );
+  const players = useMemo(() => Object.values(state?.players || {}), [state]);
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div>Room: <span className="font-mono bg-zinc-800 px-2 py-1 rounded">{roomId}</span></div>
-          <div className="opacity-70">Players: {players.length}/6</div>
-        </div>
-        <div>{me.avatar} {me.name}</div>
-      </div>
+    <div className="p-8 max-w-5xl mx-auto">
+      <h1 className="text-2xl font-bold mb-4">Card Set Collection – Lobby</h1>
 
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Waiting column */}
-        <div className="bg-zinc-800 rounded-2xl p-4 min-h-[300px]">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold">Waiting</h3>
-            <span className="text-sm opacity-60">{waiting.length}</span>
-          </div>
-          <div className="mt-3 space-y-2">
-            {waiting.length === 0 && <div className="opacity-50">No one waiting</div>}
-            {waiting.map(p=> (
-              <div key={p.id} className="bg-zinc-900 rounded-xl px-3 py-2">{p.avatar} {p.name}</div>
-            ))}
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-zinc-900/50 rounded-xl p-4">
+          <h2 className="font-semibold mb-2">Create Profile (per tab)</h2>
+          <label className="block text-sm mb-1">Name</label>
+          <input
+            className="w-full bg-zinc-800 rounded px-3 py-2 mb-3"
+            value={name}
+            onChange={(e)=>{ setName(e.target.value); setMe({ ...useStore.getState().me, name: e.target.value }); }}
+          />
+          <label className="block text-sm mb-1">Avatar</label>
+          <input
+            className="w-full bg-zinc-800 rounded px-3 py-2"
+            value={avatar}
+            onChange={(e)=>{ setAvatar(e.target.value); setMe({ ...useStore.getState().me, avatar: e.target.value }); }}
+          />
         </div>
 
-        {/* Team A */}
-        <div className="bg-zinc-800 rounded-2xl p-4 min-h-[300px]">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold">TEAM A</h3>
+        <div className="bg-zinc-900/50 rounded-xl p-4">
+          <h2 className="font-semibold mb-2">Room</h2>
+          <label className="block text-sm mb-1">Room ID</label>
+          <div className="flex gap-2">
+            <input
+              className="flex-1 bg-zinc-800 rounded px-3 py-2"
+              value={roomInput}
+              onChange={(e)=>setRoomInput(e.target.value)}
+              placeholder="e.g., 04fa97"
+            />
             <button
-              className="bg-emerald-600 px-3 py-1 rounded"
-              onClick={()=>send(useStore.getState().ws,'select_team',{ player_id: me.id, team: 'A' })}
+              className="bg-zinc-700 px-3 rounded hover:bg-zinc-600"
+              onClick={copyRoomId}
+              title="Copy Room ID"
             >
-              Join
+              📋
             </button>
           </div>
-          <div className="mt-3 space-y-2">
-            {teamA.map(p=> (
-              <div key={p.id} className="bg-zinc-900 rounded-xl px-3 py-2">
-                {p.avatar} {p.name} {p.seat!==undefined?`(Seat ${p.seat+1})`:''}
-              </div>
-            ))}
+          {copied && <div className="text-xs mt-1 text-emerald-400">Copied!</div>}
+
+          <div className="mt-3 flex gap-2">
+            <button className="bg-indigo-600 px-4 py-2 rounded" onClick={joinRoom}>Join</button>
+            <button className="bg-emerald-600 px-4 py-2 rounded" onClick={startGame}>Start</button>
           </div>
         </div>
 
-        {/* Team B */}
-        <div className="bg-zinc-800 rounded-2xl p-4 min-h-[300px]">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold">TEAM B</h3>
-            <button
-              className="bg-indigo-600 px-3 py-1 rounded"
-              onClick={()=>send(useStore.getState().ws,'select_team',{ player_id: me.id, team: 'B' })}
-            >
-              Join
-            </button>
-          </div>
-          <div className="mt-3 space-y-2">
-            {teamB.map(p=> (
-              <div key={p.id} className="bg-zinc-900 rounded-xl px-3 py-2">
-                {p.avatar} {p.name} {p.seat!==undefined?`(Seat ${p.seat+1})`:''}
+        <div className="bg-zinc-900/50 rounded-xl p-4">
+          <h2 className="font-semibold mb-2">Teams</h2>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <div className="inline-flex items-center gap-2 text-sm mb-2">
+                <span className="inline-block h-2 w-2 rounded-full bg-blue-400"></span>
+                <span>Team A</span>
               </div>
-            ))}
+              <div className="space-y-2">
+                {players.filter(p=>p.team==='A').map(p=>(
+                  <div key={p.id} className="bg-blue-600/10 rounded px-3 py-2 text-sm">
+                    {p.avatar} {p.name}
+                  </div>
+                ))}
+              </div>
+              <button
+                className="mt-3 bg-blue-600/30 hover:bg-blue-600/40 px-3 py-1 rounded text-sm"
+                onClick={()=>send(useStore.getState().ws,'select_team',{ player_id: useStore.getState().me.id, team:'A' })}
+              >
+                Join Team A
+              </button>
+            </div>
+            <div>
+              <div className="inline-flex items-center gap-2 text-sm mb-2">
+                <span className="inline-block h-2 w-2 rounded-full bg-rose-400"></span>
+                <span>Team B</span>
+              </div>
+              <div className="space-y-2">
+                {players.filter(p=>p.team==='B').map(p=>(
+                  <div key={p.id} className="bg-rose-600/10 rounded px-3 py-2 text-sm">
+                    {p.avatar} {p.name}
+                  </div>
+                ))}
+              </div>
+              <button
+                className="mt-3 bg-rose-600/30 hover:bg-rose-600/40 px-3 py-1 rounded text-sm"
+                onClick={()=>send(useStore.getState().ws,'select_team',{ player_id: useStore.getState().me.id, team:'B' })}
+              >
+                Join Team B
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="mt-6 flex gap-3">
-        <button
-          className="bg-white/10 px-4 py-2 rounded"
-          onClick={()=>send(useStore.getState().ws,'start',{})}
-        >
-          Start Game
-        </button>
-        <button
-          className="bg-zinc-700 px-3 py-2 rounded"
-          onClick={()=>send(useStore.getState().ws,'sync',{})}
-        >
-          Sync
-        </button>
+      {/* Player list */}
+      <div className="mt-6 bg-zinc-900/50 rounded-xl p-4">
+        <h2 className="font-semibold mb-2">Players</h2>
+        <div className="flex flex-wrap gap-2">
+          {players.map(p=>(
+            <div key={p.id} className="px-3 py-2 bg-zinc-800 rounded">
+              {p.avatar} {p.name} <span className="opacity-60 text-xs">{p.team ? `(${p.team})` : ''}</span>
+            </div>
+          ))}
+          {!players.length && <div className="opacity-60 text-sm">No one yet. Join the room to appear here.</div>}
+        </div>
       </div>
-
-      {error && <div className="mt-3 bg-red-900/40 border border-red-600 px-3 py-2 rounded">{error}</div>}
     </div>
   );
 }

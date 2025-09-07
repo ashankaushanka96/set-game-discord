@@ -1,29 +1,101 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useMemo } from "react";
+import Card from "./Card";
+import { RANKS_LOWER, RANKS_UPPER, SUITS } from "../lib/deck";
 
-export default function PlayerHand({ cards }) {
+/**
+ * One-line hand view:
+ *  [Lower set grouped by suit] | [Upper set grouped by suit]
+ * - Lower: 2–7, Upper: 8–A
+ * - Within each half, cards are grouped by suit (♥ ♦ ♣ ♠) and sorted by rank
+ * - Single row, centered, no scrolling (fits in viewport width)
+ */
+export default function PlayerHand({ cards = [] }) {
+  const idxLower = (r) => {
+    const i = RANKS_LOWER.indexOf(r);
+    return i === -1 ? 999 : i;
+  };
+  const idxUpper = (r) => {
+    const i = RANKS_UPPER.indexOf(r);
+    return i === -1 ? 999 : i;
+  };
+
+  // Build ordered arrays with suit separators for lower/upper
+  const { lowerItems, upperItems } = useMemo(() => {
+    const lowerGroups = {};
+    const upperGroups = {};
+    for (const s of SUITS) {
+      lowerGroups[s] = [];
+      upperGroups[s] = [];
+    }
+
+    for (const c of cards) {
+      if (RANKS_LOWER.includes(c.rank)) lowerGroups[c.suit].push(c);
+      else if (RANKS_UPPER.includes(c.rank)) upperGroups[c.suit].push(c);
+    }
+
+    // sort within each suit
+    for (const s of SUITS) {
+      lowerGroups[s].sort((a, b) => idxLower(a.rank) - idxLower(b.rank));
+      upperGroups[s].sort((a, b) => idxUpper(a.rank) - idxUpper(b.rank));
+    }
+
+    // flatten with suit separators
+    const toItems = (groups, prefix) => {
+      const items = [];
+      SUITS.forEach((suit, si) => {
+        const arr = groups[suit];
+        if (!arr.length) return;
+        if (items.length) items.push({ __sep: `${prefix}-sep-${si}` }); // gap between suits
+        arr.forEach((c, i) =>
+          items.push({ ...c, __key: `${prefix}-${suit}-${c.rank}-${i}` })
+        );
+      });
+      return items;
+    };
+
+    return {
+      lowerItems: toItems(lowerGroups, "low"),
+      upperItems: toItems(upperGroups, "up"),
+    };
+  }, [cards]);
+
   return (
-    <div className="flex gap-2">
-      <AnimatePresence>
-        {(cards || []).map((c, i) => {
-          const suit = c?.suit ?? 's';
-          const rank = c?.rank ?? 'r';
-          return (
-            <motion.div
-              key={`${suit}-${rank}-${i}`}   // safe, unique fallback with index
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -20, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-              className="w-12 h-16 bg-white text-black rounded-lg card-shadow grid place-items-center"
-            >
-              <div className="text-center text-xs">
-                <div className="font-bold">{rank}</div>
-                <div className="capitalize">{suit}</div>
-              </div>
-            </motion.div>
-          );
-        })}
-      </AnimatePresence>
+    <div className="w-full flex flex-col items-center">
+      <div className="uppercase tracking-wide text-[11px] opacity-60 mb-2">
+        Your Hand
+      </div>
+
+      {/* One single line, centered; no wrap; constrained to viewport */}
+      <div className="max-w-[95vw] overflow-hidden">
+        <div className="inline-flex items-center justify-center whitespace-nowrap gap-2">
+          {/* LOWER */}
+          {lowerItems.map((it) =>
+            it.__sep ? (
+              <span key={it.__sep} className="inline-block w-4" />
+            ) : (
+              <span key={it.__key} className="inline-block">
+                <Card suit={it.suit} rank={it.rank} />
+              </span>
+            )
+          )}
+
+          {/* Divider between lower and upper (only if both exist) */}
+          {lowerItems.length > 0 && upperItems.length > 0 && (
+            <span className="inline-block mx-4 h-10 w-px bg-white/20 align-middle" />
+          )}
+
+          {/* UPPER */}
+          {upperItems.map((it) =>
+            it.__sep ? (
+              <span key={it.__sep} className="inline-block w-4" />
+            ) : (
+              <span key={it.__key} className="inline-block">
+                <Card suit={it.suit} rank={it.rank} />
+              </span>
+            )
+          )}
+        </div>
+      </div>
     </div>
   );
 }
