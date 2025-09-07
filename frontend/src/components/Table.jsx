@@ -27,8 +27,10 @@ export default function Table() {
   const [layOpen, setLayOpen] = useState(false);
   const [selectedSet, setSelectedSet] = useState({ suit: null, setType: null });
 
-  // Pass animation
-  const [anim, setAnim] = useState(null); // {suit, rank, from:{x,y}, to:{x,y}, go:boolean}
+  // Animations
+  const [anim, setAnim] = useState(null);          // pass animation
+  const [lays, setLays] = useState([]);            // laydown animations
+  const tableCenterRef = useRef(null);
 
   // Seat refs + version for bubbles
   const seatEls = useRef({});
@@ -42,7 +44,7 @@ export default function Table() {
   const my = players[me.id];
   const isMyTurn = state.turn_player === me.id;
 
-  // Larger table
+  // --- Layout numbers (wider table) ---
   const AREA_W = 900, AREA_H = 640, TABLE_SIZE = 420, RADIUS = 280;
 
   // Rotate so my seat appears at bottom visually
@@ -51,15 +53,12 @@ export default function Table() {
     const cx = AREA_W / 2, cy = AREA_H / 2, pos = {};
     for (let i = 0; i < 6; i++) {
       const angle = (90 + (i - mySeatIndex) * 60) * (Math.PI / 180);
-      pos[i] = {
-        left: `${cx + RADIUS * Math.cos(angle) - 56}px`,
-        top: `${cy + RADIUS * Math.sin(angle) - 56}px`,
-      };
+      pos[i] = { left: `${cx + RADIUS * Math.cos(angle) - 56}px`, top: `${cy + RADIUS * Math.sin(angle) - 56}px` };
     }
     return pos;
   }, [mySeatIndex]);
 
-  // eligible sets
+  // eligible sets for me
   const eligibleSets = useMemo(() => {
     if (!my) return [];
     const res = [];
@@ -107,7 +106,7 @@ export default function Table() {
     send(ws,'confirm_pass',{ asker_id: pendingAsk.asker_id, target_id: pendingAsk.target_id, cards: pendingAsk.pending_cards });
   };
 
-  // Animate pass on global event
+  // PASS animation
   useEffect(() => {
     function onAnim(e) {
       const { asker_id, target_id, card } = e.detail || {};
@@ -117,21 +116,47 @@ export default function Table() {
       if (!fromEl || !toEl) return;
       const from = fromEl.getBoundingClientRect();
       const to   = toEl.getBoundingClientRect();
-
       setAnim({
-        suit: card.suit,
-        rank: card.rank,
+        suit: card.suit, rank: card.rank,
         from: { x: from.left + from.width/2, y: from.top + from.height/2 },
         to:   { x: to.left   + to.width/2,   y: to.top  + to.height/2 },
         go: false,
       });
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => setAnim((a)=>a?{...a,go:true}:a));
-      });
+      requestAnimationFrame(() => requestAnimationFrame(() => setAnim(a=>a?{...a,go:true}:a)));
       setTimeout(()=>setAnim(null), 900);
     }
     window.addEventListener('pass_anim', onAnim);
     return () => window.removeEventListener('pass_anim', onAnim);
+  }, []);
+
+  // LAYDOWN animation: contributors -> table center
+  useEffect(() => {
+    function onLayAnim(e) {
+      const { contributors } = e.detail || {};
+      if (!Array.isArray(contributors) || !contributors.length) return;
+      const center = tableCenterRef.current?.getBoundingClientRect();
+      if (!center) return;
+      const cx = center.left + center.width/2;
+      const cy = center.top + center.height/2;
+
+      const items = [];
+      contributors.forEach(contrib => {
+        const el = seatEls.current[contrib.player_id];
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        const fx = r.left + r.width/2, fy = r.top + r.height/2;
+        const card = (contrib.cards && contrib.cards[0]) || null;
+        if (!card) return;
+        items.push({ suit: card.suit, rank: card.rank, from: {x:fx,y:fy}, to: {x:cx,y:cy}, go:false });
+      });
+      setLays(items);
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{
+        setLays(its => its.map(it => ({...it, go:true})));
+      }));
+      setTimeout(()=>setLays([]), 1000);
+    }
+    window.addEventListener('lay_anim', onLayAnim);
+    return () => window.removeEventListener('lay_anim', onLayAnim);
   }, []);
 
   const handCount = (pid) => (players[pid]?.hand?.length ?? 0);
@@ -148,11 +173,15 @@ export default function Table() {
 
   const teamLabel = my?.team ? (my.team === 'A' ? 'Team A' : 'Team B') : 'No team';
 
+  // Group collected table sets by team
+  const setsA = (state.table_sets || []).filter(ts => ts.owner_team === 'A');
+  const setsB = (state.table_sets || []).filter(ts => ts.owner_team === 'B');
+
   return (
     <div className="p-6 relative min-h-screen flex flex-col">
       <TurnBanner state={state} />
 
-      {/* My info HUD - TOP LEFT */}
+      {/* My HUD (top-left) */}
       <div className="fixed top-3 left-3 bg-zinc-800/80 backdrop-blur px-4 py-2 rounded-xl card-shadow text-sm z-[95]">
         <div className="font-semibold">{my?.name ?? 'Me'}</div>
         <div className="opacity-80">Seat {typeof my?.seat === 'number' ? my.seat+1 : '-'}</div>
@@ -162,17 +191,26 @@ export default function Table() {
         </div>
       </div>
 
-      {/* Seat-anchored bubbles */}
+      {/* Bubbles */}
       <MessageBubbles seatEls={seatEls} seatVersion={seatVersion} />
 
       <div className="mt-16" />
 
-      {/* TABLE (bigger) */}
+      {/* SIDE SET BOXES */}
+      <SideBox side="left" title="Team A Sets" color="blue">
+        <SetList sets={setsA} />
+      </SideBox>
+      <SideBox side="right" title="Team B Sets" color="rose">
+        <SetList sets={setsB} />
+      </SideBox>
+
+      {/* TABLE */}
       <div
         className="relative mx-auto bg-zinc-900/30 rounded-3xl card-shadow"
         style={{ width: `${AREA_W}px`, height: `${AREA_H}px` }}
       >
         <div
+          ref={tableCenterRef}
           className="absolute rounded-full border-4 border-zinc-700 bg-zinc-800/40"
           style={{ width: `${TABLE_SIZE}px`, height: `${TABLE_SIZE}px`, left: `calc(50% - ${TABLE_SIZE/2}px)`, top: `calc(50% - ${TABLE_SIZE/2}px)` }}
         />
@@ -182,10 +220,8 @@ export default function Table() {
           const pid = seats[i];
           const p = pid ? players[pid] : null;
           const selectable = selectingTarget && !!p && p.team !== my.team;
-          const ringClass =
-            p?.team === 'A' ? TEAM_RING.A : p?.team === 'B' ? TEAM_RING.B : TEAM_RING.unknown;
+          const ringClass = p?.team === 'A' ? TEAM_RING.A : p?.team === 'B' ? TEAM_RING.B : TEAM_RING.unknown;
           const isMe = p && p.id === me.id;
-
           return (
             <div
               key={`seatwrap-${i}-${pid || 'empty'}`}
@@ -193,8 +229,7 @@ export default function Table() {
               style={seatPositions[i]}
               ref={p ? setSeatRef(p.id) : undefined}
             >
-              <div
-                className={[
+              <div className={[
                   'rounded-full',
                   selectable ? 'ring-2 ring-yellow-300/80' : '',
                   ringClass,
@@ -218,12 +253,9 @@ export default function Table() {
           );
         })}
 
-        {/* animated passing card */}
+        {/* PASS animation */}
         {anim && (
-          <div
-            className="fixed z-[90] pointer-events-none"
-            style={{ left: anim.from.x, top: anim.from.y, transform: 'translate(-50%,-50%)' }}
-          >
+          <div className="fixed z-[90] pointer-events-none" style={{ left: anim.from.x, top: anim.from.y, transform: 'translate(-50%,-50%)' }}>
             <div
               style={{
                 position: 'relative',
@@ -236,14 +268,25 @@ export default function Table() {
             </div>
           </div>
         )}
+
+        {/* LAYDOWN animations (contributors -> table center) */}
+        {lays.map((a, idx)=>(
+          <div key={`lay-${idx}`} className="fixed z-[88] pointer-events-none" style={{ left: a.from.x, top: a.from.y, transform: 'translate(-50%,-50%)' }}>
+            <div style={{
+              position:'relative',
+              left: a.go ? (a.to.x - a.from.x) : 0,
+              top:  a.go ? (a.to.y - a.from.y) : 0,
+              transition:'left .9s cubic-bezier(.2,.8,.2,1), top .9s cubic-bezier(.2,.8,.2,1)'
+            }}>
+              <Card suit={a.suit} rank={a.rank} size="sm" />
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* HAND (centered) */}
-      <div className="mt-8 flex flex-col items-center">
-        <h3 className="font-bold mb-2">Your Hand</h3>
-        <div className="max-w-[1120px]">
-          <PlayerHand cards={my?.hand || []} />
-        </div>
+      <div className="mt-6 flex flex-col items-center">
+        <PlayerHand cards={my?.hand || []} />
       </div>
 
       {/* ACTIONS (centered) */}
@@ -261,7 +304,7 @@ export default function Table() {
         </button>
       </div>
 
-      {/* Modals */}
+      {/* MODALS */}
       <AskSetModal
         open={setPickerOpen}
         eligibleSets={eligibleSets.map(({ suit, type }) => ({ suit, type }))}
@@ -296,6 +339,50 @@ export default function Table() {
           {toast}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ---------- Side boxes + set list ---------- */
+
+function SideBox({ side, title, color = "blue", children }) {
+  const pos = side === "left" ? "left-6" : "right-6";
+  const ring = color === "blue" ? "ring-blue-500/40" : "ring-rose-500/40";
+  const dot = color === "blue" ? "bg-blue-400" : "bg-rose-400";
+
+  return (
+    <div
+      className={`hidden xl:block fixed ${pos} top-36 z-30`}
+      style={{ width: 260, maxHeight: "60vh" }}
+    >
+      <div className={`bg-zinc-900/60 rounded-2xl p-3 ring-1 ${ring} card-shadow h-full overflow-auto`}>
+        <div className="flex items-center gap-2 mb-2 text-sm">
+          <span className={`inline-block h-2 w-2 rounded-full ${dot}`} />
+          <span className="font-semibold">{title}</span>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function SetList({ sets }) {
+  if (!sets.length) {
+    return <div className="text-xs opacity-60">No sets yet.</div>;
+  }
+  return (
+    <div className="space-y-2">
+      {sets.map((ts, idx) => {
+        const first = ts.cards?.[0];
+        return (
+          <div key={`side-ts-${idx}`} className="bg-zinc-800/70 rounded-xl p-2 flex items-center gap-2">
+            {first && <Card suit={first.suit} rank={first.rank} size="sm" />}
+            <div className="text-xs opacity-80 capitalize">
+              {ts.suit} {ts.set_type}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -2,26 +2,81 @@ import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../store";
 import { connectWS, send } from "../ws";
 
+const API = "http://localhost:8000";
+
 export default function Lobby() {
   const { me, setMe, setWS, setRoom, roomId, state, applyServer } = useStore();
   const [name, setName] = useState(me?.name || `Player ${Math.random().toString(16).slice(2,6)}`);
   const [avatar, setAvatar] = useState(me?.avatar || "🔥");
   const [roomInput, setRoomInput] = useState(roomId || "");
   const [copied, setCopied] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
+  // ensure per-tab identity
   useEffect(() => {
     setMe({ id: me?.id || crypto.randomUUID(), name, avatar });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const joinRoom = () => {
+  useEffect(() => {
+    setMe({ ...useStore.getState().me, name, avatar });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name, avatar]);
+
+  async function httpJoinRoom(rid) {
+    // add this player to the room via HTTP before WebSocket
+    const body = {
+      id: useStore.getState().me.id,
+      name: useStore.getState().me.name,
+      avatar: useStore.getState().me.avatar,
+    };
+    const res = await fetch(`${API}/rooms/${rid}/players`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`Join failed: ${res.status}`);
+    return res.json();
+  }
+
+  const createRoom = async () => {
+    setError(""); setBusy(true);
+    try {
+      const res = await fetch(`${API}/rooms`, { method: "POST" });
+      if (!res.ok) throw new Error(`Create failed: ${res.status}`);
+      const data = await res.json(); // {room_id}
+      const rid = data.room_id;
+      setRoomInput(rid);
+      setRoom(rid);
+
+      // Add this player (HTTP) then connect WS
+      await httpJoinRoom(rid);
+      const ws = connectWS(rid, useStore.getState().me.id, applyServer);
+      setWS(ws);
+      setTimeout(() => send(ws, "sync", {}), 150);
+    } catch (e) {
+      setError(e.message || "Failed to create room");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const joinRoom = async () => {
     const rid = roomInput.trim();
-    if (!rid) return;
-    setRoom(rid);
-    const ws = connectWS(rid, useStore.getState().me.id, applyServer);
-    setWS(ws);
-    // Ask current state (in case server doesn't push immediately)
-    setTimeout(() => send(ws, "sync", {}), 200);
+    if (!rid) { setError("Enter a Room ID or create one."); return; }
+    setError(""); setBusy(true);
+    try {
+      setRoom(rid);
+      await httpJoinRoom(rid);
+      const ws = connectWS(rid, useStore.getState().me.id, applyServer);
+      setWS(ws);
+      setTimeout(() => send(ws, "sync", {}), 150);
+    } catch (e) {
+      setError(e.message || "Failed to join room");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const startGame = () => {
@@ -42,25 +97,45 @@ export default function Lobby() {
     <div className="p-8 max-w-5xl mx-auto">
       <h1 className="text-2xl font-bold mb-4">Card Set Collection – Lobby</h1>
 
+      {error && (
+        <div className="mb-4 text-sm bg-rose-600/20 border border-rose-500/40 px-3 py-2 rounded">
+          {error}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Profile */}
         <div className="bg-zinc-900/50 rounded-xl p-4">
           <h2 className="font-semibold mb-2">Create Profile (per tab)</h2>
           <label className="block text-sm mb-1">Name</label>
           <input
             className="w-full bg-zinc-800 rounded px-3 py-2 mb-3"
             value={name}
-            onChange={(e)=>{ setName(e.target.value); setMe({ ...useStore.getState().me, name: e.target.value }); }}
+            onChange={(e)=>setName(e.target.value)}
           />
           <label className="block text-sm mb-1">Avatar</label>
           <input
             className="w-full bg-zinc-800 rounded px-3 py-2"
             value={avatar}
-            onChange={(e)=>{ setAvatar(e.target.value); setMe({ ...useStore.getState().me, avatar: e.target.value }); }}
+            onChange={(e)=>setAvatar(e.target.value)}
           />
         </div>
 
+        {/* Room controls */}
         <div className="bg-zinc-900/50 rounded-xl p-4">
           <h2 className="font-semibold mb-2">Room</h2>
+
+          <div className="flex gap-2 mb-3">
+            <button
+              className="bg-emerald-600 px-4 py-2 rounded disabled:opacity-50"
+              onClick={createRoom}
+              disabled={busy}
+              title="Create a new room"
+            >
+              {busy ? "Creating..." : "Create Room"}
+            </button>
+          </div>
+
           <label className="block text-sm mb-1">Room ID</label>
           <div className="flex gap-2">
             <input
@@ -80,11 +155,20 @@ export default function Lobby() {
           {copied && <div className="text-xs mt-1 text-emerald-400">Copied!</div>}
 
           <div className="mt-3 flex gap-2">
-            <button className="bg-indigo-600 px-4 py-2 rounded" onClick={joinRoom}>Join</button>
-            <button className="bg-emerald-600 px-4 py-2 rounded" onClick={startGame}>Start</button>
+            <button
+              className="bg-indigo-600 px-4 py-2 rounded disabled:opacity-50"
+              onClick={joinRoom}
+              disabled={busy}
+            >
+              {busy ? "Joining..." : "Join"}
+            </button>
+            <button className="bg-amber-600 px-4 py-2 rounded" onClick={startGame}>
+              Start
+            </button>
           </div>
         </div>
 
+        {/* Teams */}
         <div className="bg-zinc-900/50 rounded-xl p-4">
           <h2 className="font-semibold mb-2">Teams</h2>
           <div className="grid grid-cols-2 gap-3">
@@ -139,7 +223,7 @@ export default function Lobby() {
               {p.avatar} {p.name} <span className="opacity-60 text-xs">{p.team ? `(${p.team})` : ''}</span>
             </div>
           ))}
-          {!players.length && <div className="opacity-60 text-sm">No one yet. Join the room to appear here.</div>}
+          {!players.length && <div className="opacity-60 text-sm">No one yet. Create or join a room to appear here.</div>}
         </div>
       </div>
     </div>

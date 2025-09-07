@@ -1,6 +1,6 @@
 from __future__ import annotations
 import random
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Iterable, Any
 from models import Card, RoomState, Player, TableSet, Suit
 
 RANKS_LOWER = ["2","3","4","5","6","7"]
@@ -91,7 +91,7 @@ class Game:
             raise ValueError("You must hold at least one card from that set")
 
         wanted = set(ranks)
-        # The rule: cannot ask a card you already hold
+        # cannot ask a card you already hold
         owned = {(c.suit, c.rank) for c in asker.hand}
         wanted = {r for r in wanted if (suit, r) not in owned}
 
@@ -109,7 +109,7 @@ class Game:
                 "next_turn": self.state.turn_player,
             }
 
-        # Keep turn with asker until confirmation happens; UI will show pending to target
+        # Keep turn with asker until confirmation happens
         return {
             "success": True,
             "pending_cards": [c.model_dump() for c in pending_cards],
@@ -137,7 +137,7 @@ class Game:
             # remove from target
             remain = [c for c in target.hand if all(not (c.suit==x.suit and c.rank==x.rank) for x in to_pass)]
             target.hand = remain
-            # add to asker (avoid duplicates just in case)
+            # add to asker
             exist = {(c.suit, c.rank) for c in asker.hand}
             for c in to_pass:
                 if (c.suit, c.rank) not in exist:
@@ -147,53 +147,140 @@ class Game:
             self.state.turn_player = asker_id
             return {"success": True, "transferred": [c.model_dump() for c in to_pass], "next_turn": asker_id}
 
-        # If nothing passed (card somehow disappeared), pass turn to target per rule
+        # If nothing passed, pass turn to target
         self.state.turn_player = target_id
         return {"success": False, "transferred": [], "next_turn": target_id}
 
-    # --- Laydown (unchanged) ---
-    def laydown(self, who_id: str, suit: str, set_type: str, collaborators: Dict[str, List[str]] | None = None):
+    # --- Laydown (accepts list OR dict collaborators) ---
+    def laydown(self, who_id: str, suit: str, set_type: str, collaborators: Any = None):
+        """
+        Accepts collaborators as:
+          - dict: { "<player_id>": ["2","3",... ranks], ... }
+          - list: [{ "player_id": "<id>", "cards":[{"suit", "rank"}] } ...]
+                  or [{ "player_id": "<id>", "ranks":[...]} ...]
+          - None
+        Returns (for frontend):
+          {
+            "success": bool,
+            "owner_team": "A"|"B",
+            "suit": suit, "set_type": set_type,
+            "contributors": [{ "player_id":..., "cards":[{suit,rank}, ...] }],
+            "next_turn": player_id
+          }
+        """
         if self.state.turn_player != who_id:
             raise ValueError("Not your turn")
-        needed = {c.rank for c in self.all_cards_of_set(suit, set_type)}
 
-        def remove_from(pid: str, ranks_set: set[str]):
-            p = self.state.players[pid]
-            keep, give = [], []
-            for c in p.hand:
-                if c.suit==suit and c.rank in ranks_set:
-                    give.append(c)
+        need_ranks = RANKS_LOWER if set_type == "lower" else RANKS_UPPER
+        need_set = set(need_ranks)
+
+        def normalize_collabs(collabs) -> List[dict]:
+            if not collabs:
+                return []
+            from collections.abc import Iterable as _Iterable
+            out: List[dict] = []
+            if isinstance(collabs, dict):
+                for pid, ranks in collabs.items():
+                    ranks_list = list(ranks) if isinstance(ranks, _Iterable) else []
+                    out.append({"player_id": pid, "cards": [{"suit": suit, "rank": r} for r in ranks_list]})
+                return out
+            # list
+            for item in collabs:
+                pid = item.get("player_id")
+                if not pid:
+                    continue
+                if "cards" in item and isinstance(item["cards"], list):
+                    cs = [{"suit": c["suit"], "rank": c["rank"]} for c in item["cards"] if c.get("rank") in need_set and (c.get("suit") == suit)]
+                elif "ranks" in item and isinstance(item["ranks"], list):
+                    cs = [{"suit": suit, "rank": r} for r in item["ranks"] if r in need_set]
                 else:
-                    keep.append(c)
-            p.hand = keep
-            return give
+                    cs = []
+                out.append({"player_id": pid, "cards": cs})
+            return out
 
-        my = self.state.players[who_id]
-        declared = set([c.rank for c in my.hand if c.suit==suit and c.rank in needed])
-        if collaborators:
-            for pid, ranks in collaborators.items():
-                if self.state.players[pid].team != my.team:
-                    raise ValueError("Collaborators must be teammates")
-                for r in ranks:
-                    declared.add(r)
-        if declared != needed:
-            loser_team = my.team
-            winner_team = "A" if loser_team == "B" else "B"
-            self.state.team_scores[winner_team] += POINTS[set_type]
-            # move turn CCW from the one who failed (seat - 1 mod 6)
-            seat = self.state.players[who_id].seat or 0
-            self.state.turn_player = self.state.seats[(seat - 1) % 6]
-            return {"ok": False, "awarded_to": winner_team, "scores": self.state.team_scores}
+        who = self.state.players.get(who_id)
+        if not who:
+            return {"success": False, "owner_team": None, "suit": suit, "set_type": set_type, "contributors": [], "next_turn": self.state.turn_player}
 
-        all_cards: List[Card] = []
-        mine_set = {c.rank for c in self.state.players[who_id].hand if c.suit==suit and c.rank in needed}
-        all_cards.extend(remove_from(who_id, mine_set))
-        if collaborators:
-            for pid, ranks in collaborators.items():
-                all_cards.extend(remove_from(pid, set(ranks)))
-        owner_team = my.team
-        self.state.table_sets.append(TableSet(suit=suit, set_type=set_type, cards=all_cards, owner_team=owner_team))
-        self.state.team_scores[owner_team] += POINTS[set_type]
-        # same player keeps turn
-        self.state.turn_player = who_id
-        return {"ok": True, "owner": owner_team, "scores": self.state.team_scores}
+        # collect cards that each contributor *actually* has
+        contributors: List[dict] = []
+
+        # who player's cards in set
+        who_cards = [{"suit": c.suit, "rank": c.rank} for c in who.hand if c.suit == suit and c.rank in need_set]
+        contributors.append({"player_id": who_id, "cards": who_cards})
+
+        collab_list = normalize_collabs(collaborators)
+        for item in collab_list:
+            pid = item["player_id"]
+            p = self.state.players.get(pid)
+            if not p:
+                continue
+            if p.team != who.team:
+                # only teammates can collaborate
+                continue
+            want = {(c["suit"], c["rank"]) for c in item["cards"] if c.get("rank") in need_set and c.get("suit") == suit}
+            if not want:
+                continue
+            have = {(c.suit, c.rank) for c in p.hand}
+            real = [{"suit": s, "rank": r} for (s, r) in want if (s, r) in have]
+            if real:
+                contributors.append({"player_id": pid, "cards": real})
+
+        # union of contributed ranks
+        contributed = set()
+        for con in contributors:
+            for c in con["cards"]:
+                contributed.add(c["rank"])
+
+        ok = contributed == need_set
+        points = POINTS[set_type]
+
+        if ok:
+            owner_team = who.team
+            # remove cards from each contributor
+            def remove_cards(pid: str, cards: List[dict]):
+                p = self.state.players.get(pid)
+                if not p:
+                    return
+                rem = {(c["suit"], c["rank"]) for c in cards}
+                p.hand = [c for c in p.hand if (c.suit, c.rank) not in rem]
+
+            for con in contributors:
+                remove_cards(con["player_id"], con["cards"])
+
+            # add full, ordered set to table
+            all_cards = [Card(suit=suit, rank=r) for r in need_ranks]
+            self.state.table_sets.append(TableSet(suit=suit, set_type=set_type, cards=all_cards, owner_team=owner_team))
+
+            # score
+            self.state.team_scores[owner_team] = self.state.team_scores.get(owner_team, 0) + points
+
+            # same player gets immediate ask chance (per your rule 10)
+            self.state.turn_player = who_id
+
+            return {
+                "success": True,
+                "owner_team": owner_team,
+                "suit": suit,
+                "set_type": set_type,
+                "contributors": contributors,
+                "next_turn": self.state.turn_player,
+            }
+
+        # failure → award points to opposite team and pass turn CCW (anti-clockwise)
+        loser_team = who.team
+        winner_team = "A" if loser_team == "B" else "B"
+        self.state.team_scores[winner_team] = self.state.team_scores.get(winner_team, 0) + points
+
+        # CCW: seat - 1 mod 6
+        seat = who.seat or 0
+        self.state.turn_player = self.state.seats[(seat - 1) % 6]
+
+        return {
+            "success": False,
+            "owner_team": winner_team,
+            "suit": suit,
+            "set_type": set_type,
+            "contributors": contributors,
+            "next_turn": self.state.turn_player,
+        }
