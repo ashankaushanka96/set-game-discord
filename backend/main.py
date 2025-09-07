@@ -4,7 +4,6 @@ from typing import Dict
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-# Local (non-package) imports so you can run: uvicorn main:app --reload
 from models import WSMessage, Player, Card
 from game import Game
 
@@ -35,10 +34,9 @@ async def broadcast(room_id: str, type_: str, payload: dict):
         try:
             await ws.send_text(data)
         except Exception:
-            # drop broken sockets silently
             pass
 
-# --- HTTP models for simple room bootstrap ---
+# --- HTTP bootstrap ---
 from pydantic import BaseModel
 
 class CreateRoomResp(BaseModel):
@@ -67,14 +65,13 @@ def http_join_room(room_id: str, body: JoinReq):
     game.state.players[body.id] = Player(**body.model_dump())
     return game.state.model_dump()
 
-# --- WebSocket for realtime ---
+# --- WebSocket realtime ---
 @app.websocket("/ws/{room_id}/{player_id}")
 async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
     await ws.accept()
     game = get_or_create_room(room_id)
     connections[room_id][player_id] = ws
 
-    # Send snapshot to new client, and update everyone (presence)
     await ws.send_text(json.dumps({"type": "state", "payload": game.state.model_dump()}))
     await broadcast(room_id, "state", game.state.model_dump())
 
@@ -99,33 +96,23 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                 await broadcast(room_id, "dealt", game.state.model_dump())
 
             elif t == "ask":
-                # notify UI immediately (for bubbles)
                 await broadcast(room_id, "ask_started", {
-                    "asker_id": p["asker_id"],
-                    "target_id": p["target_id"],
-                    "suit": p["suit"],
-                    "set_type": p["set_type"],
-                    "ranks": p["ranks"],
+                    "asker_id": p["asker_id"], "target_id": p["target_id"],
+                    "suit": p["suit"], "set_type": p["set_type"], "ranks": p["ranks"],
                     "state": game.state.model_dump(),
                 })
                 res = game.prepare_ask(p["asker_id"], p["target_id"], p["suit"], p["set_type"], p["ranks"])
                 if not res["success"]:
                     await broadcast(room_id, "event", {
                         "kind": "ask_no_card",
-                        "asker_id": p["asker_id"],
-                        "target_id": p["target_id"],
-                        "suit": p["suit"],
-                        "set_type": p["set_type"],
-                        "ranks": p["ranks"],
+                        "asker_id": p["asker_id"], "target_id": p["target_id"],
+                        "suit": p["suit"], "set_type": p["set_type"], "ranks": p["ranks"],
                         "state": game.state.model_dump(),
                     })
                 else:
                     await broadcast(room_id, "ask_pending", {
-                        "asker_id": p["asker_id"],
-                        "target_id": p["target_id"],
-                        "suit": p["suit"],
-                        "set_type": p["set_type"],
-                        "ranks": p["ranks"],
+                        "asker_id": p["asker_id"], "target_id": p["target_id"],
+                        "suit": p["suit"], "set_type": p["set_type"], "ranks": p["ranks"],
                         "pending_cards": res["pending_cards"],
                         "state": game.state.model_dump(),
                     })
@@ -134,34 +121,31 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                 cards = [Card(**c) for c in p["cards"]]
                 res = game.confirm_pass(p["asker_id"], p["target_id"], cards)
                 await broadcast(room_id, "ask_result", {
-                    "asker_id": p["asker_id"],
-                    "target_id": p["target_id"],
+                    "asker_id": p["asker_id"], "target_id": p["target_id"],
                     "cards": [c.model_dump() for c in cards],
                     "success": res["success"],
                     "state": game.state.model_dump(),
                 })
 
             elif t == "laydown":
-                # let UI prep animation from contributors
                 await broadcast(room_id, "laydown_started", {
-                    "who_id": p["who_id"],
-                    "suit": p["suit"],
-                    "set_type": p["set_type"],
+                    "who_id": p["who_id"], "suit": p["suit"], "set_type": p["set_type"],
                     "collaborators": p.get("collaborators") or [],
                     "state": game.state.model_dump(),
                 })
                 res = game.laydown(p["who_id"], p["suit"], p["set_type"], p.get("collaborators"))
-                # Broadcast result (frontend expects success/owner_team/contributors/next_turn)
-                await broadcast(room_id, "laydown_result", {
-                    **res,
-                    "state": game.state.model_dump(),
-                })
+                await broadcast(room_id, "laydown_result", {**res, "state": game.state.model_dump()})
+
+            elif t == "handoff_after_laydown":
+                # payload: { who_id, to_id }
+                res = game.handoff_after_laydown(p["who_id"], p["to_id"])
+                await broadcast(room_id, "state", game.state.model_dump())
+                await broadcast(room_id, "handoff_result", {**res, "state": game.state.model_dump()})
 
             elif t == "sync":
                 await broadcast(room_id, "state", game.state.model_dump())
 
     except WebSocketDisconnect:
-        # drop socket from room
         try:
             del connections[room_id][player_id]
         except Exception:
