@@ -241,21 +241,35 @@ class Game:
 
         # normalize collaborators
         coll_map: Dict[str, List[str]] = {}
+        print(f"DEBUG LAYDOWN: Raw collaborators data: {collaborators}")
+        
         if isinstance(collaborators, dict):
             coll_map = {k: list(v) for k, v in collaborators.items()}
         elif isinstance(collaborators, list):
             for item in collaborators:
                 if not item:
                     continue
-                if isinstance(item, dict) and "pid" in item:
+                if isinstance(item, dict) and "player_id" in item:
+                    # Frontend sends: {'player_id': '...', 'ranks': [...]}
+                    coll_map[item["player_id"]] = list(item.get("ranks", []))
+                elif isinstance(item, dict) and "pid" in item:
+                    # Legacy format: {'pid': '...', 'ranks': [...]}
                     coll_map[item["pid"]] = list(item.get("ranks", []))
                 else:
+                    # Fallback: treat as key-value pairs
                     for k, v in item.items():
                         if isinstance(v, list):
                             coll_map[k] = list(v)
+        
+        print(f"DEBUG LAYDOWN: Normalized coll_map: {coll_map}")
 
         declared = {c.rank for c in my.hand if c.suit == suit and c.rank in needed_ranks}
         contributors: List[Dict] = []
+
+        print(f"DEBUG LAYDOWN: Player {who_id} laying down {suit} {set_type}")
+        print(f"DEBUG LAYDOWN: Needed ranks: {needed_ranks}")
+        print(f"DEBUG LAYDOWN: Declarer's cards: {[c.rank for c in my.hand if c.suit == suit and c.rank in needed_ranks]}")
+        print(f"DEBUG LAYDOWN: Initial declared: {declared}")
 
         for pid, ranks in coll_map.items():
             if pid not in self.state.players:
@@ -266,9 +280,25 @@ class Game:
             # Cannot contribute from empty-handed teammates
             if not p.hand:
                 raise ValueError(f"Cannot contribute from {p.name} - they have no cards")
+            
+            # Check if teammate actually has the assigned cards
+            teammate_hand_ranks = {c.rank for c in p.hand if c.suit == suit and c.rank in needed_ranks}
+            print(f"DEBUG LAYDOWN: Teammate {p.name} assigned ranks: {ranks}")
+            print(f"DEBUG LAYDOWN: Teammate {p.name} actual cards: {teammate_hand_ranks}")
+            
             for r in ranks:
                 if r in needed_ranks:
-                    declared.add(r)
+                    # Only add to declared if teammate actually has this card
+                    if r in teammate_hand_ranks:
+                        declared.add(r)
+                        print(f"DEBUG LAYDOWN: Added {r} to declared from {p.name}")
+                    else:
+                        # Teammate doesn't have this card - this will cause the laydown to fail
+                        print(f"DEBUG LAYDOWN: Teammate {p.name} doesn't have {r} - laydown will fail")
+                        pass
+
+        print(f"DEBUG LAYDOWN: Final declared: {declared}")
+        print(f"DEBUG LAYDOWN: Declared == needed_ranks: {declared == needed_ranks}")
 
         # --- Failure: opponent wins, capture full set to table; choose next turn smartly
         if declared != needed_ranks:
@@ -399,13 +429,17 @@ class Game:
         # Add cards to to_player's hand
         to_player.hand.extend(cards)
         
+        # Check if game should end after card transfer
+        game_end_result = self.check_game_end()
+        
         return {
             "success": True,
             "from_player": from_player_id,
             "to_player": to_player_id,
             "cards": [c.model_dump() for c in cards],
             "from_hand_count": len(from_player.hand),
-            "to_hand_count": len(to_player.hand)
+            "to_hand_count": len(to_player.hand),
+            "game_end": game_end_result
         }
 
 
@@ -429,8 +463,11 @@ class Game:
     # ---------------- Game End Logic ----------------
     def check_game_end(self):
         """Check if game should end and return game result if so"""
-        # Game ends when all 8 sets are collected (4 suits × 2 set types each)
-        if len(self.state.table_sets) >= 8:
+        # Game ends when all 8 sets are collected OR all players have empty hands
+        all_hands_empty = all(not player.hand for player in self.state.players.values())
+        sets_collected = len(self.state.table_sets) >= 8
+        
+        if sets_collected or all_hands_empty:
             self.state.phase = "ended"
             
             # Determine winner based on scores
@@ -587,4 +624,51 @@ class Game:
             "dealer_seat": next_dealer_seat,
             "turn_id": next_turn_id,
             "turn_seat": next_turn_seat
+        }
+
+    def start_new_round(self, requester_id: str):
+        """Start a new round after game over, rotating dealer clockwise"""
+        if self.state.phase != "ended":
+            return {"success": False, "reason": "game_not_ended"}
+        
+        # Find current dealer seat
+        current_dealer_seat = None
+        if self.state.current_dealer:
+            for seat, pid in self.state.seats.items():
+                if pid == self.state.current_dealer:
+                    current_dealer_seat = seat
+                    break
+        
+        # If no current dealer found, start with seat 0
+        if current_dealer_seat is None:
+            current_dealer_seat = 0
+        
+        # Next dealer is clockwise (seat + 1, wrapping 0-5)
+        next_dealer_seat = (current_dealer_seat + 1) % 6
+        next_dealer_id = self.state.seats.get(next_dealer_seat)
+        
+        if not next_dealer_id:
+            return {"success": False, "reason": "no_dealer"}
+        
+        # Turn starts from the next player after dealer (dealer + 1)
+        next_turn_seat = (next_dealer_seat + 1) % 6
+        next_turn_id = self.state.seats.get(next_turn_seat)
+        
+        if not next_turn_id:
+            return {"success": False, "reason": "no_turn_player"}
+        
+        # Reset game state for new round
+        self.state.phase = "ready"  # Ready for shuffle & deal
+        self.state.team_scores = {"A": 0, "B": 0}
+        self.state.table_sets = []
+        self.state.current_dealer = next_dealer_id
+        self.state.turn_player = None  # Will be set after shuffle & deal
+        self.state.ask_chain_from = None
+        self.state.deck_count = 0
+        
+        return {
+            "success": True,
+            "dealer_id": next_dealer_id,
+            "turn_player_id": next_turn_id,
+            "message": f"New round started! Dealer: {self.state.players[next_dealer_id].name}"
         }

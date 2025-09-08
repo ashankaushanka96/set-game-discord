@@ -253,6 +253,7 @@ export default function Table() {
         </div>
       )}
 
+
       {/* Card Passing Indicator */}
       {selectedCardsToPass.length > 0 && (
         <div className="fixed top-20 left-4 z-40 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg">

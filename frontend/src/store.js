@@ -227,6 +227,13 @@ export const useStore = create((set, get) => ({
     if (msg.type === "cards_passed") {
       const s = msg.payload.state;
       set({ state: s });
+      
+      // Check for game end first
+      if (msg.payload.game_end?.game_ended) {
+        set({ gameResult: msg.payload.game_end });
+        return; // Don't process other card passing logic if game ended
+      }
+      
       const players = s.players || {};
       const fromName = players[msg.payload.from_player]?.name || "Player";
       const toName = players[msg.payload.to_player]?.name || "Player";
@@ -297,6 +304,15 @@ export const useStore = create((set, get) => ({
       const s = msg.payload.state;
       set({ state: s, phase: s.phase, gameResult: null, abortVoting: null });
       get().setGameMessage("GAME ABORTED", ["Game has been aborted", "Ready for new game"]);
+    }
+
+    // NEW ROUND STARTED
+    if (msg.type === "new_round_started") {
+      const s = msg.payload.state;
+      set({ state: s, phase: s.phase, gameResult: null });
+      const players = s.players || {};
+      const dealerName = players[msg.payload.dealer_id]?.name || "Unknown";
+      get().setGameMessage("NEW ROUND", [`Dealer: ${dealerName}`, "Ready for shuffle & deal"]);
     }
 
     // SHUFFLE DEAL ERROR

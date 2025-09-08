@@ -222,6 +222,11 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                     "player_id": p["player_id"]
                 })
 
+            elif t == "start_new_round":
+                # Start a new round with dealer rotation
+                res = game.start_new_round(p["player_id"])
+                await broadcast(room_id, "new_round_started", {**res, "state": game.state.model_dump()})
+
             elif t == "sync":
                 await broadcast(room_id, "state", game.state.model_dump())
 

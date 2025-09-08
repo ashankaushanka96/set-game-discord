@@ -1,7 +1,8 @@
 import { useStore } from "../store";
+import { send } from "../ws";
 
 export default function GameOverModal({ open, onClose, gameResult }) {
-  const { state } = useStore();
+  const { state, me, ws } = useStore();
   
   if (!open || !gameResult) return null;
 
@@ -24,6 +25,14 @@ export default function GameOverModal({ open, onClose, gameResult }) {
   };
 
   const winnerInfo = getWinnerMessage();
+
+  const handleStartNewRound = () => {
+    // Send request to start new round
+    send(ws, "start_new_round", {
+      player_id: me.id
+    });
+    onClose?.();
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -57,6 +66,12 @@ export default function GameOverModal({ open, onClose, gameResult }) {
               className="bg-zinc-600 hover:bg-zinc-500 text-white px-6 py-2 rounded-lg transition-colors"
             >
               Close
+            </button>
+            <button
+              onClick={handleStartNewRound}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2 rounded-lg transition-colors"
+            >
+              Start New Round
             </button>
           </div>
         </div>
