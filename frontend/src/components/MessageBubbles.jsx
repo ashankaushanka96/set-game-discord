@@ -139,29 +139,18 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
           );
         } else if (m.variant === "laydown_cards") {
           content = (
-            <div className="text-sm">
-              <span className="font-semibold">{asker?.name || "Player"}</span>
-              <span className="opacity-80">: My cards</span>{" "}
-              <div className="inline-flex gap-1 mt-1">
-                {m.cards?.map((card, i) => (
-                  <Card key={i} suit={card.suit} rank={card.rank} size="xs" />
-                ))}
-              </div>
+            <div className="inline-flex gap-1">
+              {m.cards?.map((card, i) => (
+                <Card key={i} suit={card.suit} rank={card.rank} size="xs" />
+              ))}
             </div>
           );
         } else if (m.variant === "laydown_teammate") {
           content = (
-            <div className="text-sm">
-              <span className="font-semibold">{asker?.name || "Player"}</span>
-              <span className="opacity-80">: Teammate</span>{" "}
-              <span className="font-medium">{m.teammate_name}</span>
-              {m.cards && (
-                <div className="inline-flex gap-1 mt-1">
-                  {m.cards.map((card, i) => (
-                    <Card key={i} suit={card.suit} rank={card.rank} size="xs" />
-                  ))}
-                </div>
-              )}
+            <div className="inline-flex gap-1">
+              {m.cards?.map((card, i) => (
+                <Card key={i} suit={card.suit} rank={card.rank} size="xs" />
+              ))}
             </div>
           );
         } else {

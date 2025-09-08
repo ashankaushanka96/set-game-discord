@@ -1,4 +1,4 @@
-export default function Seat({ seatIndex, player, highlight, selectable, onSelect, team, isMe }) {
+export default function Seat({ seatIndex, player, highlight, selectable, onSelect, team, isMe, isLaydownPlayer }) {
     const handleClick = () => {
       if (selectable && player) onSelect?.(player);
     };
@@ -31,7 +31,12 @@ export default function Seat({ seatIndex, player, highlight, selectable, onSelec
             You
           </div>
         )}
-        {highlight && (
+        {isLaydownPlayer && (
+          <div className="absolute -top-1 left-1/2 -translate-x-1/2 text-[10px] bg-amber-500/90 px-2 py-[2px] rounded-full font-semibold animate-pulse">
+            LAYDOWN
+          </div>
+        )}
+        {highlight && !isLaydownPlayer && (
           <div className="absolute -top-1 left-1/2 -translate-x-1/2 text-[10px] bg-emerald-500/90 px-2 py-[2px] rounded-full font-semibold">
             TURN
           </div>
