@@ -291,7 +291,7 @@ export default function Table() {
         </div>
       </div>
 
-      <MessageBubbles seatEls={seatEls} seatVersion={seatVersion} />
+      <MessageBubbles seatEls={seatEls} seatVersion={seatVersion} hideLaydownBubbles={layOpen} />
       <div className="mt-16" />
 
       {/* left panel (Team A) - table - right panel (Team B) */}

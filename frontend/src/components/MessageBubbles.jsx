@@ -13,7 +13,7 @@ import Card from "./Card";
  *   - yes: "{PlayerName}: Yes, I have." + card
  *   - no : "{PlayerName}: No." + card
  */
-export default function MessageBubbles({ seatEls, seatVersion }) {
+export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubbles = false }) {
   const { messages, state, me } = useStore();
   const players = state?.players || {};
 
@@ -55,8 +55,15 @@ export default function MessageBubbles({ seatEls, seatVersion }) {
   const items = useMemo(() => {
     const allMessages = messages || [];
     // Filter out messages from the current player (they don't need to see their own bubble messages)
-    return allMessages.filter(m => m.player_id !== me?.id);
-  }, [messages, me?.id]);
+    let filtered = allMessages.filter(m => m.player_id !== me?.id);
+    
+    // If hideLaydownBubbles is true, filter out all laydown-related bubbles
+    if (hideLaydownBubbles) {
+      filtered = filtered.filter(m => !m.variant || !m.variant.startsWith('laydown_'));
+    }
+    
+    return filtered;
+  }, [messages, me?.id, hideLaydownBubbles]);
 
   if (!items.length) return null;
 
