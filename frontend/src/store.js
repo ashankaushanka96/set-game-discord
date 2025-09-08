@@ -42,7 +42,10 @@ export const useStore = create((set, get) => ({
   addMessage: (m) => {
     const withId = { ...m, id: mid() };
     set((state) => {
-      const next = [...(state.messages || []), withId];
+      const existing = state.messages || [];
+      // Remove any existing messages from the same player to prevent stacking
+      const filtered = existing.filter((msg) => msg.player_id !== m.player_id);
+      const next = [...filtered, withId];
       return { messages: next.slice(Math.max(0, next.length - 12)) };
     });
     // auto-remove only if not sticky
