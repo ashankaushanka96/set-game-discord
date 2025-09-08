@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { useStore } from "../store";
 import Card from "./Card";
 import { RANKS_LOWER, RANKS_UPPER, SUITS } from "../lib/deck";
 
@@ -10,6 +11,8 @@ import { RANKS_LOWER, RANKS_UPPER, SUITS } from "../lib/deck";
  * - Single row, centered, no scrolling (fits in viewport width)
  */
 export default function PlayerHand({ cards = [], selectedCards = [], onCardSelect, selectable = false }) {
+  const { dealingAnimation } = useStore();
+  
   const idxLower = (r) => {
     const i = RANKS_LOWER.indexOf(r);
     return i === -1 ? 999 : i;
@@ -68,6 +71,20 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
       upperItems: toItems(upperGroups, "up"),
     };
   }, [cards]);
+
+  // Hide player hand during dealing animation
+  if (dealingAnimation) {
+    return (
+      <div className="w-full flex flex-col items-center">
+        <div className="uppercase tracking-wide text-[11px] opacity-60 mb-2">
+          Your Hand
+        </div>
+        <div className="text-sm opacity-50">
+          Dealing cards...
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full flex flex-col items-center">

@@ -272,8 +272,8 @@ export const useStore = create((set, get) => ({
     if (msg.type === "new_game_started") {
       const s = msg.payload.state;
       const players = s.players || {};
-      const dealerName = players[msg.payload.dealer_id]?.name || "Unknown";
-      get().setGameMessage("NEW GAME", [`Dealer: ${dealerName}`, "Shuffling and dealing cards..."]);
+      const originalDealerName = players[msg.payload.original_dealer_id]?.name || "Unknown";
+      get().setGameMessage("NEW GAME", [`Dealt by: ${originalDealerName}`, "Dealing cards..."]);
       
       // Update game state immediately
       set({ 
@@ -284,17 +284,18 @@ export const useStore = create((set, get) => ({
       
       // Trigger dealing animation
       const dealingData = {
-        dealerSeat: msg.payload.dealer_seat,
-        dealerId: msg.payload.dealer_id,
+        dealerSeat: msg.payload.original_dealer_seat || msg.payload.dealer_seat,
+        dealerId: msg.payload.original_dealer_id || msg.payload.dealer_id,
         players: s.players || {},
-        seats: s.seats || {}
+        seats: s.seats || {},
+        dealingSequence: msg.payload.dealing_sequence || []
       };
       set({ dealingAnimation: dealingData });
       
       // Clear animation after it completes
       setTimeout(() => {
         set({ dealingAnimation: null });
-        get().setGameMessage("NEW GAME", [`Dealer: ${dealerName}`, "Cards dealt to all players"]);
+        get().setGameMessage("NEW GAME", [`Dealt by: ${originalDealerName}`, "Cards dealt to all players"]);
       }, 12000);
     }
 

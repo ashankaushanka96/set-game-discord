@@ -57,7 +57,7 @@ function SetChip({ suit, set_type, owner, expandable=false, cards=[] }) {
 
 export default function Table() {
   const navigate = useNavigate();
-  const { state, me, ws, handoffFor, gameResult, abortVoting } = useStore();
+  const { state, me, ws, handoffFor, gameResult, abortVoting, dealingAnimation } = useStore();
   const [layOpen, setLayOpen] = useState(false);
   const [selectedSet, setSelectedSet] = useState({ suit: null, setType: null });
   const [requestAbortOpen, setRequestAbortOpen] = useState(false);
@@ -350,7 +350,7 @@ export default function Table() {
                       isMe={isMe}
                     />
                   </div>
-                  {p && p.id !== my.id && (
+                  {p && p.id !== my.id && !dealingAnimation && (
                     <div className="mt-1 text-center text-xs opacity-70">{handCount(pid)} cards</div>
                   )}
                 </div>

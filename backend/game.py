@@ -562,7 +562,7 @@ class Game:
         if self.state.phase not in ["ended", "lobby", "ready"]:
             return {"success": False, "reason": "game_in_progress"}
         
-        # Find current dealer seat
+        # Find current dealer seat (the one who clicked the button)
         current_dealer_seat = None
         if self.state.current_dealer:
             for seat, pid in self.state.seats.items():
@@ -573,6 +573,10 @@ class Game:
         # If no current dealer found, start with seat 0
         if current_dealer_seat is None:
             current_dealer_seat = 0
+        
+        # Store the original dealer (who clicked) for animation purposes
+        original_dealer_id = self.state.current_dealer
+        original_dealer_seat = current_dealer_seat
         
         # For the first game (ready phase), use current dealer (seat 0)
         # For subsequent games (ended phase), rotate to next dealer (seat 1, then 2, etc.)
@@ -603,6 +607,29 @@ class Game:
         
         # Build deck and deal starting from the dealer
         self.build_deck()
+        
+        # Create dealing sequence for animation
+        # Note: Cards are dealt starting from next_dealer_seat, but animation shows from original_dealer_seat
+        dealing_sequence = []
+        temp_deck = self._deck.copy()  # Copy for animation purposes
+        order = [(next_dealer_seat + i) % 6 for i in range(6)]
+        
+        # Generate dealing sequence (8 rounds, 6 players = 48 cards)
+        for round_num in range(8):
+            for seat in order:
+                if temp_deck:
+                    card = temp_deck.pop(0)
+                    player_id = self.state.seats.get(seat)
+                    if player_id:
+                        dealing_sequence.append({
+                            "seat": seat,
+                            "player_id": player_id,
+                            "round": round_num,
+                            "card": {"suit": card.suit, "rank": card.rank},
+                            "from_seat": original_dealer_seat  # Animation shows cards coming from original dealer
+                        })
+        
+        # Now actually deal the cards
         self.deal_all(start_from_seat=next_dealer_seat)
         
         return {
@@ -610,7 +637,10 @@ class Game:
             "dealer_id": next_dealer_id,
             "dealer_seat": next_dealer_seat,
             "turn_id": next_turn_id,
-            "turn_seat": next_turn_seat
+            "turn_seat": next_turn_seat,
+            "original_dealer_id": original_dealer_id,
+            "original_dealer_seat": original_dealer_seat,
+            "dealing_sequence": dealing_sequence
         }
 
     def start_new_round(self, requester_id: str):

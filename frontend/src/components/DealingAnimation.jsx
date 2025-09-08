@@ -1,9 +1,11 @@
 import { useEffect, useState, useRef } from 'react';
 import { useStore } from '../store';
+import Card from './Card';
+import CardBack from './CardBack';
 
 const DealingAnimation = () => {
   const { dealingAnimation, me } = useStore();
-  const [phase, setPhase] = useState('idle'); // 'idle', 'shuffling', 'dealing', 'complete'
+  const [phase, setPhase] = useState('idle'); // 'idle', 'dealing', 'complete'
   const [flyingCards, setFlyingCards] = useState([]);
   const [handCards, setHandCards] = useState({}); // Track cards appearing in hands
   const seatRefs = useRef({});
@@ -27,6 +29,17 @@ const DealingAnimation = () => {
     return () => window.removeEventListener('resize', updateSeatPositions);
   }, []);
 
+  // Get dealer position for shuffle animation
+  const getDealerPosition = () => {
+    if (!dealingAnimation) return { x: '50%', y: '50%' };
+    const dealerSeat = dealingAnimation.dealerSeat;
+    const dealerPos = seatRefs.current[dealerSeat];
+    if (dealerPos) {
+      return { x: dealerPos.x, y: dealerPos.y };
+    }
+    return { x: '50%', y: '50%' };
+  };
+
   useEffect(() => {
     if (!dealingAnimation) {
       setPhase('idle');
@@ -35,41 +48,77 @@ const DealingAnimation = () => {
       return;
     }
 
-    const { dealerSeat, players, seats } = dealingAnimation;
+    // Update seat positions when dealing animation starts
+    const updateSeatPositions = () => {
+      const seats = document.querySelectorAll('[data-seat]');
+      seats.forEach(seat => {
+        const seatNumber = seat.getAttribute('data-seat');
+        const rect = seat.getBoundingClientRect();
+        seatRefs.current[seatNumber] = {
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2
+        };
+      });
+    };
     
-    // Create dealing order starting from dealer
-    const dealingOrder = [];
-    for (let i = 0; i < 6; i++) {
-      const seat = (dealerSeat + i) % 6;
-      const playerId = seats[seat];
-      if (playerId && players[playerId]) {
-        dealingOrder.push({ seat, playerId, player: players[playerId] });
+    // Small delay to ensure DOM is ready
+    setTimeout(updateSeatPositions, 100);
+
+    const { dealerSeat, players, seats, dealingSequence } = dealingAnimation;
+    
+    // Use the dealing sequence from backend if available, otherwise create default order
+    let dealingOrder = [];
+    if (dealingSequence && dealingSequence.length > 0) {
+      // Use the real dealing sequence from backend
+      dealingOrder = dealingSequence;
+    } else {
+      // Fallback to creating dealing order starting from dealer
+      for (let i = 0; i < 6; i++) {
+        const seat = (dealerSeat + i) % 6;
+        const playerId = seats[seat];
+        if (playerId && players[playerId]) {
+          dealingOrder.push({ seat, playerId, player: players[playerId] });
+        }
       }
     }
 
-    // Phase 1: Shuffle animation (1.5 seconds)
-    setPhase('shuffling');
-    setFlyingCards([]);
-    setHandCards({});
-
-    const shuffleTimer = setTimeout(() => {
-      // Phase 2: Start dealing
+    // Skip shuffle animation, go directly to dealing
+    // Add a small delay to ensure seat positions are updated
+    setTimeout(() => {
       setPhase('dealing');
+      setFlyingCards([]);
+      setHandCards({});
       
       // Create dealing sequence - one card at a time
       const dealSequence = [];
       let cardIndex = 0;
       
-      for (let round = 0; round < 8; round++) {
-        for (const { seat, playerId } of dealingOrder) {
+      if (dealingSequence && dealingSequence.length > 0) {
+        // Use real dealing sequence from backend
+        dealingSequence.forEach((dealData, index) => {
           dealSequence.push({
-            id: `deal-${cardIndex}`,
-            seat,
-            playerId,
-            round,
-            delay: cardIndex * 200, // 200ms between each card for realistic pace
+            id: `deal-${index}`,
+            seat: dealData.seat,
+            playerId: dealData.player_id,
+            round: dealData.round,
+            card: dealData.card,
+            fromSeat: dealData.from_seat, // Use the from_seat for animation origin
+            delay: index * 200, // 200ms between each card for realistic pace
           });
-          cardIndex++;
+        });
+      } else {
+        // Fallback to creating sequence without real cards
+        for (let round = 0; round < 8; round++) {
+          for (const { seat, playerId } of dealingOrder) {
+            dealSequence.push({
+              id: `deal-${cardIndex}`,
+              seat,
+              playerId,
+              round,
+              delay: cardIndex * 200, // 200ms between each card for realistic pace
+            });
+            cardIndex++;
+          }
         }
       }
 
@@ -114,10 +163,10 @@ const DealingAnimation = () => {
         }, 500);
       }, totalDealingTime);
 
-    }, 1500); // Shuffle duration
+    }, 200); // Small delay to ensure seat positions are updated
 
     return () => {
-      clearTimeout(shuffleTimer);
+      // Cleanup handled by individual timeouts
     };
   }, [dealingAnimation]);
 
@@ -127,47 +176,39 @@ const DealingAnimation = () => {
 
   return (
     <div className="fixed inset-0 pointer-events-none z-50">
-      {/* Shuffle Animation */}
-      {phase === 'shuffling' && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="relative">
-            {/* Shuffling cards effect */}
-            {[...Array(8)].map((_, i) => (
-              <div
-                key={i}
-                className="absolute w-12 h-16 bg-gradient-to-b from-blue-600 to-blue-800 rounded border-2 border-blue-400 shadow-lg"
-                style={{
-                  left: `${50 + (i - 4) * 2}%`,
-                  top: `${50 + (i - 4) * 1}%`,
-                  transform: `translate(-50%, -50%) rotate(${(i - 4) * 5}deg)`,
-                  animation: `shuffleCard 1.5s ease-in-out infinite`,
-                  animationDelay: `${i * 50}ms`,
-                }}
-              />
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Flying Cards */}
       {flyingCards.map((card) => {
         const seatPos = seatRefs.current[card.seat];
-        if (!seatPos) return null;
+        // Use fromSeat if available, otherwise fall back to dealer position
+        const fromSeat = card.fromSeat !== undefined ? card.fromSeat : dealingAnimation.dealerSeat;
+        const fromPos = seatRefs.current[fromSeat];
+        if (!seatPos || !fromPos) return null;
+
+        // Only show real cards for the current player, card backs for others
+        const isMyCard = card.playerId === me?.id;
+        const showRealCard = isMyCard && card.card;
 
         return (
           <div
             key={card.key}
-            className="absolute w-10 h-14 bg-gradient-to-b from-blue-600 to-blue-800 rounded border-2 border-blue-400 shadow-lg"
+            className="absolute"
             style={{
-              left: '50%',
-              top: '50%',
+              left: `${fromPos.x}px`,
+              top: `${fromPos.y}px`,
               transform: 'translate(-50%, -50%)',
               animation: `dealCardToSeat${card.seat} 0.8s ease-out forwards`,
               animationFillMode: 'forwards',
               '--target-x': `${seatPos.x}px`,
               '--target-y': `${seatPos.y}px`,
             }}
-          />
+          >
+            {showRealCard ? (
+              <Card suit={card.card.suit} rank={card.card.rank} size="sm" />
+            ) : (
+              <CardBack size="sm" />
+            )}
+          </div>
         );
       })}
 
@@ -189,11 +230,7 @@ const DealingAnimation = () => {
               return (
                 <div
                   key={card.id}
-                  className={`absolute w-8 h-12 rounded border shadow-md ${
-                    isMyHand 
-                      ? 'bg-white border-gray-300' // Revealed card for my hand
-                      : 'bg-gradient-to-b from-blue-600 to-blue-800 border-blue-400' // Face down for others
-                  }`}
+                  className="absolute"
                   style={{
                     left: `${seatPos.x + cardOffset}px`,
                     top: `${seatPos.y}px`,
@@ -202,12 +239,10 @@ const DealingAnimation = () => {
                     animationFillMode: 'forwards',
                   }}
                 >
-                  {/* Show actual card content for my hand */}
-                  {isMyHand && actualCard && (
-                    <div className="w-full h-full flex flex-col items-center justify-center text-xs">
-                      <div className="font-bold text-gray-800">{actualCard.rank}</div>
-                      <div className="text-gray-600">{actualCard.suit}</div>
-                    </div>
+                  {isMyHand && actualCard ? (
+                    <Card suit={actualCard.suit} rank={actualCard.rank} size="sm" />
+                  ) : (
+                    <CardBack size="sm" />
                   )}
                 </div>
               );
@@ -217,12 +252,6 @@ const DealingAnimation = () => {
       })}
       
       <style jsx>{`
-        @keyframes shuffleCard {
-          0%, 100% { transform: translate(-50%, -50%) rotate(0deg) scale(1); }
-          25% { transform: translate(-50%, -50%) rotate(5deg) scale(1.05); }
-          50% { transform: translate(-50%, -50%) rotate(-3deg) scale(0.95); }
-          75% { transform: translate(-50%, -50%) rotate(3deg) scale(1.02); }
-        }
 
         @keyframes cardAppear {
           0% { 
