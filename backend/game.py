@@ -36,8 +36,10 @@ class Game:
         random.shuffle(self._deck)
         self.state.deck_count = len(self._deck)
 
-    def deal_all(self):
-        order = [i for i in range(6)]
+    def deal_all(self, start_from_seat: int = 0):
+        """Deal cards starting from the specified seat (clockwise)"""
+        # Create dealing order starting from the specified seat
+        order = [(start_from_seat + i) % 6 for i in range(6)]
         hands_by_pid = {pid: [] for pid in self.state.players}
         while self._deck:
             for seat in order:
@@ -241,7 +243,6 @@ class Game:
 
         # normalize collaborators
         coll_map: Dict[str, List[str]] = {}
-        print(f"DEBUG LAYDOWN: Raw collaborators data: {collaborators}")
         
         if isinstance(collaborators, dict):
             coll_map = {k: list(v) for k, v in collaborators.items()}
@@ -260,16 +261,9 @@ class Game:
                     for k, v in item.items():
                         if isinstance(v, list):
                             coll_map[k] = list(v)
-        
-        print(f"DEBUG LAYDOWN: Normalized coll_map: {coll_map}")
 
         declared = {c.rank for c in my.hand if c.suit == suit and c.rank in needed_ranks}
         contributors: List[Dict] = []
-
-        print(f"DEBUG LAYDOWN: Player {who_id} laying down {suit} {set_type}")
-        print(f"DEBUG LAYDOWN: Needed ranks: {needed_ranks}")
-        print(f"DEBUG LAYDOWN: Declarer's cards: {[c.rank for c in my.hand if c.suit == suit and c.rank in needed_ranks]}")
-        print(f"DEBUG LAYDOWN: Initial declared: {declared}")
 
         for pid, ranks in coll_map.items():
             if pid not in self.state.players:
@@ -283,22 +277,15 @@ class Game:
             
             # Check if teammate actually has the assigned cards
             teammate_hand_ranks = {c.rank for c in p.hand if c.suit == suit and c.rank in needed_ranks}
-            print(f"DEBUG LAYDOWN: Teammate {p.name} assigned ranks: {ranks}")
-            print(f"DEBUG LAYDOWN: Teammate {p.name} actual cards: {teammate_hand_ranks}")
             
             for r in ranks:
                 if r in needed_ranks:
                     # Only add to declared if teammate actually has this card
                     if r in teammate_hand_ranks:
                         declared.add(r)
-                        print(f"DEBUG LAYDOWN: Added {r} to declared from {p.name}")
                     else:
                         # Teammate doesn't have this card - this will cause the laydown to fail
-                        print(f"DEBUG LAYDOWN: Teammate {p.name} doesn't have {r} - laydown will fail")
                         pass
-
-        print(f"DEBUG LAYDOWN: Final declared: {declared}")
-        print(f"DEBUG LAYDOWN: Declared == needed_ranks: {declared == needed_ranks}")
 
         # --- Failure: opponent wins, capture full set to table; choose next turn smartly
         if declared != needed_ranks:
@@ -614,9 +601,9 @@ class Game:
         self.state.current_dealer = next_dealer_id
         self.state.turn_player = next_turn_id
         
-        # Build deck and deal
+        # Build deck and deal starting from the dealer
         self.build_deck()
-        self.deal_all()
+        self.deal_all(start_from_seat=next_dealer_seat)
         
         return {
             "success": True,

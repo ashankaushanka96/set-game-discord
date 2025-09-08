@@ -27,6 +27,9 @@ export const useStore = create((set, get) => ({
   gameResult: null,
   abortVoting: null,
 
+  // dealing animation
+  dealingAnimation: null,
+
   // seat bubbles
   messages: [],
 
@@ -268,10 +271,31 @@ export const useStore = create((set, get) => ({
     // NEW GAME STARTED
     if (msg.type === "new_game_started") {
       const s = msg.payload.state;
-      set({ state: s, phase: s.phase, gameResult: null });
       const players = s.players || {};
       const dealerName = players[msg.payload.dealer_id]?.name || "Unknown";
-      get().setGameMessage("NEW GAME", [`Dealer: ${dealerName}`, "Cards dealt to all players"]);
+      get().setGameMessage("NEW GAME", [`Dealer: ${dealerName}`, "Shuffling and dealing cards..."]);
+      
+      // Update game state immediately
+      set({ 
+        state: s, 
+        phase: s.phase, 
+        gameResult: null
+      });
+      
+      // Trigger dealing animation
+      const dealingData = {
+        dealerSeat: msg.payload.dealer_seat,
+        dealerId: msg.payload.dealer_id,
+        players: s.players || {},
+        seats: s.seats || {}
+      };
+      set({ dealingAnimation: dealingData });
+      
+      // Clear animation after it completes
+      setTimeout(() => {
+        set({ dealingAnimation: null });
+        get().setGameMessage("NEW GAME", [`Dealer: ${dealerName}`, "Cards dealt to all players"]);
+      }, 12000);
     }
 
     // ABORT REQUESTED

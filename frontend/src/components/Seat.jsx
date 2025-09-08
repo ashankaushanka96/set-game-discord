@@ -12,6 +12,7 @@ export default function Seat({ seatIndex, player, highlight, selectable, onSelec
   
     return (
       <button
+        data-seat={seatIndex}
         onClick={handleClick}
         className={[
           'w-28 h-28 rounded-full flex flex-col items-center justify-center',

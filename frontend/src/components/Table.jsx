@@ -12,6 +12,7 @@ import MessageBubbles from './MessageBubbles';
 import Celebration from './Celebration';
 import MessageBox from './MessageBox';
 import Card from './Card';
+import DealingAnimation from './DealingAnimation';
 import { RANKS_LOWER, RANKS_UPPER, SUITS } from '../lib/deck';
 
 const TEAM_RING = {
@@ -240,6 +241,7 @@ export default function Table() {
   return (
     <div className="p-6 relative min-h-screen flex flex-col">
       <Celebration />
+      <DealingAnimation />
       
       {/* Abort Game Button - Top Right */}
       {state.phase === 'playing' && (
