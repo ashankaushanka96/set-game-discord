@@ -95,11 +95,22 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
             elif t == "start":
                 game.start()
                 await broadcast(room_id, "state", game.state.model_dump())
+                await broadcast(room_id, "game_started", {
+                    "message": "Game has started!",
+                    "state": game.state.model_dump()
+                })
 
             elif t == "shuffle_deal":
-                game.build_deck()
-                game.deal_all()
-                await broadcast(room_id, "dealt", game.state.model_dump())
+                # Only allow shuffle_deal when game is ready, ended, or in lobby
+                if game.state.phase in ["ready", "ended", "lobby"]:
+                    res = game.shuffle_deal_new_game(p.get("dealer_id", player_id))
+                    await broadcast(room_id, "new_game_started", {**res, "state": game.state.model_dump()})
+                else:
+                    # Game in progress - send error
+                    await broadcast(room_id, "shuffle_deal_error", {
+                        "reason": "game_in_progress",
+                        "message": "Cannot shuffle and deal during active game. Use abort game first."
+                    })
 
             elif t == "ask":
                 # announce start (for bubbles)
@@ -149,13 +160,67 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                     "collaborators": p.get("collaborators") or [],
                     "state": game.state.model_dump(),
                 })
-                res = game.laydown(p["who_id"], p["suit"], p["set_type"], p.get("collaborators"))
-                await broadcast(room_id, "laydown_result", {**res, "state": game.state.model_dump()})
+                try:
+                    res = game.laydown(p["who_id"], p["suit"], p["set_type"], p.get("collaborators"))
+                    await broadcast(room_id, "laydown_result", {**res, "state": game.state.model_dump()})
+                except ValueError as e:
+                    await broadcast(room_id, "laydown_error", {
+                        "error": str(e),
+                        "who_id": p["who_id"],
+                        "suit": p["suit"],
+                        "set_type": p["set_type"],
+                        "state": game.state.model_dump()
+                    })
+
+            elif t == "pass_cards":
+                try:
+                    # Convert card dicts to Card objects
+                    cards = [Card(**card) for card in p["cards"]]
+                    res = game.pass_cards(p["from_player_id"], p["to_player_id"], cards)
+                    await broadcast(room_id, "state", game.state.model_dump())
+                    await broadcast(room_id, "cards_passed", {**res, "state": game.state.model_dump()})
+                except ValueError as e:
+                    await broadcast(room_id, "pass_cards_error", {
+                        "error": str(e),
+                        "from_player_id": p["from_player_id"],
+                        "to_player_id": p["to_player_id"],
+                        "state": game.state.model_dump()
+                    })
+
 
             elif t == "handoff_after_laydown":
                 res = game.handoff_after_laydown(p["who_id"], p["to_id"])
                 await broadcast(room_id, "state", game.state.model_dump())
                 await broadcast(room_id, "handoff_result", {**res, "state": game.state.model_dump(), "from_id": p["who_id"]})
+
+            elif t == "request_abort":
+                res = game.request_abort(p["requester_id"])
+                await broadcast(room_id, "abort_requested", {**res, "state": game.state.model_dump()})
+
+            elif t == "vote_abort":
+                res = game.vote_abort(p["voter_id"], p["vote"])
+                if res.get("abort_executed"):
+                    await broadcast(room_id, "game_aborted", {**res, "state": game.state.model_dump()})
+                else:
+                    await broadcast(room_id, "abort_vote_cast", {**res, "state": game.state.model_dump()})
+
+            elif t == "shuffle_deal_new_game":
+                res = game.shuffle_deal_new_game(p["dealer_id"])
+                await broadcast(room_id, "new_game_started", {**res, "state": game.state.model_dump()})
+
+            elif t == "bubble_message":
+                # Forward bubble message to all players
+                await broadcast(room_id, "bubble_message", {
+                    "player_id": p["player_id"],
+                    "variant": p["variant"],
+                    **{k: v for k, v in p.items() if k not in ["type", "player_id", "variant"]}
+                })
+
+            elif t == "clear_bubble_messages":
+                # Clear bubble messages for a player
+                await broadcast(room_id, "clear_bubble_messages", {
+                    "player_id": p["player_id"]
+                })
 
             elif t == "sync":
                 await broadcast(room_id, "state", game.state.model_dump())

@@ -9,7 +9,7 @@ import { RANKS_LOWER, RANKS_UPPER, SUITS } from "../lib/deck";
  * - Within each half, cards are grouped by suit (♥ ♦ ♣ ♠) and sorted by rank
  * - Single row, centered, no scrolling (fits in viewport width)
  */
-export default function PlayerHand({ cards = [] }) {
+export default function PlayerHand({ cards = [], selectedCards = [], onCardSelect, selectable = false }) {
   const idxLower = (r) => {
     const i = RANKS_LOWER.indexOf(r);
     return i === -1 ? 999 : i;
@@ -17,6 +17,16 @@ export default function PlayerHand({ cards = [] }) {
   const idxUpper = (r) => {
     const i = RANKS_UPPER.indexOf(r);
     return i === -1 ? 999 : i;
+  };
+
+  const isCardSelected = (card) => {
+    return selectedCards.some(c => c.suit === card.suit && c.rank === card.rank);
+  };
+
+  const handleCardClick = (card) => {
+    if (selectable && onCardSelect) {
+      onCardSelect(card);
+    }
   };
 
   // Build ordered arrays with suit separators for lower/upper
@@ -73,7 +83,11 @@ export default function PlayerHand({ cards = [] }) {
             it.__sep ? (
               <span key={it.__sep} className="inline-block w-4" />
             ) : (
-              <span key={it.__key} className="inline-block">
+              <span 
+                key={it.__key} 
+                className={`inline-block ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''}`}
+                onClick={() => handleCardClick(it)}
+              >
                 <Card suit={it.suit} rank={it.rank} />
               </span>
             )
@@ -89,7 +103,11 @@ export default function PlayerHand({ cards = [] }) {
             it.__sep ? (
               <span key={it.__sep} className="inline-block w-4" />
             ) : (
-              <span key={it.__key} className="inline-block">
+              <span 
+                key={it.__key} 
+                className={`inline-block ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''}`}
+                onClick={() => handleCardClick(it)}
+              >
                 <Card suit={it.suit} rank={it.rank} />
               </span>
             )

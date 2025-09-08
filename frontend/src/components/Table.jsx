@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store';
 import { send } from '../ws';
 import Seat from './Seat';
 import PlayerHand from './PlayerHand';
-import AskSetModal from './AskSetModal';
-import AskRankModal from './AskRankModal';
-import ConfirmPassModal from './ConfirmPassModal';
 import LaydownModal from './LaydownModal';
-import TurnBanner from './TurnBanner';
+import GameOverModal from './GameOverModal';
+import AbortVotingModal from './AbortVotingModal';
+import RequestAbortModal from './RequestAbortModal';
 import MessageBubbles from './MessageBubbles';
 import Celebration from './Celebration';
 import MessageBox from './MessageBox';
@@ -55,13 +55,12 @@ function SetChip({ suit, set_type, owner, expandable=false, cards=[] }) {
 }
 
 export default function Table() {
-  const { state, me, ws, pendingAsk, handoffFor } = useStore();
-  const [selectingTarget, setSelectingTarget] = useState(false);
-  const [targetPlayer, setTargetPlayer] = useState(null);
-  const [setPickerOpen, setSetPickerOpen] = useState(false);
-  const [rankPickerOpen, setRankPickerOpen] = useState(false);
+  const navigate = useNavigate();
+  const { state, me, ws, handoffFor, gameResult, abortVoting } = useStore();
   const [layOpen, setLayOpen] = useState(false);
   const [selectedSet, setSelectedSet] = useState({ suit: null, setType: null });
+  const [requestAbortOpen, setRequestAbortOpen] = useState(false);
+  const [selectedCardsToPass, setSelectedCardsToPass] = useState([]);
 
   const [anim, setAnim] = useState(null);
   const [lays, setLays] = useState([]);
@@ -76,7 +75,6 @@ export default function Table() {
   const players = state.players || {};
   const seats = state.seats || {};
   const my = players[me.id];
-  const isMyTurn = state.turn_player === me.id;
 
   const AREA_W = 900, AREA_H = 640, TABLE_SIZE = 420, RADIUS = 280;
   const mySeatIndex = typeof my?.seat === 'number' ? my.seat : 0;
@@ -103,49 +101,41 @@ export default function Table() {
     return res;
   }, [my]);
 
-  const askableRanks = useMemo(() => {
-    if (!selectedSet.suit || !selectedSet.setType || !my) return [];
-    const ranks = selectedSet.setType==='lower'?RANKS_LOWER:RANKS_UPPER;
-    const mine = new Set(my.hand.filter(c=>c.suit===selectedSet.suit).map(c=>c.rank));
-    return ranks.filter(r=>!mine.has(r));
-  }, [selectedSet, my]);
 
-  const opponents = useMemo(
-    () => Object.values(players).filter(p => p.team && p.team !== my?.team),
-    [players, my?.team]
-  );
 
-  const startAskFlow = () => { if (isMyTurn) { setSelectingTarget(true); setTargetPlayer(null); } };
-  const onSelectOpponent = (p) => {
-    if (!selectingTarget || !opponents.find(o=>o.id===p.id)) return;
-    setSelectingTarget(false);
-    setTargetPlayer(p);
-    setSelectedSet({ suit:null, setType:null });
-    setSetPickerOpen(true);
-  };
-  const onPickSet = ({ suit, setType }) => { setSelectedSet({ suit, setType }); setSetPickerOpen(false); setRankPickerOpen(true); };
-  const onPickRank = (rank) => {
-    send(ws, 'ask', { asker_id: my.id, target_id: targetPlayer.id, suit: selectedSet.suit, set_type: selectedSet.setType, ranks: [rank] });
-    setRankPickerOpen(false);
-    setTargetPlayer(null);
-    setSelectedSet({ suit:null, setType:null });
-  };
 
-  const confirmPass = () => {
-    if (!pendingAsk) return;
-    send(ws,'confirm_pass',{
-      asker_id: pendingAsk.asker_id,
-      target_id: pendingAsk.target_id,
-      cards: pendingAsk.pending_cards || [], // empty => NO
-      suit: pendingAsk.suit,
-      ranks: pendingAsk.ranks
-    });
-  };
 
   // PASS anim
   useEffect(() => {
     function onAnim(e) {
-      const { asker_id, target_id, card } = e.detail || {};
+      const { asker_id, target_id, card, from_player, to_player, cards } = e.detail || {};
+      
+      // Handle new card passing (multiple cards)
+      if (from_player && to_player && cards) {
+        const fromEl = seatEls.current[from_player];
+        const toEl = seatEls.current[to_player];
+        if (!fromEl || !toEl) return;
+        
+        const from = fromEl.getBoundingClientRect();
+        const to = toEl.getBoundingClientRect();
+        
+        // Animate each card with a slight delay
+        cards.forEach((card, index) => {
+          setTimeout(() => {
+            setAnim({
+              suit: card.suit, rank: card.rank,
+              from: { x: from.left + from.width/2, y: from.top + from.height/2 },
+              to: { x: to.left + to.width/2, y: to.top + to.height/2 },
+              go: false,
+            });
+            requestAnimationFrame(() => requestAnimationFrame(() => setAnim(a=>a?{...a,go:true}:a)));
+            setTimeout(() => setAnim(null), 900);
+          }, index * 100); // 100ms delay between each card
+        });
+        return;
+      }
+      
+      // Handle old ask-based passing (single card)
       if (!asker_id || !target_id || !card) return;
       const fromEl = seatEls.current[target_id];
       const toEl   = seatEls.current[asker_id];
@@ -216,10 +206,62 @@ export default function Table() {
     send(ws, 'handoff_after_laydown', { who_id: me.id, to_id: toId });
   };
 
+
+  const handleHandCardClick = (card) => {
+    setSelectedCardsToPass(prev => {
+      const isSelected = prev.some(c => c.suit === card.suit && c.rank === card.rank);
+      if (isSelected) {
+        return prev.filter(c => !(c.suit === card.suit && c.rank === card.rank));
+      } else {
+        return [...prev, card];
+      }
+    });
+  };
+
+  const handleSeatClick = (player) => {
+    if (selectedCardsToPass.length === 0) return;
+    
+    // Can only pass to opponent team
+    if (player.team === my.team) {
+      // Show error or just ignore
+      return;
+    }
+    
+    send(ws, 'pass_cards', {
+      from_player_id: me.id,
+      to_player_id: player.id,
+      cards: selectedCardsToPass
+    });
+    
+    setSelectedCardsToPass([]);
+  };
+
+
   return (
     <div className="p-6 relative min-h-screen flex flex-col">
       <Celebration />
-      <TurnBanner state={state} />
+      
+      {/* Abort Game Button - Top Right */}
+      {state.phase === 'playing' && (
+        <div className="fixed top-20 right-4 z-40">
+          <button 
+            className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg transition-colors shadow-lg"
+            onClick={() => setRequestAbortOpen(true)}
+          >
+            Abort Game
+          </button>
+        </div>
+      )}
+
+      {/* Card Passing Indicator */}
+      {selectedCardsToPass.length > 0 && (
+        <div className="fixed top-20 left-4 z-40 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg">
+          <div className="text-sm font-semibold">
+            {selectedCardsToPass.length} card{selectedCardsToPass.length !== 1 ? 's' : ''} selected
+          </div>
+          <div className="text-xs opacity-80">Click on an opponent's seat to pass</div>
+        </div>
+      )}
 
       {handoffFor && handoffFor.who_id === me.id && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[95] bg-zinc-900/90 backdrop-blur px-4 py-2 rounded-xl card-shadow flex items-center gap-2">
@@ -235,6 +277,12 @@ export default function Table() {
 
       {/* HUD */}
       <div className="fixed top-3 left-3 bg-zinc-800/80 backdrop-blur px-4 py-2 rounded-xl card-shadow text-sm z-[95]">
+        <button
+          onClick={() => navigate('/')}
+          className="mb-2 bg-zinc-700 hover:bg-zinc-600 text-white px-3 py-1 rounded text-xs transition-colors"
+        >
+          ← Back to Lobby
+        </button>
         <div className="font-semibold">{my?.name ?? 'Me'}</div>
         <div className="opacity-80">Seat {typeof my?.seat === 'number' ? my.seat+1 : '-'}</div>
         <div className={`mt-1 inline-flex items-center gap-2 px-2 py-[2px] rounded-full text-[12px] ${my?.team==='A'?'bg-blue-600/30 text-blue-300':'bg-rose-600/30 text-rose-300'}`}>
@@ -249,7 +297,7 @@ export default function Table() {
       {/* left panel (Team A) - table - right panel (Team B) */}
       <div className="relative w-full flex items-start justify-center gap-6">
         <div className="hidden xl:block w-[260px]">
-          <div className="sticky top-24 space-y-2">
+          <div className="sticky top-32 space-y-2">
             <div className="text-sm font-semibold text-blue-300 mb-1">Team A — Collected</div>
             {setsA.length === 0 && <div className="text-xs opacity-60">No sets yet.</div>}
             {setsA.map((ts, idx)=>(
@@ -260,14 +308,24 @@ export default function Table() {
 
         <div className="relative">
           <div className="relative mx-auto bg-zinc-900/30 rounded-3xl card-shadow" style={{ width: `${AREA_W}px`, height: `${AREA_H}px` }}>
-            <div ref={tableCenterRef} className="absolute rounded-full border-4 border-zinc-700 bg-zinc-800/40"
-                 style={{ width: `${TABLE_SIZE}px`, height: `${TABLE_SIZE}px`, left: `calc(50% - ${TABLE_SIZE/2}px)`, top: `calc(50% - ${TABLE_SIZE/2}px)` }} />
+            <div ref={tableCenterRef} className="absolute rounded-full border-4 border-zinc-700 bg-zinc-800/40 flex items-center justify-center"
+                 style={{ width: `${TABLE_SIZE}px`, height: `${TABLE_SIZE}px`, left: `calc(50% - ${TABLE_SIZE/2}px)`, top: `calc(50% - ${TABLE_SIZE/2}px)` }}>
+              {/* Shuffle & Deal button - show for current dealer when game is ready, ended, or when no cards are dealt */}
+              {me?.id === state.current_dealer && (state.phase === 'ready' || state.phase === 'ended' || !state.deck_count || state.deck_count === 0 || !my?.hand?.length) && (
+                <button 
+                  className="bg-amber-600 hover:bg-amber-500 text-white px-6 py-3 rounded-lg font-semibold shadow-lg transition-colors"
+                  onClick={() => send(ws, 'shuffle_deal', {})}
+                >
+                  Shuffle & Deal
+                </button>
+              )}
+            </div>
 
             {Object.keys(seats).map((k) => {
               const i = Number(k);
               const pid = seats[i];
               const p = pid ? players[pid] : null;
-              const selectable = selectingTarget && !!p && p.team !== my.team;
+              const selectable = selectedCardsToPass.length > 0 && !!p && p.team !== my.team;
               const ringClass = p?.team === 'A' ? TEAM_RING.A : p?.team === 'B' ? TEAM_RING.B : TEAM_RING.unknown;
               const isMe = p && p.id === me.id;
               return (
@@ -282,9 +340,9 @@ export default function Table() {
                     <Seat
                       seatIndex={i}
                       player={p}
-                      highlight={p?.id === state.turn_player}
+                      highlight={false}
                       selectable={selectable}
-                      onSelect={onSelectOpponent}
+                      onSelect={p ? () => handleSeatClick(p) : null}
                       team={p?.team}
                       isMe={isMe}
                     />
@@ -334,7 +392,7 @@ export default function Table() {
         </div>
 
         <div className="hidden xl:block w-[260px]">
-          <div className="sticky top-24 space-y-2">
+          <div className="sticky top-32 space-y-2">
             <div className="text-sm font-semibold text-rose-300 mb-1">Team B — Collected</div>
             {((state.table_sets||[]).filter(s=>s.owner_team==='B').length) === 0 && <div className="text-xs opacity-60">No sets yet.</div>}
             {(state.table_sets||[]).filter(s=>s.owner_team==='B').map((ts, idx)=>(
@@ -345,45 +403,45 @@ export default function Table() {
       </div>
 
       <div className="mt-6 flex flex-col items-center">
-        <PlayerHand cards={my?.hand || []} />
+        <PlayerHand 
+          cards={my?.hand || []} 
+          selectedCards={selectedCardsToPass}
+          onCardSelect={handleHandCardClick}
+          selectable={true}
+        />
       </div>
       <div className="mt-4 flex items-center justify-center gap-3">
-        {my?.seat === 0 && state.phase === 'playing' && (
-          <button className="bg-amber-600 px-4 py-2 rounded" onClick={() => send(ws, 'shuffle_deal', {})}>Shuffle & Deal</button>
+        {/* Game action buttons - only show when game is playing */}
+        {state.phase === 'playing' && (
+          <>
+            <button className="bg-emerald-600 px-4 py-2 rounded" onClick={()=>setLayOpen(true)}>Laydown</button>
+          </>
         )}
-        <button disabled={!isMyTurn} className="bg-indigo-600 px-4 py-2 rounded disabled:opacity-40" onClick={() => { if (isMyTurn) { setSelectingTarget(true); setTargetPlayer(null); } }}>Ask</button>
-        <button disabled={!isMyTurn} className="bg-emerald-600 px-4 py-2 rounded disabled:opacity-40" onClick={()=>setLayOpen(true)}>Laydown</button>
       </div>
 
       <MessageBox />
 
-      <AskSetModal
-        open={setPickerOpen}
-        eligibleSets={eligibleSets.map(({ suit, type }) => ({ suit, type }))}
-        onPick={onPickSet}
-        onClose={() => { setSetPickerOpen(false); setTargetPlayer(null); }}
-      />
-      <AskRankModal
-        open={rankPickerOpen}
-        suit={selectedSet.suit}
-        setType={selectedSet.setType}
-        askableRanks={askableRanks}
-        onPick={onPickRank}
-        onClose={() => { setRankPickerOpen(false); setTargetPlayer(null); }}
-      />
       {layOpen && <LaydownModal onClose={() => setLayOpen(false)} />}
-      {pendingAsk && pendingAsk.target_id === my.id && (
-        <ConfirmPassModal
-          open
-          asker={players[pendingAsk.asker_id]}
-          target={players[pendingAsk.target_id]}
-          cards={pendingAsk.pending_cards}
-          suit={pendingAsk.suit}
-          ranks={pendingAsk.ranks}
-          onConfirm={confirmPass}
-          onClose={()=>{}}
-        />
-      )}
+
+      {/* Game Over Modal */}
+      <GameOverModal
+        open={!!gameResult}
+        onClose={() => {}}
+        gameResult={gameResult}
+      />
+
+      {/* Request Abort Modal */}
+      <RequestAbortModal
+        open={requestAbortOpen}
+        onClose={() => setRequestAbortOpen(false)}
+      />
+
+      {/* Abort Voting Modal */}
+      <AbortVotingModal
+        open={!!abortVoting}
+        onClose={() => {}}
+        votingData={abortVoting}
+      />
     </div>
   );
 }

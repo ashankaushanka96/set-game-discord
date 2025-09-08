@@ -29,10 +29,12 @@ class RoomState(BaseModel):
     seats: Dict[int, Optional[str]]
     team_scores: Dict[str, int]
     table_sets: List[TableSet]
-    phase: Literal["lobby", "playing", "ended"]
+    phase: Literal["lobby", "playing", "ended", "ready"]
     turn_player: Optional[str] = None
     ask_chain_from: Optional[str] = None
     deck_count: int = 0
+    current_dealer: Optional[str] = None
+    abort_votes: Dict[str, bool] = Field(default_factory=dict)
 
 class WSMessage(BaseModel):
     type: str

@@ -1,17 +1,52 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useStore } from "../store";
 import { connectWS, send } from "../ws";
 
 const API = "http://localhost:8000";
 
 export default function Lobby() {
+  const navigate = useNavigate();
   const { me, setMe, setWS, setRoom, roomId, state, applyServer } = useStore();
-  const [name, setName] = useState(me?.name || `Player ${Math.random().toString(16).slice(2,6)}`);
-  const [avatar, setAvatar] = useState(me?.avatar || "🔥");
+  
+  // Load saved profile data from localStorage
+  const getSavedProfile = () => {
+    try {
+      const saved = localStorage.getItem('player_profile');
+      if (saved) {
+        const profile = JSON.parse(saved);
+        return {
+          name: profile.name || `Player ${Math.random().toString(16).slice(2,6)}`,
+          avatar: profile.avatar || "🔥"
+        };
+      }
+    } catch (error) {
+      console.error('Failed to load saved profile:', error);
+    }
+    return {
+      name: `Player ${Math.random().toString(16).slice(2,6)}`,
+      avatar: "🔥"
+    };
+  };
+
+  const [name, setName] = useState(me?.name || getSavedProfile().name);
+  const [avatar, setAvatar] = useState(me?.avatar || getSavedProfile().avatar);
   const [roomInput, setRoomInput] = useState(roomId || "");
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  // Save profile data to localStorage
+  const saveProfile = (nameValue, avatarValue) => {
+    try {
+      localStorage.setItem('player_profile', JSON.stringify({
+        name: nameValue,
+        avatar: avatarValue
+      }));
+    } catch (error) {
+      console.error('Failed to save profile:', error);
+    }
+  };
 
   // ensure per-tab identity
   useEffect(() => {
@@ -21,6 +56,8 @@ export default function Lobby() {
 
   useEffect(() => {
     setMe({ ...useStore.getState().me, name, avatar });
+    // Save to localStorage whenever name or avatar changes
+    saveProfile(name, avatar);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name, avatar]);
 
@@ -50,7 +87,7 @@ export default function Lobby() {
       setRoomInput(rid);
       setRoom(rid);
 
-      // Add this player (HTTP) then connect WS
+      // Add this player (HTTP) then connect WebSocket
       await httpJoinRoom(rid);
       const ws = connectWS(rid, useStore.getState().me.id, applyServer);
       setWS(ws);
@@ -80,6 +117,24 @@ export default function Lobby() {
   };
 
   const startGame = () => {
+    const players = Object.values(state?.players || {});
+    const playersWithTeams = players.filter(p => p.team);
+    
+    if (players.length < 6) {
+      setError("Need 6 players to start the game");
+      return;
+    }
+    
+    if (playersWithTeams.length < 6) {
+      setError("All players must select a team before starting");
+      return;
+    }
+    
+    // Save player data to localStorage for persistence
+    const playerData = useStore.getState().me;
+    localStorage.setItem(`player_${playerData.id}`, JSON.stringify(playerData));
+    
+    // Send start command - navigation will be handled by the store
     send(useStore.getState().ws, "start", {});
   };
 
@@ -162,8 +217,21 @@ export default function Lobby() {
             >
               {busy ? "Joining..." : "Join"}
             </button>
-            <button className="bg-amber-600 px-4 py-2 rounded" onClick={startGame}>
-              Start
+            <button 
+              className={`px-4 py-2 rounded ${
+                players.length >= 6 && players.filter(p => p.team).length >= 6 
+                  ? 'bg-amber-600 hover:bg-amber-500' 
+                  : 'bg-zinc-600 cursor-not-allowed'
+              }`}
+              onClick={startGame}
+              disabled={players.length < 6 || players.filter(p => p.team).length < 6}
+            >
+              {players.length < 6 
+                ? `Start (${players.length}/6 players)` 
+                : players.filter(p => p.team).length < 6
+                  ? `Start (${players.filter(p => p.team).length}/6 teams)`
+                  : 'Start Game'
+              }
             </button>
           </div>
         </div>

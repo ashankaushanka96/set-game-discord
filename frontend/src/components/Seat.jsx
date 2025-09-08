@@ -18,7 +18,7 @@ export default function Seat({ seatIndex, player, highlight, selectable, onSelec
           'bg-zinc-800/90 card-shadow relative overflow-hidden',
           teamBg,
           selectable ? 'cursor-pointer hover:scale-[1.03] transition' : 'cursor-default',
-          highlight ? 'outline outline-2 outline-emerald-400/70' : '',
+          highlight ? 'ring-4 ring-emerald-400 shadow-[0_0_0_6px_rgba(16,185,129,0.3)] animate-pulse' : '',
           isMe ? 'ring-2 ring-cyan-400/70' : '',
         ].join(' ')}
       >
@@ -28,6 +28,11 @@ export default function Seat({ seatIndex, player, highlight, selectable, onSelec
         {isMe && (
           <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[10px] bg-cyan-600/90 px-2 py-[2px] rounded-full">
             You
+          </div>
+        )}
+        {highlight && (
+          <div className="absolute -top-1 left-1/2 -translate-x-1/2 text-[10px] bg-emerald-500/90 px-2 py-[2px] rounded-full font-semibold">
+            TURN
           </div>
         )}
       </button>

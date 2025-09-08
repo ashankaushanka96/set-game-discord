@@ -23,6 +23,7 @@ class Game:
             team_scores={"A": 0, "B": 0},
             table_sets=[],
             phase="lobby",
+            current_dealer=None,
         )
         self._deck: List[Card] = []
 
@@ -62,9 +63,13 @@ class Game:
         return None
 
     def start(self):
-        self.state.phase = "playing"
-        first = self.state.seats.get(0)
-        self.state.turn_player = first
+        self.state.phase = "ready"
+        # Start with seat 0 as the first dealer (displays as "Seat 1")
+        dealer = self.state.seats.get(0)
+        self.state.current_dealer = dealer
+        
+        # No turn player set yet - will be set after shuffle & deal
+        self.state.turn_player = None
 
     # ---------------- Helpers ----------------
     @staticmethod
@@ -230,8 +235,6 @@ class Game:
         set_type: str,
         collaborators: Dict[str, List[str]] | List[Dict[str, List[str]]] | None = None,
     ):
-        if self.state.turn_player != who_id:
-            raise ValueError("Not your turn")
 
         my = self.state.players[who_id]
         needed_ranks = set(self.ranks_for(set_type))
@@ -260,6 +263,9 @@ class Game:
             p = self.state.players[pid]
             if p.team != my.team:
                 raise ValueError("Collaborators must be teammates")
+            # Cannot contribute from empty-handed teammates
+            if not p.hand:
+                raise ValueError(f"Cannot contribute from {p.name} - they have no cards")
             for r in ranks:
                 if r in needed_ranks:
                     declared.add(r)
@@ -345,13 +351,15 @@ class Game:
                 TableSet(suit=suit, set_type=set_type, cards=all_cards, owner_team=owner_team)
             )
         self.state.team_scores[owner_team] += POINTS[set_type]
-        self.state.turn_player = who_id
 
         handoff_eligible = [
             c["player_id"]
             for c in contributors
             if c["player_id"] != who_id and self.state.players[c["player_id"]].team == owner_team
         ]
+
+        # Check if game has ended
+        game_end_result = self.check_game_end()
 
         return {
             "success": True,
@@ -362,7 +370,44 @@ class Game:
             "contributors": contributors,
             "handoff_eligible": handoff_eligible,
             "scores": self.state.team_scores,
+            "game_end": game_end_result,
         }
+
+    # ---------------- Pass Cards ----------------
+    def pass_cards(self, from_player_id: str, to_player_id: str, cards: List[Card]):
+        """Pass cards from one player to another (opponent only)"""
+        if from_player_id not in self.state.players or to_player_id not in self.state.players:
+            raise ValueError("Unknown player")
+        
+        from_player = self.state.players[from_player_id]
+        to_player = self.state.players[to_player_id]
+        
+        # Can only pass to opponent team
+        if from_player.team == to_player.team:
+            raise ValueError("Can only pass cards to opponent team")
+        
+        # Check if from_player has all the cards
+        from_hand = {(c.suit, c.rank) for c in from_player.hand}
+        cards_to_pass = {(c.suit, c.rank) for c in cards}
+        
+        if not cards_to_pass.issubset(from_hand):
+            raise ValueError("Player doesn't have all the specified cards")
+        
+        # Remove cards from from_player's hand
+        from_player.hand = [c for c in from_player.hand if (c.suit, c.rank) not in cards_to_pass]
+        
+        # Add cards to to_player's hand
+        to_player.hand.extend(cards)
+        
+        return {
+            "success": True,
+            "from_player": from_player_id,
+            "to_player": to_player_id,
+            "cards": [c.model_dump() for c in cards],
+            "from_hand_count": len(from_player.hand),
+            "to_hand_count": len(to_player.hand)
+        }
+
 
     # ---------------- Handoff after successful laydown ----------------
     def handoff_after_laydown(self, who_id: str, to_id: str):
@@ -380,3 +425,166 @@ class Game:
 
         self.state.turn_player = to_id
         return {"ok": True, "turn_player": to_id}
+
+    # ---------------- Game End Logic ----------------
+    def check_game_end(self):
+        """Check if game should end and return game result if so"""
+        # Game ends when all 8 sets are collected (4 suits × 2 set types each)
+        if len(self.state.table_sets) >= 8:
+            self.state.phase = "ended"
+            
+            # Determine winner based on scores
+            team_a_score = self.state.team_scores.get("A", 0)
+            team_b_score = self.state.team_scores.get("B", 0)
+            
+            if team_a_score > team_b_score:
+                winner = "A"
+            elif team_b_score > team_a_score:
+                winner = "B"
+            else:
+                winner = "tie"
+            
+            return {
+                "game_ended": True,
+                "winner": winner,
+                "team_a_score": team_a_score,
+                "team_b_score": team_b_score,
+                "team_a_sets": len([s for s in self.state.table_sets if s.owner_team == "A"]),
+                "team_b_sets": len([s for s in self.state.table_sets if s.owner_team == "B"])
+            }
+        return {"game_ended": False}
+
+    def request_abort(self, requester_id: str):
+        """Request to abort the current game - requires 4/6 players to accept"""
+        if self.state.phase != "playing":
+            return {"success": False, "reason": "not_playing"}
+        
+        # Clear any previous abort votes
+        self.state.abort_votes = {}
+        
+        # Add the requester's vote
+        self.state.abort_votes[requester_id] = True
+        
+        # Count votes
+        total_players = len(self.state.players)
+        votes_for_abort = len(self.state.abort_votes)
+        
+        return {
+            "success": True, 
+            "requester_id": requester_id,
+            "votes_for_abort": votes_for_abort,
+            "total_players": total_players,
+            "votes_needed": 4,
+            "abort_votes": self.state.abort_votes
+        }
+
+    def vote_abort(self, voter_id: str, vote: bool):
+        """Vote on abort request"""
+        if self.state.phase != "playing":
+            return {"success": False, "reason": "not_playing"}
+        
+        if not self.state.abort_votes:
+            return {"success": False, "reason": "no_abort_request"}
+        
+        # Add/update vote
+        self.state.abort_votes[voter_id] = vote
+        
+        # Count votes
+        total_players = len(self.state.players)
+        votes_for_abort = sum(1 for v in self.state.abort_votes.values() if v)
+        
+        # Check if we have enough votes to abort
+        if votes_for_abort >= 4:
+            return self._execute_abort()
+        
+        return {
+            "success": True,
+            "voter_id": voter_id,
+            "vote": vote,
+            "votes_for_abort": votes_for_abort,
+            "total_players": total_players,
+            "votes_needed": 4,
+            "abort_votes": self.state.abort_votes,
+            "abort_executed": False
+        }
+
+    def _execute_abort(self):
+        """Execute the abort - reset game but stay in room"""
+        # Reset game state but keep players and teams
+        self.state.phase = "ended"  # Set to ended so shuffle/deal can be used
+        self.state.turn_player = None
+        self.state.ask_chain_from = None
+        self.state.deck_count = 0
+        self.state.team_scores = {"A": 0, "B": 0}
+        self.state.table_sets = []
+        # Keep current_dealer so shuffle/deal button shows for the right player
+        
+        # Clear abort votes
+        if hasattr(self.state, 'abort_votes'):
+            delattr(self.state, 'abort_votes')
+        
+        # Clear all player hands
+        for player in self.state.players.values():
+            player.hand = []
+        
+        return {
+            "success": True,
+            "abort_executed": True,
+            "message": "Game aborted. Ready for new game."
+        }
+
+    def shuffle_deal_new_game(self, dealer_id: str):
+        """Start a new game with shuffle and deal, rotating dealer and turn"""
+        if self.state.phase not in ["ended", "lobby", "ready"]:
+            return {"success": False, "reason": "game_in_progress"}
+        
+        # Find current dealer seat
+        current_dealer_seat = None
+        if self.state.current_dealer:
+            for seat, pid in self.state.seats.items():
+                if pid == self.state.current_dealer:
+                    current_dealer_seat = seat
+                    break
+        
+        # If no current dealer found, start with seat 0
+        if current_dealer_seat is None:
+            current_dealer_seat = 0
+        
+        # For the first game (ready phase), use current dealer (seat 0)
+        # For subsequent games (ended phase), rotate to next dealer (seat 1, then 2, etc.)
+        if self.state.phase == "ready":
+            next_dealer_seat = current_dealer_seat  # Should be seat 0 for first game
+        else:
+            # Next dealer is clockwise (seat + 1, wrapping 0-5)
+            next_dealer_seat = (current_dealer_seat + 1) % 6
+        
+        next_dealer_id = self.state.seats.get(next_dealer_seat)
+        
+        if not next_dealer_id:
+            return {"success": False, "reason": "no_dealer"}
+        
+        # Turn starts from the next player after dealer (dealer + 1)
+        next_turn_seat = (next_dealer_seat + 1) % 6
+        next_turn_id = self.state.seats.get(next_turn_seat)
+        
+        if not next_turn_id:
+            return {"success": False, "reason": "no_turn_player"}
+        
+        # Reset game state
+        self.state.phase = "playing"
+        self.state.team_scores = {"A": 0, "B": 0}
+        self.state.table_sets = []
+        self.state.current_dealer = next_dealer_id
+        self.state.turn_player = next_turn_id
+        
+        # Build deck and deal
+        self.build_deck()
+        self.deal_all()
+        
+        return {
+            "success": True,
+            "dealer_id": next_dealer_id,
+            "dealer_seat": next_dealer_seat,
+            "turn_id": next_turn_id,
+            "turn_seat": next_turn_seat
+        }

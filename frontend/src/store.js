@@ -23,6 +23,10 @@ export const useStore = create((set, get) => ({
   pendingLay: null,
   handoffFor: null,
 
+  // game end and abort
+  gameResult: null,
+  abortVoting: null,
+
   // seat bubbles
   messages: [],
 
@@ -136,6 +140,13 @@ export const useStore = create((set, get) => ({
             `Answer: NO (${rank} of ${suit})`,
             `Next Turn: ${target}`
           ]);
+        } else if (msg.payload.reason === "target_empty") {
+          get().addMessage({ player_id: msg.payload.target_id, variant: "no", text: "No cards!" });
+          get().setGameMessage("REPLY", [
+            `Who: ${target} → ${asker}`,
+            `Answer: NO (${target} has no cards)`,
+            `Next Turn: ${target}`
+          ]);
         } else {
           get().setGameMessage("REPLY", "Pass failed. Turn changes.");
         }
@@ -148,10 +159,23 @@ export const useStore = create((set, get) => ({
       set({ state: s, pendingLay: msg.payload });
     }
 
+    // LAYDOWN error
+    if (msg.type === "laydown_error") {
+      const s = msg.payload.state;
+      set({ state: s, pendingLay: null });
+      get().setGameMessage("LAYDOWN ERROR", [msg.payload.error]);
+    }
+
     // LAYDOWN result (animate & celebrate / cry)
     if (msg.type === "laydown_result") {
       const s = msg.payload.state;
       set({ state: s, phase: s.phase, pendingLay: null });
+
+      // Check for game end first
+      if (msg.payload.game_end?.game_ended) {
+        set({ gameResult: msg.payload.game_end });
+        return; // Don't process other laydown logic if game ended
+      }
 
       if (Array.isArray(msg.payload.contributors) && msg.payload.contributors.length) {
         try {
@@ -193,6 +217,130 @@ export const useStore = create((set, get) => ({
       const toName = players[msg.payload.turn_player]?.name || "teammate";
       const fromName = players[msg.payload.from_id || get().me?.id]?.name || "Player";
       get().setGameMessage("HANDOFF", [`From: ${fromName}`, `To: ${toName}`]);
+    }
+
+
+    // CARDS PASSED
+    if (msg.type === "cards_passed") {
+      const s = msg.payload.state;
+      set({ state: s });
+      const players = s.players || {};
+      const fromName = players[msg.payload.from_player]?.name || "Player";
+      const toName = players[msg.payload.to_player]?.name || "Player";
+      const cardCount = msg.payload.cards?.length || 0;
+      
+      // Trigger passing animation
+      try {
+        window.dispatchEvent(new CustomEvent("pass_anim", {
+          detail: { 
+            from_player: msg.payload.from_player, 
+            to_player: msg.payload.to_player, 
+            cards: msg.payload.cards 
+          }
+        }));
+      } catch {}
+      
+      get().setGameMessage("CARDS PASSED", [
+        `From: ${fromName}`,
+        `To: ${toName}`,
+        `Cards: ${cardCount}`
+      ]);
+    }
+
+    // PASS CARDS ERROR
+    if (msg.type === "pass_cards_error") {
+      const s = msg.payload.state;
+      set({ state: s });
+      get().setGameMessage("PASS CARDS ERROR", [msg.payload.error]);
+    }
+
+
+    // NEW GAME STARTED
+    if (msg.type === "new_game_started") {
+      const s = msg.payload.state;
+      set({ state: s, phase: s.phase, gameResult: null });
+      const players = s.players || {};
+      const dealerName = players[msg.payload.dealer_id]?.name || "Unknown";
+      get().setGameMessage("NEW GAME", [`Dealer: ${dealerName}`, "Cards dealt to all players"]);
+    }
+
+    // ABORT REQUESTED
+    if (msg.type === "abort_requested") {
+      const s = msg.payload.state;
+      set({ state: s, abortVoting: msg.payload });
+      const players = s.players || {};
+      const requesterName = players[msg.payload.requester_id]?.name || "Unknown";
+      get().setGameMessage("ABORT REQUESTED", [
+        `${requesterName} wants to abort the game`,
+        `Votes: ${msg.payload.votes_for_abort}/${msg.payload.votes_needed} needed`
+      ]);
+    }
+
+    // ABORT VOTE CAST
+    if (msg.type === "abort_vote_cast") {
+      const s = msg.payload.state;
+      set({ state: s, abortVoting: msg.payload });
+      const players = s.players || {};
+      const voterName = players[msg.payload.voter_id]?.name || "Unknown";
+      const voteText = msg.payload.vote ? "YES" : "NO";
+      get().setGameMessage("ABORT VOTE", [
+        `${voterName} voted ${voteText}`,
+        `Votes: ${msg.payload.votes_for_abort}/${msg.payload.votes_needed} needed`
+      ]);
+    }
+
+    // GAME ABORTED
+    if (msg.type === "game_aborted") {
+      const s = msg.payload.state;
+      set({ state: s, phase: s.phase, gameResult: null, abortVoting: null });
+      get().setGameMessage("GAME ABORTED", ["Game has been aborted", "Ready for new game"]);
+    }
+
+    // SHUFFLE DEAL ERROR
+    if (msg.type === "shuffle_deal_error") {
+      get().setGameMessage("ERROR", [msg.payload.message]);
+    }
+
+    // BUBBLE MESSAGE
+    if (msg.type === "bubble_message") {
+      const { player_id, variant, ...data } = msg.payload;
+      get().addMessage({
+        player_id,
+        variant,
+        ...data,
+        sticky: true, // Laydown messages should be sticky
+        tag: `laydown-${player_id}` // Tag for clearing
+      });
+    }
+
+    // CLEAR BUBBLE MESSAGES
+    if (msg.type === "clear_bubble_messages") {
+      const { player_id } = msg.payload;
+      get().removeMessageByTag(`laydown-${player_id}`);
+    }
+
+    // GAME STARTED - trigger navigation for all players
+    if (msg.type === "game_started") {
+      const s = msg.payload.state;
+      set({ state: s, phase: s.phase });
+      get().setGameMessage("GAME STARTED", ["Game has begun!", "All players joining table..."]);
+      
+      // Trigger navigation to game room for all players
+      setTimeout(() => {
+        const currentPath = window.location.pathname;
+        const roomId = s.room_id;
+        const me = get().me;
+        
+        if (me && roomId) {
+          // Save player data to localStorage for persistence
+          localStorage.setItem(`player_${me.id}`, JSON.stringify(me));
+          
+          // Navigate to game room if not already there
+          if (!currentPath.includes(`/room/${roomId}/${me.id}`)) {
+            window.location.href = `/room/${roomId}/${me.id}`;
+          }
+        }
+      }, 1000);
     }
   },
 }));

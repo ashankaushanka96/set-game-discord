@@ -11,6 +11,34 @@ export default function LaydownModal({ onClose }) {
   const players = state?.players || {};
   const my = players[me.id];
 
+  // Send initial bubble message when modal opens
+  useEffect(() => {
+    if (me?.id) {
+      send(ws, "bubble_message", {
+        player_id: me.id,
+        variant: "laydown_start"
+      });
+    }
+  }, [me?.id, ws]);
+
+  // Clear bubble messages when modal closes
+  const handleClose = () => {
+    if (me?.id) {
+      // Clear bubble messages for the laydown player
+      send(ws, "clear_bubble_messages", {
+        player_id: me.id
+      });
+      
+      // Clear bubble messages for all selected teammates
+      Object.keys(collabRanks).forEach(teammateId => {
+        send(ws, "clear_bubble_messages", {
+          player_id: teammateId
+        });
+      });
+    }
+    onClose?.();
+  };
+
   const [step, setStep] = useState(0); // 0 select set, 1 choose my cards, 2 teammates, 3 confirm
   const [pick, setPick] = useState({ suit: null, setType: null });
 
@@ -55,12 +83,6 @@ export default function LaydownModal({ onClose }) {
     [pick.setType]
   );
 
-  const remainingNeeded = useMemo(() => {
-    const taken = new Set(myRanks);
-    Object.values(collabRanks).forEach((rset) => rset.forEach((r) => taken.add(r)));
-    return setRanks.filter((r) => !taken.has(r));
-  }, [setRanks, myRanks, collabRanks]);
-
   const mySetRanks = useMemo(() => {
     if (!pick.suit || !pick.setType) return [];
     const neededSet = new Set(setRanks);
@@ -68,6 +90,20 @@ export default function LaydownModal({ onClose }) {
     const order = new Map(setRanks.map((r, i) => [r, i]));
     return mine.sort((a, b) => (order.get(a.rank) ?? 0) - (order.get(b.rank) ?? 0));
   }, [pick.suit, pick.setType, my?.hand, setRanks]);
+
+  const remainingNeeded = useMemo(() => {
+    const taken = new Set(myRanks);
+    Object.values(collabRanks).forEach((rset) => rset.forEach((r) => taken.add(r)));
+    return setRanks.filter((r) => !taken.has(r));
+  }, [setRanks, myRanks, collabRanks]);
+
+  // Auto-select all available cards when set is picked
+  useEffect(() => {
+    if (pick.suit && pick.setType && step === 0) {
+      const availableRanks = mySetRanks.map(c => c.rank);
+      setMyRanks(availableRanks);
+    }
+  }, [pick.suit, pick.setType, mySetRanks, step]);
 
   // ---------- Mutators ----------
   function toggleMyRank(rank) {
@@ -80,6 +116,26 @@ export default function LaydownModal({ onClose }) {
       if (set.has(rank)) set.delete(rank);
       else set.add(rank);
       next[pid] = set;
+      
+      // Send bubble message for teammate selection (always send updated cards)
+      const teammate = players[pid];
+      const teammateCards = Array.from(set).map(r => ({ suit: pick.suit, rank: r }));
+      
+      if (set.size > 0) {
+        // Send bubble with assigned cards
+        send(ws, "bubble_message", {
+          player_id: pid, // Send from the teammate's perspective
+          variant: "laydown_teammate",
+          teammate_name: teammate?.name,
+          cards: teammateCards
+        });
+      } else {
+        // Clear bubble if no cards assigned
+        send(ws, "clear_bubble_messages", {
+          player_id: pid
+        });
+      }
+      
       return next;
     });
   }
@@ -87,17 +143,42 @@ export default function LaydownModal({ onClose }) {
     setCollabRanks((prev) => {
       const n = { ...prev };
       delete n[pid];
+      
+      // Clear bubble when teammate assignments are reset
+      send(ws, "clear_bubble_messages", {
+        player_id: pid
+      });
+      
       return n;
     });
   }
 
   function nextStep() {
     if (step === 0 && (!pick.suit || !pick.setType)) return;
-    if (step === 1 && myRanks.length === 0 && remainingNeeded.length > 0) return;
+    
+    // Send bubble message when moving to step 1 (showing cards)
+    if (step === 0) {
+      const myCards = mySetRanks.filter(c => myRanks.includes(c.rank));
+      send(ws, "bubble_message", {
+        player_id: me.id,
+        variant: "laydown_cards",
+        cards: myCards
+      });
+    }
+    
+    // Skip step 1 validation since cards are auto-selected
     setStep((s) => s + 1);
   }
   function prevStep() {
     setStep((s) => Math.max(0, s - 1));
+  }
+
+  function sendBubbleMessage(variant, data = {}) {
+    send(ws, "bubble_message", {
+      player_id: me.id,
+      variant,
+      ...data
+    });
   }
 
   function submitLaydown() {
@@ -111,12 +192,25 @@ export default function LaydownModal({ onClose }) {
       set_type: pick.setType,
       collaborators,
     });
-    onClose?.();
+    
+    // Clear all laydown bubble messages for laydown player and teammates
+    send(ws, "clear_bubble_messages", {
+      player_id: me.id
+    });
+    
+    // Clear bubble messages for all selected teammates
+    Object.keys(collabRanks).forEach(teammateId => {
+      send(ws, "clear_bubble_messages", {
+        player_id: teammateId
+      });
+    });
+    
+    handleClose();
   }
 
   const stepTitle =
     step === 0 ? "Select Set" :
-    step === 1 ? "Choose Your Cards" :
+    step === 1 ? "Your Cards" :
     step === 2 ? "Add Teammates (Optional)" :
     "Confirm";
 
@@ -125,13 +219,13 @@ export default function LaydownModal({ onClose }) {
       <div className="w-full max-w-3xl bg-zinc-900 rounded-2xl shadow-xl p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="text-lg font-semibold">Lay Down a Set</div>
-          <button className="text-zinc-300 hover:text-white" onClick={onClose}>✕</button>
+          <button className="text-zinc-300 hover:text-white" onClick={handleClose}>✕</button>
         </div>
 
         {/* Stepper */}
         <div className="flex items-center gap-2 text-xs mb-4">
           <StepDot active={step >= 0} label="Select Set" /><span>›</span>
-          <StepDot active={step >= 1} label="Choose Your Cards" /><span>›</span>
+          <StepDot active={step >= 1} label="Your Cards" /><span>›</span>
           <StepDot active={step >= 2} label="Add Teammates (Optional)" /><span>›</span>
           <StepDot active={step >= 3} label="Confirm" />
         </div>
@@ -156,6 +250,14 @@ export default function LaydownModal({ onClose }) {
                   setPick({ suit, setType: type });
                   setMyRanks([]);        // reset selection when switching sets
                   setCollabRanks({});
+                  
+                  // Send bubble message for set selection
+                  send(ws, "bubble_message", {
+                    player_id: me.id,
+                    variant: "laydown_set",
+                    suit,
+                    set_type: type
+                  });
                 }}
               >
                 <div className="flex items-center gap-2">
@@ -169,29 +271,28 @@ export default function LaydownModal({ onClose }) {
           </div>
         )}
 
-        {/* STEP 1: choose my cards (real cards from my hand) */}
+        {/* STEP 1: show my cards (auto-selected) */}
         {step === 1 && (
           <div>
             <div className="text-xs opacity-70 mb-2">
-              Select the cards <span className="font-medium">you</span> will contribute.
+              Your cards for this set (auto-selected):
             </div>
             <div className="flex flex-wrap gap-2">
               {mySetRanks.map((c) => {
                 const selected = myRanks.includes(c.rank);
                 return (
-                  <button
+                  <div
                     key={`${c.suit}-${c.rank}`}
                     className={`rounded-xl p-1 ${
-                      selected ? "ring-2 ring-emerald-500 bg-emerald-500/10" : "bg-zinc-800 hover:bg-zinc-700"
+                      selected ? "ring-2 ring-emerald-500 bg-emerald-500/10" : "bg-zinc-800"
                     }`}
-                    onClick={() => toggleMyRank(c.rank)}
                   >
                     <Card suit={c.suit} rank={c.rank} size="md" />
-                  </button>
+                  </div>
                 );
               })}
               {!mySetRanks.length && (
-                <div className="text-xs opacity-60">You don’t hold any cards from this set.</div>
+                <div className="text-xs opacity-60">You don't hold any cards from this set.</div>
               )}
             </div>
           </div>
@@ -228,7 +329,9 @@ export default function LaydownModal({ onClose }) {
                 const available = setRanks.filter((r) => !takenByOthers.has(r));
 
                 return (
-                  <div key={tm.id} className="bg-zinc-850/40 rounded-xl p-3">
+                  <div key={tm.id} className={`rounded-xl p-3 ${
+                    assigned.size > 0 ? "bg-emerald-500/20 ring-2 ring-emerald-500" : "bg-zinc-850/40"
+                  }`}>
                     <div className="mb-2 text-sm">{tm.avatar} {tm.name}</div>
                     {available.length ? (
                       <div className="flex flex-wrap gap-2">
@@ -320,7 +423,7 @@ export default function LaydownModal({ onClose }) {
 
         {/* Footer */}
         <div className="mt-5 flex items-center justify-between">
-          <button className="px-3 py-2 rounded bg-zinc-800 hover:bg-zinc-700" onClick={step === 0 ? onClose : prevStep}>
+          <button className="px-3 py-2 rounded bg-zinc-800 hover:bg-zinc-700" onClick={step === 0 ? handleClose : prevStep}>
             {step === 0 ? "Close" : "Back"}
           </button>
           <div className="flex items-center gap-2">
@@ -328,9 +431,7 @@ export default function LaydownModal({ onClose }) {
               <button
                 className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40"
                 disabled={
-                  step === 0 ? !(pick.suit && pick.setType) :
-                  step === 1 ? myRanks.length === 0 && remainingNeeded.length > 0 :
-                  false
+                  step === 0 ? !(pick.suit && pick.setType) : false
                 }
                 onClick={nextStep}
               >

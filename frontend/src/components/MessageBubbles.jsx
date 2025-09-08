@@ -14,7 +14,7 @@ import Card from "./Card";
  *   - no : "{PlayerName}: No." + card
  */
 export default function MessageBubbles({ seatEls, seatVersion }) {
-  const { messages, state } = useStore();
+  const { messages, state, me } = useStore();
   const players = state?.players || {};
 
   const [pos, setPos] = useState({}); // id -> {x,y,place:"above"|"below"}
@@ -52,7 +52,11 @@ export default function MessageBubbles({ seatEls, seatVersion }) {
     };
   }, [messages, seatVersion, seatEls]);
 
-  const items = useMemo(() => messages || [], [messages]);
+  const items = useMemo(() => {
+    const allMessages = messages || [];
+    // Filter out messages from the current player (they don't need to see their own bubble messages)
+    return allMessages.filter(m => m.player_id !== me?.id);
+  }, [messages, me?.id]);
 
   if (!items.length) return null;
 
@@ -111,6 +115,48 @@ export default function MessageBubbles({ seatEls, seatVersion }) {
               ) : null}
             </div>
           );
+        } else if (m.variant === "laydown_start") {
+          content = (
+            <div className="text-sm">
+              <span className="font-semibold">{asker?.name || "Player"}</span>
+              <span className="opacity-80">: Going to Laydown</span>
+            </div>
+          );
+        } else if (m.variant === "laydown_set") {
+          content = (
+            <div className="text-sm">
+              <span className="font-semibold">{asker?.name || "Player"}</span>
+              <span className="opacity-80">: Selected</span>{" "}
+              <span className="capitalize font-medium">{m.suit} {m.set_type}</span>
+            </div>
+          );
+        } else if (m.variant === "laydown_cards") {
+          content = (
+            <div className="text-sm">
+              <span className="font-semibold">{asker?.name || "Player"}</span>
+              <span className="opacity-80">: My cards</span>{" "}
+              <div className="inline-flex gap-1 mt-1">
+                {m.cards?.map((card, i) => (
+                  <Card key={i} suit={card.suit} rank={card.rank} size="xs" />
+                ))}
+              </div>
+            </div>
+          );
+        } else if (m.variant === "laydown_teammate") {
+          content = (
+            <div className="text-sm">
+              <span className="font-semibold">{asker?.name || "Player"}</span>
+              <span className="opacity-80">: Teammate</span>{" "}
+              <span className="font-medium">{m.teammate_name}</span>
+              {m.cards && (
+                <div className="inline-flex gap-1 mt-1">
+                  {m.cards.map((card, i) => (
+                    <Card key={i} suit={card.suit} rank={card.rank} size="xs" />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
         } else {
           content = (
             <div className="text-sm">
@@ -123,13 +169,23 @@ export default function MessageBubbles({ seatEls, seatVersion }) {
         const theme =
           m.variant === "ask" ? "bg-sky-600/90" :
           m.variant === "yes" ? "bg-emerald-600/90" :
-          m.variant === "no"  ? "bg-rose-600/90" : "bg-zinc-700/90";
+          m.variant === "no"  ? "bg-rose-600/90" :
+          m.variant === "laydown_start" ? "bg-purple-600/90" :
+          m.variant === "laydown_set" ? "bg-indigo-600/90" :
+          m.variant === "laydown_cards" ? "bg-blue-600/90" :
+          m.variant === "laydown_teammate" ? "bg-cyan-600/90" :
+          "bg-zinc-700/90";
 
         // Tail color
         const tailColor =
           m.variant === "ask" ? "rgb(2 132 199 / 0.9)" :
           m.variant === "yes" ? "rgb(5 150 105 / 0.9)" :
-          m.variant === "no"  ? "rgb(225 29 72 / 0.9)" : "rgb(63 63 70 / 0.9)";
+          m.variant === "no"  ? "rgb(225 29 72 / 0.9)" :
+          m.variant === "laydown_start" ? "rgb(147 51 234 / 0.9)" :
+          m.variant === "laydown_set" ? "rgb(79 70 229 / 0.9)" :
+          m.variant === "laydown_cards" ? "rgb(37 99 235 / 0.9)" :
+          m.variant === "laydown_teammate" ? "rgb(8 145 178 / 0.9)" :
+          "rgb(63 63 70 / 0.9)";
 
         const translate = xy.place === "above" ? "translate(-50%,-100%)" : "translate(-50%,0)";
 
