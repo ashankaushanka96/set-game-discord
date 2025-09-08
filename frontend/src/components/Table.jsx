@@ -78,7 +78,6 @@ export default function Table() {
   const my = players[me.id];
   const isMyTurn = state.turn_player === me.id;
 
-  // layout geometry
   const AREA_W = 900, AREA_H = 640, TABLE_SIZE = 420, RADIUS = 280;
   const mySeatIndex = typeof my?.seat === 'number' ? my.seat : 0;
   const seatPositions = useMemo(() => {
@@ -90,7 +89,6 @@ export default function Table() {
     return pos;
   }, [mySeatIndex]);
 
-  // eligible sets for ASK modal (and laydown modal uses its own filter)
   const eligibleSets = useMemo(() => {
     if (!my) return [];
     const res = [];
@@ -135,10 +133,16 @@ export default function Table() {
 
   const confirmPass = () => {
     if (!pendingAsk) return;
-    send(ws,'confirm_pass',{ asker_id: pendingAsk.asker_id, target_id: pendingAsk.target_id, cards: pendingAsk.pending_cards });
+    send(ws,'confirm_pass',{
+      asker_id: pendingAsk.asker_id,
+      target_id: pendingAsk.target_id,
+      cards: pendingAsk.pending_cards || [], // empty => NO
+      suit: pendingAsk.suit,
+      ranks: pendingAsk.ranks
+    });
   };
 
-  // PASS animation (seat to seat)
+  // PASS anim
   useEffect(() => {
     function onAnim(e) {
       const { asker_id, target_id, card } = e.detail || {};
@@ -161,7 +165,7 @@ export default function Table() {
     return () => window.removeEventListener('pass_anim', onAnim);
   }, []);
 
-  // LAYDOWN animation (contributors to table center)
+  // LAY anim
   useEffect(() => {
     function onLayAnim(e) {
       const { contributors } = e.detail || {};
@@ -202,12 +206,9 @@ export default function Table() {
     }
   };
 
-  // Table sets split by team
   const tableSets = state.table_sets || [];
   const setsA = tableSets.filter(ts => ts.owner_team === 'A');
   const setsB = tableSets.filter(ts => ts.owner_team === 'B');
-
-  // Scoreboard numbers
   const scoreA = state.team_scores?.A ?? 0;
   const scoreB = state.team_scores?.B ?? 0;
 
@@ -220,7 +221,6 @@ export default function Table() {
       <Celebration />
       <TurnBanner state={state} />
 
-      {/* Handoff prompt (success laydown) */}
       {handoffFor && handoffFor.who_id === me.id && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[95] bg-zinc-900/90 backdrop-blur px-4 py-2 rounded-xl card-shadow flex items-center gap-2">
           <span className="text-sm opacity-80">Pass turn to teammate:</span>
@@ -233,7 +233,7 @@ export default function Table() {
         </div>
       )}
 
-      {/* My HUD (top-left) */}
+      {/* HUD */}
       <div className="fixed top-3 left-3 bg-zinc-800/80 backdrop-blur px-4 py-2 rounded-xl card-shadow text-sm z-[95]">
         <div className="font-semibold">{my?.name ?? 'Me'}</div>
         <div className="opacity-80">Seat {typeof my?.seat === 'number' ? my.seat+1 : '-'}</div>
@@ -246,29 +246,22 @@ export default function Table() {
       <MessageBubbles seatEls={seatEls} seatVersion={seatVersion} />
       <div className="mt-16" />
 
-      {/* TABLE STRIP with side team panels */}
+      {/* left panel (Team A) - table - right panel (Team B) */}
       <div className="relative w-full flex items-start justify-center gap-6">
-        {/* Team A collected sets (left) */}
         <div className="hidden xl:block w-[260px]">
           <div className="sticky top-24 space-y-2">
             <div className="text-sm font-semibold text-blue-300 mb-1">Team A — Collected</div>
-            {setsA.length === 0 && (
-              <div className="text-xs opacity-60">No sets yet.</div>
-            )}
+            {setsA.length === 0 && <div className="text-xs opacity-60">No sets yet.</div>}
             {setsA.map((ts, idx)=>(
               <SetChip key={`A-${idx}`} suit={ts.suit} set_type={ts.set_type} owner="A" expandable cards={ts.cards}/>
             ))}
           </div>
         </div>
 
-        {/* TABLE AREA */}
         <div className="relative">
           <div className="relative mx-auto bg-zinc-900/30 rounded-3xl card-shadow" style={{ width: `${AREA_W}px`, height: `${AREA_H}px` }}>
-            <div
-              ref={tableCenterRef}
-              className="absolute rounded-full border-4 border-zinc-700 bg-zinc-800/40"
-              style={{ width: `${TABLE_SIZE}px`, height: `${TABLE_SIZE}px`, left: `calc(50% - ${TABLE_SIZE/2}px)`, top: `calc(50% - ${TABLE_SIZE/2}px)` }}
-            />
+            <div ref={tableCenterRef} className="absolute rounded-full border-4 border-zinc-700 bg-zinc-800/40"
+                 style={{ width: `${TABLE_SIZE}px`, height: `${TABLE_SIZE}px`, left: `calc(50% - ${TABLE_SIZE/2}px)`, top: `calc(50% - ${TABLE_SIZE/2}px)` }} />
 
             {Object.keys(seats).map((k) => {
               const i = Number(k);
@@ -303,7 +296,6 @@ export default function Table() {
               );
             })}
 
-            {/* PASS animation */}
             {anim && (
               <div className="fixed z-[90] pointer-events-none" style={{ left: anim.from.x, top: anim.from.y, transform: 'translate(-50%,-50%)' }}>
                 <div style={{ position: 'relative', left: anim.go ? (anim.to.x - anim.from.x) : 0, top: anim.go ? (anim.to.y - anim.from.y) : 0,
@@ -313,7 +305,6 @@ export default function Table() {
               </div>
             )}
 
-            {/* LAYDOWN animation */}
             {lays.map((a, idx)=>(
               <div key={`lay-${idx}`} className="fixed z-[88] pointer-events-none" style={{ left: a.from.x, top: a.from.y, transform: 'translate(-50%,-50%)' }}>
                 <div style={{ position:'relative', left: a.go ? (a.to.x - a.from.x) : 0, top: a.go ? (a.to.y - a.from.y) : 0,
@@ -324,40 +315,35 @@ export default function Table() {
             ))}
           </div>
 
-          {/* Scoreboard under table */}
           <div className="mt-3 mx-auto flex items-center justify-center gap-6 text-sm">
             <div className="px-3 py-1 rounded-full bg-zinc-900/70">
               <span className="inline-flex items-center gap-2 text-blue-300">
                 <span className="inline-block h-2 w-2 rounded-full bg-blue-400" />
-                Team A <span className="text-zinc-300">—</span> <span className="text-white">{scoreA}</span> pts
-                <span className="opacity-60"> ({setsA.length} sets)</span>
+                Team A <span className="text-zinc-300">—</span> <span className="text-white">{state.team_scores?.A ?? 0}</span> pts
+                <span className="opacity-60"> ({(state.table_sets||[]).filter(s=>s.owner_team==='A').length} sets)</span>
               </span>
             </div>
             <div className="px-3 py-1 rounded-full bg-zinc-900/70">
               <span className="inline-flex items-center gap-2 text-rose-300">
                 <span className="inline-block h-2 w-2 rounded-full bg-rose-400" />
-                Team B <span className="text-zinc-300">—</span> <span className="text-white">{scoreB}</span> pts
-                <span className="opacity-60"> ({setsB.length} sets)</span>
+                Team B <span className="text-zinc-300">—</span> <span className="text-white">{state.team_scores?.B ?? 0}</span> pts
+                <span className="opacity-60"> ({(state.table_sets||[]).filter(s=>s.owner_team==='B').length} sets)</span>
               </span>
             </div>
           </div>
         </div>
 
-        {/* Team B collected sets (right) */}
         <div className="hidden xl:block w-[260px]">
           <div className="sticky top-24 space-y-2">
             <div className="text-sm font-semibold text-rose-300 mb-1">Team B — Collected</div>
-            {setsB.length === 0 && (
-              <div className="text-xs opacity-60">No sets yet.</div>
-            )}
-            {setsB.map((ts, idx)=>(
+            {((state.table_sets||[]).filter(s=>s.owner_team==='B').length) === 0 && <div className="text-xs opacity-60">No sets yet.</div>}
+            {(state.table_sets||[]).filter(s=>s.owner_team==='B').map((ts, idx)=>(
               <SetChip key={`B-${idx}`} suit={ts.suit} set_type={ts.set_type} owner="B" expandable cards={ts.cards}/>
             ))}
           </div>
         </div>
       </div>
 
-      {/* HAND + actions */}
       <div className="mt-6 flex flex-col items-center">
         <PlayerHand cards={my?.hand || []} />
       </div>
@@ -365,14 +351,12 @@ export default function Table() {
         {my?.seat === 0 && state.phase === 'playing' && (
           <button className="bg-amber-600 px-4 py-2 rounded" onClick={() => send(ws, 'shuffle_deal', {})}>Shuffle & Deal</button>
         )}
-        <button disabled={!isMyTurn} className="bg-indigo-600 px-4 py-2 rounded disabled:opacity-40" onClick={startAskFlow}>Ask</button>
+        <button disabled={!isMyTurn} className="bg-indigo-600 px-4 py-2 rounded disabled:opacity-40" onClick={() => { if (isMyTurn) { setSelectingTarget(true); setTargetPlayer(null); } }}>Ask</button>
         <button disabled={!isMyTurn} className="bg-emerald-600 px-4 py-2 rounded disabled:opacity-40" onClick={()=>setLayOpen(true)}>Laydown</button>
       </div>
 
-      {/* Single game message box */}
       <MessageBox />
 
-      {/* Modals */}
       <AskSetModal
         open={setPickerOpen}
         eligibleSets={eligibleSets.map(({ suit, type }) => ({ suit, type }))}
@@ -394,6 +378,8 @@ export default function Table() {
           asker={players[pendingAsk.asker_id]}
           target={players[pendingAsk.target_id]}
           cards={pendingAsk.pending_cards}
+          suit={pendingAsk.suit}
+          ranks={pendingAsk.ranks}
           onConfirm={confirmPass}
           onClose={()=>{}}
         />

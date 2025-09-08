@@ -1,94 +1,173 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../store";
 import Card from "./Card";
 
 /**
- * Seat-anchored message bubbles.
- * Props:
- *  - seatEls: ref map -> seatEls.current[playerId] = DOM element
- *  - seatVersion: number increasing whenever a seat ref attaches/changes
+ * Seat bubbles with auto-flip:
+ *  - If seat is near top, render bubble BELOW the seat (so it doesn't get cut).
+ *  - Otherwise render ABOVE the seat.
+ * Also clamps X so bubbles never go off-screen.
+ *
+ * Variants: "ask", "yes", "no"
+ *   - ask: "{TargetName}, do you have [Card]?"
+ *   - yes: "{PlayerName}: Yes, I have." + card
+ *   - no : "{PlayerName}: No." + card
  */
 export default function MessageBubbles({ seatEls, seatVersion }) {
-  const { messages } = useStore();
-  const [positions, setPositions] = useState({}); // {msgId: {top,left,below}}
-  const retryTimer = useRef(null);
+  const { messages, state } = useStore();
+  const players = state?.players || {};
 
-  const list = Array.isArray(messages) ? messages : [];
+  const [pos, setPos] = useState({}); // id -> {x,y,place:"above"|"below"}
 
-  const computePositions = () => {
-    const pos = {};
-    const guard = 84; // px from top: flip bubbles below if too close
-    for (const m of list) {
-      const el = seatEls.current?.[m.player_id];
-      if (!el) continue;
-      const r = el.getBoundingClientRect();
-      const aboveTop = r.top - 10;
-      const below = aboveTop < guard;
-      pos[m.id] = {
-        left: r.left + r.width / 2,
-        top: below ? r.bottom + 10 : aboveTop,
-        below,
-      };
-    }
-    setPositions(pos);
-  };
-
-  useLayoutEffect(() => {
-    computePositions();
-    if (retryTimer.current) clearTimeout(retryTimer.current);
-    retryTimer.current = setTimeout(() => {
-      computePositions();
-      retryTimer.current = setTimeout(() => {
-        computePositions();
-        retryTimer.current = null;
-      }, 120);
-    }, 80);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seatVersion, messages]);
-
+  // recompute positions on seatVersion or messages change or window resize/scroll
   useEffect(() => {
-    const onResize = () => computePositions();
+    const compute = () => {
+      const next = {};
+      const viewportW = window.innerWidth;
+      (messages || []).forEach((m) => {
+        const el = seatEls.current?.[m.player_id];
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        // Decide placement
+        const place = r.top < 120 ? "below" : "above";
+        // Position base point
+        let x = r.left + r.width / 2;
+        let y = place === "above" ? r.top - 8 : r.bottom + 8;
+        // Clamp X so the bubble never leaves viewport
+        const pad = 16;
+        if (x < pad) x = pad;
+        if (x > viewportW - pad) x = viewportW - pad;
+        next[m.id] = { x, y, place };
+      });
+      setPos(next);
+    };
+    compute();
+    const onResize = () => compute();
+    const onScroll = () => compute();
     window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, [messages, seatVersion, seatEls]);
 
-  const color = (v) =>
-    v === "ask" ? "bg-indigo-600" : v === "yes" ? "bg-emerald-600" : "bg-zinc-800";
+  const items = useMemo(() => messages || [], [messages]);
+
+  if (!items.length) return null;
 
   return (
     <>
-      {list.map((m) => {
-        const p = positions[m.id];
-        if (!p) return null;
+      {items.map((m) => {
+        const asker = players[m.player_id];
+        const target = players[m.target_id];
+        const xy = pos[m.id];
+        if (!xy) return null;
+
+        let content = null;
+        if (m.variant === "ask") {
+          content = (
+            <div className="text-sm">
+              <span className="font-semibold">{target?.name || "Player"}</span>
+              <span className="opacity-80">, do you have</span>{" "}
+              {m.card ? (
+                <span className="inline-flex items-center gap-1 align-middle">
+                  <Card suit={m.card.suit} rank={m.card.rank} size="xs" />
+                  <span className="text-xs opacity-80">
+                    ({m.card.rank} of {m.card.suit})
+                  </span>
+                </span>
+              ) : null}
+              <span className="opacity-80">?</span>
+            </div>
+          );
+        } else if (m.variant === "yes") {
+          content = (
+            <div className="text-sm">
+              <span className="font-semibold">{asker?.name || "Player"}</span>
+              <span className="opacity-80">: Yes, I have.</span>{" "}
+              {m.card ? (
+                <span className="inline-flex items-center gap-1 align-middle">
+                  <Card suit={m.card.suit} rank={m.card.rank} size="xs" />
+                  <span className="text-xs opacity-80">
+                    ({m.card.rank} of {m.card.suit})
+                  </span>
+                </span>
+              ) : null}
+            </div>
+          );
+        } else if (m.variant === "no") {
+          content = (
+            <div className="text-sm">
+              <span className="font-semibold">{asker?.name || "Player"}</span>
+              <span className="opacity-80">: No.</span>{" "}
+              {m.card ? (
+                <span className="inline-flex items-center gap-1 align-middle">
+                  <Card suit={m.card.suit} rank={m.card.rank} size="xs" />
+                  <span className="text-xs opacity-80">
+                    ({m.card.rank} of {m.card.suit})
+                  </span>
+                </span>
+              ) : null}
+            </div>
+          );
+        } else {
+          content = (
+            <div className="text-sm">
+              <span className="font-semibold">{asker?.name || "Player"}</span>
+              <span className="opacity-80">: {m.text}</span>
+            </div>
+          );
+        }
+
+        const theme =
+          m.variant === "ask" ? "bg-sky-600/90" :
+          m.variant === "yes" ? "bg-emerald-600/90" :
+          m.variant === "no"  ? "bg-rose-600/90" : "bg-zinc-700/90";
+
+        // Tail color
+        const tailColor =
+          m.variant === "ask" ? "rgb(2 132 199 / 0.9)" :
+          m.variant === "yes" ? "rgb(5 150 105 / 0.9)" :
+          m.variant === "no"  ? "rgb(225 29 72 / 0.9)" : "rgb(63 63 70 / 0.9)";
+
+        const translate = xy.place === "above" ? "translate(-50%,-100%)" : "translate(-50%,0)";
+
         return (
           <div
             key={m.id}
-            className="fixed z-[80] pointer-events-none"
+            className={`fixed z-[120] pointer-events-none rounded-2xl ${theme} text-white px-3 py-2 shadow-xl`}
             style={{
-              left: p.left,
-              top: p.top,
-              transform: p.below ? "translate(-50%, 0%)" : "translate(-50%, -100%)",
+              left: xy.x,
+              top: xy.y,
+              transform: translate,
+              whiteSpace: "nowrap",
             }}
           >
-            <div className={`relative pointer-events-auto rounded-[18px] px-3 py-2 card-shadow text-sm flex items-center gap-2 ${color(m.variant)} text-white`}>
-              <div className="font-medium">{m.text}</div>
-              {m.card && (
-                <div className="ml-2 shrink-0">
-                  <Card suit={m.card.suit} rank={m.card.rank} size="sm" />
-                </div>
+            <div className="relative">
+              {/* bubble tail */}
+              {xy.place === "above" ? (
+                <div
+                  className="absolute left-1/2 top-full -translate-x-1/2"
+                  style={{
+                    width: 0, height: 0,
+                    borderLeft: "8px solid transparent",
+                    borderRight: "8px solid transparent",
+                    borderTop: `10px solid ${tailColor}`,
+                  }}
+                />
+              ) : (
+                <div
+                  className="absolute left-1/2 bottom-full -translate-x-1/2"
+                  style={{
+                    width: 0, height: 0,
+                    borderLeft: "8px solid transparent",
+                    borderRight: "8px solid transparent",
+                    borderBottom: `10px solid ${tailColor}`,
+                  }}
+                />
               )}
-              {/* Tail */}
-              <span
-                className={`absolute left-1/2 -translate-x-1/2 w-0 h-0 ${
-                  p.below
-                    ? "top-0 -translate-y-full border-b-[10px]"
-                    : "bottom-0 translate-y-full border-t-[10px]"
-                } border-x-[10px] border-x-transparent ${
-                  p.below ? "border-b-current" : "border-t-current"
-                }`}
-                style={{ color: "inherit" }}
-              />
+              {content}
             </div>
           </div>
         );

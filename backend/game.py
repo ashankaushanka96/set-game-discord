@@ -1,13 +1,18 @@
 from __future__ import annotations
 import random
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Tuple, Optional
 from models import Card, RoomState, Player, TableSet, Suit
 
-RANKS_LOWER = ["2","3","4","5","6","7"]
-RANKS_UPPER = ["8","9","10","J","Q","K","A"]
-SUITS: List[Suit] = ["hearts","diamonds","clubs","spades"]
+RANKS_LOWER = ["2", "3", "4", "5", "6", "7"]
+RANKS_UPPER = ["8", "9", "10", "J", "Q", "K", "A"]
+SUITS: List[Suit] = ["hearts", "diamonds", "clubs", "spades"]
 
 POINTS = {"lower": 20, "upper": 30}
+
+
+def card_tuple(c: Card) -> Tuple[str, str]:
+    return (c.suit, c.rank)
+
 
 class Game:
     def __init__(self, room_id: str):
@@ -15,14 +20,13 @@ class Game:
             room_id=room_id,
             players={},
             seats={i: None for i in range(6)},
-            team_scores={"A":0, "B":0},
+            team_scores={"A": 0, "B": 0},
             table_sets=[],
             phase="lobby",
         )
         self._deck: List[Card] = []
-        self._handoff_eligible: Dict[str, set[str]] = {}
 
-    # --- deck ---
+    # ---------------- Deck ----------------
     def build_deck(self):
         self._deck = []
         for s in SUITS:
@@ -45,9 +49,9 @@ class Game:
             self.state.players[pid].hand = cards
         self.state.deck_count = 0
 
-    # --- seating/teams ---
+    # ---------------- Seating & Teams ----------------
     def assign_seat(self, player_id: str, team: str) -> Optional[int]:
-        preferred = [0,2,4] if team == "A" else [1,3,5]
+        preferred = [0, 2, 4] if team == "A" else [1, 3, 5]
         for s in preferred:
             if self.state.seats[s] is None:
                 self.state.seats[s] = player_id
@@ -62,30 +66,75 @@ class Game:
         first = self.state.seats.get(0)
         self.state.turn_player = first
 
-    # --- helpers ---
+    # ---------------- Helpers ----------------
+    @staticmethod
+    def card_set_type(card: Card) -> str:
+        return "lower" if card.rank in RANKS_LOWER else "upper"
+
+    @staticmethod
+    def ranks_for(set_type: str) -> List[str]:
+        return RANKS_LOWER if set_type == "lower" else RANKS_UPPER
+
     @staticmethod
     def all_cards_of_set(suit: str, set_type: str) -> List[Card]:
-        ranks = RANKS_LOWER if set_type == "lower" else RANKS_UPPER
+        ranks = Game.ranks_for(set_type)
         return [Card(suit=suit, rank=r) for r in ranks]
 
     def has_at_least_one_in_set(self, player: Player, suit: str, set_type: str) -> bool:
-        ranks = RANKS_LOWER if set_type == "lower" else RANKS_UPPER
+        ranks = self.ranks_for(set_type)
         return any(c.suit == suit and c.rank in ranks for c in player.hand)
 
-    # --- ask flow ---
+    def _has_cards(self, pid: Optional[str]) -> bool:
+        if not pid:
+            return False
+        p = self.state.players.get(pid)
+        return bool(p and p.hand)
+
+    def _ccw_from(self, seat_idx: int) -> Optional[str]:
+        return self.state.seats.get((seat_idx - 1) % 6)
+
+    def _table_has_set(self, suit: str, set_type: str) -> bool:
+        return any(ts.suit == suit and ts.set_type == set_type for ts in self.state.table_sets)
+
+    def _next_ccw_matching(self, start_seat: int, predicate) -> Optional[str]:
+        """
+        Walk CCW starting after start_seat, return first player_id that matches predicate.
+        """
+        for step in range(1, 7):
+            pid = self.state.seats.get((start_seat - step) % 6)
+            if pid and predicate(pid):
+                return pid
+        return None
+
+    # ---------------- ASK (prepare -> confirm) ----------------
     def prepare_ask(self, asker_id: str, target_id: str, suit: str, set_type: str, ranks: List[str]):
         if self.state.turn_player != asker_id:
             raise ValueError("Not your turn")
-        asker = self.state.players[asker_id]
-        target = self.state.players[target_id]
+
+        asker = self.state.players.get(asker_id)
+        target = self.state.players.get(target_id)
         if not asker or not target:
             raise ValueError("Unknown player")
         if asker.team == target.team:
             raise ValueError("Must ask an opponent")
+
+        # NEW: cannot ask an empty-handed player
+        if not target.hand:
+            return {
+                "success": False,
+                "reason": "target_empty",
+                "asker_id": asker_id,
+                "target_id": target_id,
+                "suit": suit,
+                "set_type": set_type,
+                "ranks": list(ranks or []),
+                "needs_no_confirm": False,
+            }
+
         if not self.has_at_least_one_in_set(asker, suit, set_type):
             raise ValueError("You must hold at least one card from that set")
 
-        wanted = set(ranks)
+        wanted = set(ranks or [])
         owned = {(c.suit, c.rank) for c in asker.hand}
         wanted = {r for r in wanted if (suit, r) not in owned}
 
@@ -95,155 +144,239 @@ class Game:
                 pending_cards.append(c)
 
         if not pending_cards:
-            self.state.turn_player = target_id
-            return {"success": False, "pending_cards": [], "next_turn": self.state.turn_player}
+            # explicit NO confirmation flow (UI shows target confirm NO)
+            return {
+                "success": False,
+                "pending_cards": [],
+                "asker_id": asker_id,
+                "target_id": target_id,
+                "suit": suit,
+                "set_type": set_type,
+                "ranks": list(wanted),
+                "needs_no_confirm": True,
+            }
 
-        return {"success": True, "pending_cards": [c.model_dump() for c in pending_cards], "next_turn": asker_id}
+        return {
+            "success": True,
+            "pending_cards": [c.model_dump() for c in pending_cards],
+            "asker_id": asker_id,
+            "target_id": target_id,
+            "suit": suit,
+            "set_type": set_type,
+            "ranks": list(wanted),
+            "needs_no_confirm": False,
+        }
 
     def confirm_pass(self, asker_id: str, target_id: str, cards: List[Card]):
         target = self.state.players[target_id]
         asker = self.state.players[asker_id]
+
+        if not cards:
+            # explicit NO; pass turn to target UNLESS target is empty,
+            # in which case skip to next CCW teammate with cards
+            if target.hand:
+                self.state.turn_player = target_id
+                return {"success": False, "reason": "no_card", "next_turn": target_id}
+            # skip empty-handed
+            start_seat = target.seat or 0
+            next_pid = self._next_ccw_matching(
+                start_seat, lambda pid: self.state.players[pid].team == target.team and self._has_cards(pid)
+            ) or self._next_ccw_matching(start_seat, lambda pid: self._has_cards(pid))
+            self.state.turn_player = next_pid
+            return {"success": False, "reason": "no_card", "next_turn": next_pid}
+
         to_pass: List[Card] = []
         for card in cards:
-            found = next((c for c in target.hand if c.suit == card.suit and c.rank == card.rank), None)
+            found = None
+            for c in target.hand:
+                if c.suit == card.suit and c.rank == card.rank:
+                    found = c
+                    break
             if found:
                 to_pass.append(found)
 
         if to_pass:
-            target.hand = [c for c in target.hand if all(not (c.suit == x.suit and c.rank == x.rank) for x in to_pass)]
-            exist = {(c.suit, c.rank) for c in asker.hand}
+            tset = {(c.suit, c.rank) for c in to_pass}
+            target.hand = [c for c in target.hand if (c.suit, c.rank) not in tset]
+            aexist = {(c.suit, c.rank) for c in asker.hand}
             for c in to_pass:
-                if (c.suit, c.rank) not in exist:
+                if (c.suit, c.rank) not in aexist:
                     asker.hand.append(c)
+
             self.state.turn_player = asker_id
-            return {"success": True, "transferred": [c.model_dump() for c in to_pass], "next_turn": asker_id}
+            return {
+                "success": True,
+                "transferred": [c.model_dump() for c in to_pass],
+                "next_turn": asker_id,
+            }
 
-        self.state.turn_player = target_id
-        return {"success": False, "transferred": [], "next_turn": target_id}
+        # nothing passed -> same logic as NO
+        if target.hand:
+            self.state.turn_player = target_id
+            return {"success": False, "reason": "no_card", "next_turn": target_id}
 
-    # --- laydown ---
-    def laydown(self, who_id: str, suit: str, set_type: str, collaborators: Any = None):
+        start_seat = target.seat or 0
+        next_pid = self._next_ccw_matching(
+            start_seat, lambda pid: self.state.players[pid].team == target.team and self._has_cards(pid)
+        ) or self._next_ccw_matching(start_seat, lambda pid: self._has_cards(pid))
+        self.state.turn_player = next_pid
+        return {"success": False, "reason": "no_card", "next_turn": next_pid}
+
+    # ---------------- Laydown ----------------
+    def laydown(
+        self,
+        who_id: str,
+        suit: str,
+        set_type: str,
+        collaborators: Dict[str, List[str]] | List[Dict[str, List[str]]] | None = None,
+    ):
         if self.state.turn_player != who_id:
             raise ValueError("Not your turn")
 
-        need_ranks = RANKS_LOWER if set_type == "lower" else RANKS_UPPER
-        need_set = set(need_ranks)
+        my = self.state.players[who_id]
+        needed_ranks = set(self.ranks_for(set_type))
 
-        def normalize_collabs(collabs) -> List[dict]:
-            if not collabs:
-                return []
-            out: List[dict] = []
-            if isinstance(collabs, dict):
-                for pid, ranks in collabs.items():
-                    out.append({"player_id": pid, "cards": [{"suit": suit, "rank": r} for r in list(ranks)]})
-                return out
-            for item in collabs:
-                pid = item.get("player_id")
-                if not pid:
+        # normalize collaborators
+        coll_map: Dict[str, List[str]] = {}
+        if isinstance(collaborators, dict):
+            coll_map = {k: list(v) for k, v in collaborators.items()}
+        elif isinstance(collaborators, list):
+            for item in collaborators:
+                if not item:
                     continue
-                if "cards" in item and isinstance(item["cards"], list):
-                    cs = [{"suit": c["suit"], "rank": c["rank"]} for c in item["cards"] if c.get("rank") in need_set and c.get("suit") == suit]
-                elif "ranks" in item and isinstance(item["ranks"], list):
-                    cs = [{"suit": suit, "rank": r} for r in item["ranks"] if r in need_set]
+                if isinstance(item, dict) and "pid" in item:
+                    coll_map[item["pid"]] = list(item.get("ranks", []))
                 else:
-                    cs = []
-                out.append({"player_id": pid, "cards": cs})
-            return out
+                    for k, v in item.items():
+                        if isinstance(v, list):
+                            coll_map[k] = list(v)
 
-        who = self.state.players.get(who_id)
-        if not who:
-            return {"success": False, "owner_team": None, "suit": suit, "set_type": set_type, "contributors": [], "next_turn": self.state.turn_player}
+        declared = {c.rank for c in my.hand if c.suit == suit and c.rank in needed_ranks}
+        contributors: List[Dict] = []
 
-        contributors: List[dict] = []
-        my_cards = [{"suit": c.suit, "rank": c.rank} for c in who.hand if c.suit == suit and c.rank in need_set]
-        contributors.append({"player_id": who_id, "cards": my_cards})
-
-        collab_list = normalize_collabs(collaborators)
-        for item in collab_list:
-            pid = item["player_id"]
-            p = self.state.players.get(pid)
-            if not p or p.team != who.team:
+        for pid, ranks in coll_map.items():
+            if pid not in self.state.players:
                 continue
-            want = {(c["suit"], c["rank"]) for c in item["cards"] if c.get("rank") in need_set and c.get("suit") == suit}
-            if not want:
-                continue
-            have = {(c.suit, c.rank) for c in p.hand}
-            real = [{"suit": s, "rank": r} for (s, r) in want if (s, r) in have]
-            if real:
-                contributors.append({"player_id": pid, "cards": real})
+            p = self.state.players[pid]
+            if p.team != my.team:
+                raise ValueError("Collaborators must be teammates")
+            for r in ranks:
+                if r in needed_ranks:
+                    declared.add(r)
 
-        contributed = {c["rank"] for con in contributors for c in con["cards"]}
-        ok = contributed == need_set
-        points = POINTS[set_type]
-        self._handoff_eligible.pop(who_id, None)
+        # --- Failure: opponent wins, capture full set to table; choose next turn smartly
+        if declared != needed_ranks:
+            loser_team = my.team
+            winner_team = "A" if loser_team == "B" else "B"
 
-        if ok:
-            owner_team = who.team
+            def pull_from(pid: str) -> List[Card]:
+                p = self.state.players[pid]
+                keep, take = [], []
+                for c in p.hand:
+                    if c.suit == suit and c.rank in needed_ranks:
+                        take.append(c)
+                    else:
+                        keep.append(c)
+                p.hand = keep
+                return take
 
-            # remove contributed cards
-            def remove_cards(pid: str, cards: List[dict]):
-                p = self.state.players.get(pid)
-                if not p:
-                    return
-                rem = {(c["suit"], c["rank"]) for c in cards}
-                p.hand = [c for c in p.hand if (c.suit, c.rank) not in rem]
+            collected: List[Card] = []
+            for pid in list(self.state.players.keys()):
+                got = pull_from(pid)
+                if got:
+                    contributors.append({"player_id": pid, "cards": [g.model_dump() for g in got]})
+                    collected.extend(got)
 
-            for con in contributors:
-                remove_cards(con["player_id"], con["cards"])
+            if not self._table_has_set(suit, set_type):
+                self.state.table_sets.append(
+                    TableSet(suit=suit, set_type=set_type, cards=collected, owner_team=winner_team)
+                )
 
-            # table shows ordered full set
-            all_cards = [Card(suit=suit, rank=r) for r in need_ranks]
-            self.state.table_sets.append(TableSet(suit=suit, set_type=set_type, cards=all_cards, owner_team=owner_team))
+            self.state.team_scores[winner_team] += POINTS[set_type]
 
-            # score and keep turn; enable handoff to contributors
-            self.state.team_scores[owner_team] = self.state.team_scores.get(owner_team, 0) + points
-            self.state.turn_player = who_id
-            eligible = {c["player_id"] for c in contributors if c["player_id"] != who_id}
-            self._handoff_eligible[who_id] = eligible
+            # NEW: turn goes CCW to the NEXT player who (a) has cards and (b) is on the WINNER team.
+            # If none found on winner team, fall back to first CCW player with cards (any team).
+            start_seat = my.seat or 0
+            next_pid = self._next_ccw_matching(
+                start_seat, lambda pid: self.state.players[pid].team == winner_team and self._has_cards(pid)
+            ) or self._next_ccw_matching(start_seat, lambda pid: self._has_cards(pid))
+            self.state.turn_player = next_pid
 
             return {
-                "success": True,
-                "owner_team": owner_team,
+                "success": False,
+                "who_id": who_id,
+                "owner_team": winner_team,
                 "suit": suit,
                 "set_type": set_type,
                 "contributors": contributors,
-                "who_id": who_id,
-                "handoff_eligible": list(eligible),
-                "next_turn": self.state.turn_player,
+                "scores": self.state.team_scores,
             }
 
-        # ---- WRONG DECLARATION ----
-        loser_team = who.team
-        winner_team = "A" if loser_team == "B" else "B"
+        # --- Success: remove only declarers' cards and score for my team
+        def remove_from(pid: str, ranks_set: set[str]) -> List[Card]:
+            p = self.state.players[pid]
+            keep, give = [], []
+            for c in p.hand:
+                if c.suit == suit and c.rank in ranks_set:
+                    give.append(c)
+                else:
+                    keep.append(c)
+            p.hand = keep
+            return give
 
-        # award points to opposite team
-        self.state.team_scores[winner_team] = self.state.team_scores.get(winner_team, 0) + points
+        all_cards: List[Card] = []
+        mine_set = {c.rank for c in self.state.players[who_id].hand if c.suit == suit and c.rank in needed_ranks}
+        got_mine = remove_from(who_id, mine_set)
+        if got_mine:
+            contributors.append({"player_id": who_id, "cards": [c.model_dump() for c in got_mine]})
+            all_cards.extend(got_mine)
+        for pid, ranks in coll_map.items():
+            rs = set(r for r in ranks if r in needed_ranks)
+            if not rs:
+                continue
+            got = remove_from(pid, rs)
+            if got:
+                contributors.append({"player_id": pid, "cards": [c.model_dump() for c in got]})
+                all_cards.extend(got)
 
-        # show the set on table as owned by the opposite team
-        all_cards = [Card(suit=suit, rank=r) for r in need_ranks]
-        self.state.table_sets.append(TableSet(suit=suit, set_type=set_type, cards=all_cards, owner_team=winner_team))
-        # NOTE: we do NOT remove any cards from players on a failed declaration.
+        owner_team = my.team
+        if not self._table_has_set(suit, set_type):
+            self.state.table_sets.append(
+                TableSet(suit=suit, set_type=set_type, cards=all_cards, owner_team=owner_team)
+            )
+        self.state.team_scores[owner_team] += POINTS[set_type]
+        self.state.turn_player = who_id
 
-        # pass turn counter-clockwise from the declarer
-        seat = who.seat or 0
-        self.state.turn_player = self.state.seats[(seat - 1) % 6]
+        handoff_eligible = [
+            c["player_id"]
+            for c in contributors
+            if c["player_id"] != who_id and self.state.players[c["player_id"]].team == owner_team
+        ]
 
         return {
-            "success": False,
-            "owner_team": winner_team,        # who receives the set/points
+            "success": True,
+            "who_id": who_id,
+            "owner_team": owner_team,
             "suit": suit,
             "set_type": set_type,
-            "contributors": contributors,     # for animation
-            "who_id": who_id,
-            "handoff_eligible": [],
-            "next_turn": self.state.turn_player,
+            "contributors": contributors,
+            "handoff_eligible": handoff_eligible,
+            "scores": self.state.team_scores,
         }
 
-    # --- handoff after success ---
+    # ---------------- Handoff after successful laydown ----------------
     def handoff_after_laydown(self, who_id: str, to_id: str):
-        eligible = self._handoff_eligible.get(who_id, set())
-        if to_id in eligible:
-            self.state.turn_player = to_id
-            self._handoff_eligible.pop(who_id, None)
-            return {"ok": True, "turn_player": to_id}
-        return {"ok": False, "turn_player": self.state.turn_player}
+        if who_id not in self.state.players or to_id not in self.state.players:
+            return {"ok": False, "reason": "unknown_player", "turn_player": self.state.turn_player}
+
+        a = self.state.players[who_id]
+        b = self.state.players[to_id]
+        if a.team != b.team or who_id == to_id:
+            return {"ok": False, "reason": "not_teammate", "turn_player": self.state.turn_player}
+
+        # NEW: cannot hand off to an empty-handed teammate
+        if not b.hand:
+            return {"ok": False, "reason": "empty_hand", "turn_player": self.state.turn_player}
+
+        self.state.turn_player = to_id
+        return {"ok": True, "turn_player": to_id}
