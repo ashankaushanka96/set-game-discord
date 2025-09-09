@@ -56,7 +56,12 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
   const items = useMemo(() => {
     const allMessages = messages || [];
     // Filter out messages from the current player (they don't need to see their own bubble messages)
-    let filtered = allMessages.filter(m => m.player_id !== me?.id);
+    // EXCEPT for laydown-related messages where the player needs to see their own selections
+    let filtered = allMessages.filter(m => {
+      if (m.player_id !== me?.id) return true; // Show other players' messages
+      // Show current player's own laydown-related messages
+      return m.variant && m.variant.startsWith('laydown_');
+    });
     
     // If hideLaydownBubbles is true, filter out all laydown-related bubbles
     if (hideLaydownBubbles) {
