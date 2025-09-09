@@ -331,7 +331,6 @@ export default function Table() {
               const selectable = selectedCardsToPass.length > 0 && !!p && p.team !== my.team;
               const ringClass = p?.team === 'A' ? TEAM_RING.A : p?.team === 'B' ? TEAM_RING.B : TEAM_RING.unknown;
               const isMe = p && p.id === me.id;
-              const isTurnPlayer = p && p.id === state.turn_player;
               const isLaydownPlayer = p && pendingLay && p.id === pendingLay.who_id;
               
               return (
@@ -342,13 +341,12 @@ export default function Table() {
                       ringClass,
                       isMe ? 'ring-4 ring-cyan-400 shadow-[0_0_0_6px_rgba(34,211,238,0.25)]' : 'ring-2',
                       isLaydownPlayer ? 'ring-4 ring-amber-400 shadow-[0_0_0_8px_rgba(251,191,36,0.4)] animate-pulse' : '',
-                      isTurnPlayer && !isLaydownPlayer ? 'ring-4 ring-emerald-400 shadow-[0_0_0_6px_rgba(16,185,129,0.3)]' : '',
                     ].join(' ')}
                   >
                     <Seat
                       seatIndex={i}
                       player={p}
-                      highlight={isTurnPlayer || isLaydownPlayer}
+                      highlight={isLaydownPlayer}
                       selectable={selectable}
                       onSelect={p ? () => handleSeatClick(p) : null}
                       team={p?.team}
