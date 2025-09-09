@@ -21,7 +21,7 @@ export default function Seat({ seatIndex, player, highlight, selectable, onSelec
           selectable ? 'cursor-pointer hover:scale-[1.03] transition' : 'cursor-default',
           highlight ? 'ring-4 ring-emerald-400 shadow-[0_0_0_6px_rgba(16,185,129,0.3)] animate-pulse' : '',
           isMe ? 'ring-2 ring-cyan-400/70' : '',
-          player && !player.connected ? 'opacity-50 grayscale' : '',
+          player && !player.connected ? 'opacity-60 grayscale ring-2 ring-red-500/50' : '',
         ].join(' ')}
       >
         {/* Avatar Background */}
@@ -55,8 +55,20 @@ export default function Seat({ seatIndex, player, highlight, selectable, onSelec
             TURN
           </div>
         )}
+        {/* Online/Offline Status */}
+        {player && (
+          <div className={`absolute -top-1 -right-1 w-4 h-4 rounded-full border-2 ${
+            player.connected 
+              ? 'bg-green-500 border-green-400 shadow-[0_0_8px_rgba(34,197,94,0.6)]' 
+              : 'bg-red-500 border-red-400 shadow-[0_0_8px_rgba(239,68,68,0.6)]'
+          }`}>
+            {player.connected && (
+              <div className="w-full h-full rounded-full bg-green-400 animate-pulse"></div>
+            )}
+          </div>
+        )}
         {player && !player.connected && (
-          <div className="absolute -bottom-1 right-1 text-[8px] bg-red-500/90 px-1 py-[1px] rounded-full font-semibold">
+          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[9px] bg-red-600/95 px-2 py-1 rounded-full font-bold text-white shadow-lg">
             OFFLINE
           </div>
         )}

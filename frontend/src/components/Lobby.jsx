@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useStore } from "../store";
 import { connectWS, send } from "../ws";
 import AvatarSelector from "./AvatarSelector";
+import { generateUUID } from "../utils/uuid";
 
 const API = "http://localhost:8000";
 
@@ -51,7 +52,7 @@ export default function Lobby() {
 
   // ensure per-tab identity
   useEffect(() => {
-    setMe({ id: me?.id || crypto.randomUUID(), name, avatar });
+    setMe({ id: me?.id || generateUUID(), name, avatar });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -120,9 +121,34 @@ export default function Lobby() {
   const startGame = () => {
     const players = Object.values(state?.players || {});
     const playersWithTeams = players.filter(p => p.team);
+    const me = useStore.getState().me;
     
     if (players.length < 6) {
       setError("Need 6 players to start the game");
+      return;
+    }
+    
+    // Auto-assign room creator to Team A if they haven't selected a team
+    const mePlayer = players.find(p => p.id === me.id);
+    if (mePlayer && !mePlayer.team) {
+      send(useStore.getState().ws, 'select_team', { player_id: me.id, team: 'A' });
+      // Wait a moment for the team selection to process
+      setTimeout(() => {
+        const updatedPlayers = Object.values(state?.players || {});
+        const updatedPlayersWithTeams = updatedPlayers.filter(p => p.team);
+        
+        if (updatedPlayersWithTeams.length < 6) {
+          setError("All players must select a team before starting");
+          return;
+        }
+        
+        // Save player data to localStorage for persistence
+        const playerData = useStore.getState().me;
+        localStorage.setItem(`player_${playerData.id}`, JSON.stringify(playerData));
+        
+        // Send start command - navigation will be handled by the store
+        send(useStore.getState().ws, "start", {});
+      }, 100);
       return;
     }
     
@@ -318,10 +344,19 @@ export default function Lobby() {
                   )}
                 </div>
                 <button
-                  className="w-full bg-blue-600/30 hover:bg-blue-600/40 border border-blue-500/30 px-3 py-2 rounded-lg text-sm transition-colors"
-                  onClick={()=>send(useStore.getState().ws,'select_team',{ player_id: useStore.getState().me.id, team:'A' })}
+                  className={`w-full px-3 py-2 rounded-lg text-sm transition-colors ${
+                    players.filter(p=>p.team==='A').length >= 3 
+                      ? 'bg-zinc-600/30 border border-zinc-500/30 cursor-not-allowed opacity-50' 
+                      : 'bg-blue-600/30 hover:bg-blue-600/40 border border-blue-500/30'
+                  }`}
+                  onClick={()=>{
+                    if (players.filter(p=>p.team==='A').length < 3) {
+                      send(useStore.getState().ws,'select_team',{ player_id: useStore.getState().me.id, team:'A' });
+                    }
+                  }}
+                  disabled={players.filter(p=>p.team==='A').length >= 3}
                 >
-                  Join Team A
+                  {players.filter(p=>p.team==='A').length >= 3 ? 'Team A Full' : 'Join Team A'}
                 </button>
               </div>
               <div className="space-y-3">
@@ -342,13 +377,31 @@ export default function Lobby() {
                   )}
                 </div>
                 <button
-                  className="w-full bg-rose-600/30 hover:bg-rose-600/40 border border-rose-500/30 px-3 py-2 rounded-lg text-sm transition-colors"
-                  onClick={()=>send(useStore.getState().ws,'select_team',{ player_id: useStore.getState().me.id, team:'B' })}
+                  className={`w-full px-3 py-2 rounded-lg text-sm transition-colors ${
+                    players.filter(p=>p.team==='B').length >= 3 
+                      ? 'bg-zinc-600/30 border border-zinc-500/30 cursor-not-allowed opacity-50' 
+                      : 'bg-rose-600/30 hover:bg-rose-600/40 border border-rose-500/30'
+                  }`}
+                  onClick={()=>{
+                    if (players.filter(p=>p.team==='B').length < 3) {
+                      send(useStore.getState().ws,'select_team',{ player_id: useStore.getState().me.id, team:'B' });
+                    }
+                  }}
+                  disabled={players.filter(p=>p.team==='B').length >= 3}
                 >
-                  Join Team B
+                  {players.filter(p=>p.team==='B').length >= 3 ? 'Team B Full' : 'Join Team B'}
                 </button>
               </div>
             </div>
+            
+            {/* Team Status Message */}
+            {players.length >= 6 && players.filter(p => p.team).length < 6 && (
+              <div className="mt-4 p-3 bg-amber-600/20 border border-amber-500/40 rounded-lg">
+                <div className="text-sm text-amber-300">
+                  <span className="font-semibold">⚠️ Team Selection Required:</span> Some players need to select a team before starting the game.
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -363,11 +416,15 @@ export default function Lobby() {
               <div key={p.id} className="px-4 py-3 bg-zinc-800/50 border border-zinc-600/50 rounded-lg flex flex-col items-center gap-2">
                 <span className="text-2xl">{p.avatar}</span>
                 <span className="text-sm font-medium text-center">{p.name}</span>
-                {p.team && (
+                {p.team ? (
                   <span className={`text-xs px-2 py-1 rounded-full ${
                     p.team === 'A' ? 'bg-blue-600/30 text-blue-300' : 'bg-rose-600/30 text-rose-300'
                   }`}>
                     Team {p.team}
+                  </span>
+                ) : (
+                  <span className="text-xs px-2 py-1 rounded-full bg-amber-600/30 text-amber-300">
+                    No Team
                   </span>
                 )}
               </div>
