@@ -8,6 +8,7 @@ import LaydownModal from './LaydownModal';
 import GameOverModal from './GameOverModal';
 import NewGameVotingModal from './NewGameVotingModal';
 import NewGameModal from './NewGameModal';
+import VotingResultModal from './VotingResultModal';
 import MessageBubbles from './MessageBubbles';
 import Celebration from './Celebration';
 import MessageBox from './MessageBox';
@@ -58,7 +59,7 @@ function SetChip({ suit, set_type, owner, expandable=false, cards=[] }) {
 
 export default function Table() {
   const navigate = useNavigate();
-  const { state, me, ws, handoffFor, gameResult, abortVoting, dealingAnimation, pendingLay } = useStore();
+  const { state, me, ws, handoffFor, gameResult, abortVoting, dealingAnimation, pendingLay, votingResult, closeVotingResult } = useStore();
   const [layOpen, setLayOpen] = useState(false);
   const [selectedSet, setSelectedSet] = useState({ suit: null, setType: null });
   const [requestAbortOpen, setRequestAbortOpen] = useState(false);
@@ -494,6 +495,13 @@ export default function Table() {
         open={completedSetsOpen}
         onClose={() => setCompletedSetsOpen(false)}
         tableSets={state.table_sets || []}
+      />
+
+      {/* Voting Result Modal */}
+      <VotingResultModal
+        open={!!votingResult}
+        onClose={closeVotingResult}
+        result={votingResult}
       />
     </div>
   );

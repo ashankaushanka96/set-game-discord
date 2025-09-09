@@ -201,6 +201,8 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                 res = game.vote_abort(p["voter_id"], p["vote"])
                 if res.get("abort_executed"):
                     await broadcast(room_id, "game_aborted", {**res, "state": game.state.model_dump()})
+                elif res.get("voting_failed"):
+                    await broadcast(room_id, "voting_failed", {**res, "state": game.state.model_dump()})
                 else:
                     await broadcast(room_id, "abort_vote_cast", {**res, "state": game.state.model_dump()})
 

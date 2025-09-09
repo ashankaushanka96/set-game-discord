@@ -26,6 +26,7 @@ export const useStore = create((set, get) => ({
   // game end and abort
   gameResult: null,
   abortVoting: null,
+  votingResult: null,
 
   // dealing animation
   dealingAnimation: null,
@@ -75,6 +76,8 @@ export const useStore = create((set, get) => ({
     const timer = setTimeout(() => set({ gameMessage: null, gameMessageTimer: null }), 30000);
     set({ gameMessage: { id: mid(), title, text, ts: Date.now() }, gameMessageTimer: timer });
   },
+
+  closeVotingResult: () => set({ votingResult: null }),
 
   applyServer: (msg) => {
     if (msg.type === "state" || msg.type === "dealt") {
@@ -328,7 +331,44 @@ export const useStore = create((set, get) => ({
     if (msg.type === "game_aborted") {
       const s = msg.payload.state;
       set({ state: s, phase: s.phase, gameResult: null, abortVoting: null });
+      
+      // Set the voting result modal data for successful abort
+      set({ 
+        votingResult: {
+          type: 'success',
+          message: msg.payload.message || "Game aborted successfully!",
+          details: ["The game has been aborted.", "Ready for a new game."],
+          requester_id: msg.payload.requester_id
+        }
+      });
+      
       get().setGameMessage("GAME ABORTED", ["Game has been aborted", "Ready for new game"]);
+    }
+
+    // VOTING FAILED
+    if (msg.type === "voting_failed") {
+      const s = msg.payload.state;
+      set({ state: s, abortVoting: null });
+      
+      // Determine the type of failure for the modal
+      let modalType = 'failed';
+      if (msg.payload.reason === 'timeout') {
+        modalType = 'timeout';
+      } else if (msg.payload.reason === 'insufficient_support') {
+        modalType = 'failed';
+      }
+      
+      // Set the voting result modal data
+      set({ 
+        votingResult: {
+          type: modalType,
+          message: msg.payload.message,
+          details: msg.payload.details || [],
+          requester_id: msg.payload.requester_id
+        }
+      });
+      
+      get().setGameMessage("VOTING FAILED", [msg.payload.message]);
     }
 
     // NEW ROUND STARTED

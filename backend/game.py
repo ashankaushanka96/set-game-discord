@@ -502,6 +502,22 @@ class Game:
             "abort_votes": self.state.abort_votes
         }
 
+    def check_voting_timeout(self):
+        """Check if voting has timed out and handle it"""
+        if not hasattr(self.state, 'abort_votes') or not self.state.abort_votes:
+            return None
+        
+        # For now, we'll implement a simple timeout check
+        # In a real implementation, you'd want to track when voting started
+        # and check against a timeout duration (e.g., 60 seconds)
+        
+        # This is a placeholder - in practice you'd want to:
+        # 1. Store the voting start time when request_abort is called
+        # 2. Check if current time - start time > timeout duration
+        # 3. If so, call _handle_voting_failure("timeout")
+        
+        return None
+
     def vote_abort(self, voter_id: str, vote: bool):
         """Vote on abort request"""
         if self.state.phase != "playing":
@@ -516,10 +532,17 @@ class Game:
         # Count votes
         total_players = len(self.state.players)
         votes_for_abort = sum(1 for v in self.state.abort_votes.values() if v)
+        votes_against = sum(1 for v in self.state.abort_votes.values() if v is False)
         
         # Check if we have enough votes to abort
         if votes_for_abort >= 4:
             return self._execute_abort()
+        
+        # Check if voting has failed (enough NO votes to make it impossible to reach 4 YES votes)
+        remaining_players = total_players - len(self.state.abort_votes)
+        max_possible_yes = votes_for_abort + remaining_players
+        if max_possible_yes < 4:
+            return self._handle_voting_failure("insufficient_support")
         
         return {
             "success": True,
@@ -531,6 +554,37 @@ class Game:
             "abort_votes": self.state.abort_votes,
             "abort_executed": False
         }
+
+    def _handle_voting_failure(self, reason: str):
+        """Handle voting failure scenarios"""
+        # Clear abort votes
+        if hasattr(self.state, 'abort_votes'):
+            delattr(self.state, 'abort_votes')
+        
+        if reason == "insufficient_support":
+            return {
+                "success": False,
+                "voting_failed": True,
+                "reason": reason,
+                "message": "Vote failed - insufficient support to abort the game.",
+                "details": ["Not enough players voted YES to abort the game.", "The game will continue."]
+            }
+        elif reason == "timeout":
+            return {
+                "success": False,
+                "voting_failed": True,
+                "reason": reason,
+                "message": "Vote timed out - no decision reached.",
+                "details": ["The voting period has expired.", "The game will continue."]
+            }
+        else:
+            return {
+                "success": False,
+                "voting_failed": True,
+                "reason": reason,
+                "message": "Vote failed.",
+                "details": ["The voting process encountered an error.", "The game will continue."]
+            }
 
     def _execute_abort(self):
         """Execute the abort - reset game but stay in room"""
