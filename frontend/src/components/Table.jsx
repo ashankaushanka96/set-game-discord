@@ -16,7 +16,6 @@ import MessageBox from './MessageBox';
 import Card from './Card';
 import DealingAnimation from './DealingAnimation';
 import CompletedSetsModal from './CompletedSetsModal';
-import PassedCardsDisplay from './PassedCardsDisplay';
 import { RANKS_LOWER, RANKS_UPPER, SUITS } from '../lib/deck';
 
 const TEAM_RING = {
@@ -70,7 +69,6 @@ export default function Table() {
 
   const [anim, setAnim] = useState(null);
   const [lays, setLays] = useState([]);
-  const [passedCards, setPassedCards] = useState({}); // Track passed cards on each player
   const tableCenterRef = useRef(null);
 
   const seatEls = useRef({});
@@ -141,25 +139,14 @@ export default function Table() {
         // Start animation
         requestAnimationFrame(() => requestAnimationFrame(() => setAnim(a=>a?{...a,go:true}:a)));
         
-        // After animation completes, show deck on target player
+        // After animation completes, keep deck on target player for 15 seconds
         setTimeout(() => {
-          setAnim(null);
-          setPassedCards(prev => ({
-            ...prev,
-            [to_player]: {
-              cards: cards,
-              timestamp: Date.now(),
-              type: 'deck'
-            }
-          }));
+          // Keep the animation in place but mark it as landed
+          setAnim(prev => prev ? { ...prev, landed: true } : null);
           
           // Remove deck after 15 seconds
           setTimeout(() => {
-            setPassedCards(prev => {
-              const updated = { ...prev };
-              delete updated[to_player];
-              return updated;
-            });
+            setAnim(null);
           }, 15000);
         }, 900);
         
@@ -288,8 +275,15 @@ export default function Table() {
   };
 
 
+  const handleTableClick = () => {
+    // Clear any landed animation when clicking on table
+    if (anim && anim.landed) {
+      setAnim(null);
+    }
+  };
+
   return (
-    <div className="p-3 md:p-6 relative min-h-screen flex flex-col">
+    <div className="p-3 md:p-6 relative min-h-screen flex flex-col" onClick={handleTableClick}>
       <Celebration />
       <DealingAnimation />
       
@@ -418,14 +412,6 @@ export default function Table() {
                       isLaydownPlayer={isLaydownPlayer}
                     />
                   </div>
-                  {/* Show passed cards on this player */}
-                  {p && passedCards[p.id] && (
-                    <PassedCardsDisplay
-                      cards={passedCards[p.id].cards}
-                      type={passedCards[p.id].type}
-                      playerName={p.name}
-                    />
-                  )}
                   {p && p.id !== my.id && !dealingAnimation && (
                     <div className="mt-1 text-center text-xs opacity-70">{handCount(pid)} cards</div>
                   )}
@@ -434,14 +420,30 @@ export default function Table() {
             })}
 
             {anim && (
-              <div className="fixed z-[90] pointer-events-none" style={{ left: anim.from.x, top: anim.from.y, transform: 'translate(-50%,-50%)' }}>
-                <div style={{ position: 'relative', left: anim.go ? (anim.to.x - anim.from.x) : 0, top: anim.go ? (anim.to.y - anim.from.y) : 0,
-                              transition: 'left 0.8s cubic-bezier(.2,.8,.2,1), top 0.8s cubic-bezier(.2,.8,.2,1)' }}>
+              <div className="fixed z-[90] pointer-events-none" style={{ 
+                left: anim.from.x, 
+                top: anim.from.y, 
+                transform: 'translate(-50%,-50%)' 
+              }}>
+                <div style={{ 
+                  position: 'relative', 
+                  left: anim.go ? (anim.to.x - anim.from.x) : 0, 
+                  top: anim.go ? (anim.to.y - anim.from.y) : 0,
+                  transition: anim.landed ? 'none' : 'left 0.8s cubic-bezier(.2,.8,.2,1), top 0.8s cubic-bezier(.2,.8,.2,1)' 
+                }}>
                   {anim.type === 'fanned_deck' ? (
                     // Render fanned deck animation
-                    <div className="relative flex justify-center items-center" style={{ 
+                    <div className={`relative flex justify-center items-center ${anim.landed ? 'animate-pulse' : ''}`} style={{ 
                       width: `${Math.min(anim.cards.length * 20 + 60, 350)}px`,
-                      height: '80px'
+                      height: '80px',
+                      ...(anim.landed && {
+                        filter: 'drop-shadow(0 0 20px rgba(59, 130, 246, 1))',
+                        border: '4px solid rgba(59, 130, 246, 0.8)',
+                        borderRadius: '15px',
+                        padding: '15px',
+                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                        boxShadow: '0 0 30px rgba(59, 130, 246, 0.5)'
+                      })
                     }}>
                       {anim.cards.map((card, index) => {
                         const totalCards = anim.cards.length;
@@ -463,7 +465,7 @@ export default function Table() {
                               filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))'
                             }}
                           >
-                            <Card suit={card.suit} rank={card.rank} size="sm-xs" />
+                            <Card suit={card.suit} rank={card.rank} size={anim.landed ? "sm" : "sm-xs"} />
                           </div>
                         );
                       })}
