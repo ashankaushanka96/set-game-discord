@@ -78,6 +78,10 @@ export const useStore = create((set, get) => ({
     if (gameMessageTimer) clearTimeout(gameMessageTimer);
     const timer = setTimeout(() => set({ gameMessage: null, gameMessageTimer: null }), 30000);
     set({ gameMessage: { id: mid(), title, text, ts: Date.now() }, gameMessageTimer: timer });
+    
+    // Also show as toast notification
+    const toastType = get().getToastTypeFromTitle(title);
+    get().showToast(toastType, title, text);
   },
 
   closeVotingResult: () => set({ votingResult: null }),
@@ -86,6 +90,16 @@ export const useStore = create((set, get) => ({
     toast: { type, title, message, id: mid() } 
   }),
   clearToast: () => set({ toast: null }),
+
+  getToastTypeFromTitle: (title) => {
+    const titleLower = title?.toLowerCase() || "";
+    if (titleLower.includes('disconnect')) return 'disconnect';
+    if (titleLower.includes('reconnect')) return 'reconnect';
+    if (titleLower.includes('error') || titleLower.includes('failed')) return 'error';
+    if (titleLower.includes('started') || titleLower.includes('success')) return 'success';
+    if (titleLower.includes('vote') || titleLower.includes('abort')) return 'vote';
+    return 'info';
+  },
 
   applyServer: (msg) => {
     if (msg.type === "state" || msg.type === "dealt") {
@@ -421,7 +435,6 @@ export const useStore = create((set, get) => ({
         `${playerName} has disconnected`,
         "They can reconnect to continue playing"
       ]);
-      get().showToast("disconnect", "Player Disconnected", `${playerName} has left the game`);
     }
 
     // PLAYER RECONNECTED
@@ -434,7 +447,6 @@ export const useStore = create((set, get) => ({
         `${playerName} has reconnected`,
         "Welcome back!"
       ]);
-      get().showToast("reconnect", "Player Reconnected", `${playerName} has rejoined the game`);
     }
 
     // GAME STARTED - trigger navigation for all players

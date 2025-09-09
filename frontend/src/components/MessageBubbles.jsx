@@ -163,14 +163,14 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
         }
 
         const theme =
-          m.variant === "ask" ? "bg-sky-600/90" :
-          m.variant === "yes" ? "bg-emerald-600/90" :
-          m.variant === "no"  ? "bg-rose-600/90" :
-          m.variant === "laydown_start" ? "bg-purple-600/90" :
-          m.variant === "laydown_set" ? "bg-indigo-600/90" :
-          m.variant === "laydown_cards" ? "bg-blue-600/90" :
-          m.variant === "laydown_teammate" ? "bg-cyan-600/90" :
-          "bg-zinc-700/90";
+          m.variant === "ask" ? "bg-sky-600/90 border-sky-500" :
+          m.variant === "yes" ? "bg-emerald-600/90 border-emerald-500" :
+          m.variant === "no"  ? "bg-rose-600/90 border-rose-500" :
+          m.variant === "laydown_start" ? "bg-purple-600/90 border-purple-500" :
+          m.variant === "laydown_set" ? "bg-indigo-600/90 border-indigo-500" :
+          m.variant === "laydown_cards" ? "bg-blue-600/90 border-blue-500" :
+          m.variant === "laydown_teammate" ? "bg-cyan-600/90 border-cyan-500" :
+          "bg-zinc-700/90 border-zinc-600";
 
         // Tail color
         const tailColor =
@@ -188,7 +188,7 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
         return (
           <div
             key={m.id}
-            className={`fixed z-[120] pointer-events-none rounded-2xl ${theme} text-white px-3 py-2 shadow-xl`}
+            className={`fixed z-[120] pointer-events-none rounded-xl border ${theme} text-white px-3 py-2 shadow-lg`}
             style={{
               left: xy.x,
               top: xy.y,

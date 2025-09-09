@@ -8,6 +8,14 @@ export default function GameRoom() {
   const { roomId, playerId } = useParams();
   const navigate = useNavigate();
   const { state, me, setMe, setRoom, setWS, applyServer } = useStore();
+  
+  // Set up global WebSocket update function for reconnection
+  useEffect(() => {
+    window.updateWS = setWS;
+    return () => {
+      window.updateWS = null;
+    };
+  }, [setWS]);
 
   useEffect(() => {
     // If we don't have player info, we need to get it from localStorage or redirect
@@ -58,6 +66,8 @@ export default function GameRoom() {
     if (!state || state.room_id !== roomId) {
       const ws = connectWS(roomId, playerId, applyServer);
       setWS(ws);
+      // Store globally for reconnection handling
+      window.currentWS = ws;
       setTimeout(() => send(ws, "sync", {}), 150);
     }
 

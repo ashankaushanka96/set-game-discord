@@ -9,6 +9,7 @@ import GameOverModal from './GameOverModal';
 import NewGameVotingModal from './NewGameVotingModal';
 import NewGameModal from './NewGameModal';
 import VotingResultModal from './VotingResultModal';
+import Toast from './Toast';
 import MessageBubbles from './MessageBubbles';
 import Celebration from './Celebration';
 import MessageBox from './MessageBox';
@@ -503,6 +504,9 @@ export default function Table() {
         onClose={closeVotingResult}
         result={votingResult}
       />
+
+      {/* Toast Notifications */}
+      <Toast />
     </div>
   );
 }
