@@ -266,7 +266,7 @@ export default function LaydownModal({ onClose }) {
                     <FannedCards 
                       cards={SETS[type].map(rank => ({ suit, rank }))} 
                       size="xs" 
-                      maxCards={6}
+                      maxCards={7}
                     />
                   </div>
                   <div className="text-sm capitalize">
@@ -290,7 +290,7 @@ export default function LaydownModal({ onClose }) {
                   <FannedCards 
                     cards={mySetRanks} 
                     size="sm" 
-                    maxCards={6}
+                    maxCards={7}
                   />
                 </div>
               ) : (
@@ -315,7 +315,7 @@ export default function LaydownModal({ onClose }) {
                   <FannedCards 
                     cards={remainingNeeded.map(rank => ({ suit: pick.suit, rank }))} 
                     size="xs" 
-                    maxCards={6}
+                    maxCards={7}
                   />
                 </div>
               ) : (
@@ -367,7 +367,7 @@ export default function LaydownModal({ onClose }) {
                           <FannedCards 
                             cards={Array.from(assigned).map(rank => ({ suit: pick.suit, rank }))} 
                             size="xs" 
-                            maxCards={6}
+                            maxCards={7}
                           />
                         </div>
                         <button className="ml-2 text-rose-300 hover:underline" onClick={() => resetCollab(tm.id)}>
@@ -398,7 +398,7 @@ export default function LaydownModal({ onClose }) {
                   <FannedCards 
                     cards={myRanks.map(rank => ({ suit: pick.suit, rank }))} 
                     size="xs" 
-                    maxCards={6}
+                    maxCards={7}
                   />
                 </div>
               ) : (
@@ -413,7 +413,7 @@ export default function LaydownModal({ onClose }) {
                     <FannedCards 
                       cards={Array.from(set || []).map(rank => ({ suit: pick.suit, rank }))} 
                       size="xs" 
-                      maxCards={6}
+                      maxCards={7}
                     />
                   </div>
                 </div>

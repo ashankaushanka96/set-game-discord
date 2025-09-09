@@ -16,6 +16,7 @@ import MessageBox from './MessageBox';
 import Card from './Card';
 import DealingAnimation from './DealingAnimation';
 import CompletedSetsModal from './CompletedSetsModal';
+import FannedCards from './FannedCards';
 import { RANKS_LOWER, RANKS_UPPER, SUITS } from '../lib/deck';
 
 const TEAM_RING = {
@@ -26,34 +27,25 @@ const TEAM_RING = {
 
 function SetChip({ suit, set_type, owner, expandable=false, cards=[] }) {
   const label = set_type === 'lower' ? 'Lower' : 'Upper';
-  const firstRank = set_type === 'lower' ? '2' : '8';
-  const [open, setOpen] = useState(false);
+  
+  // Create the full set of cards for this suit and type
+  const fullSet = set_type === 'lower' 
+    ? RANKS_LOWER.map(rank => ({ suit, rank }))
+    : RANKS_UPPER.map(rank => ({ suit, rank }));
+  
   return (
-    <div className="bg-zinc-800/70 rounded-xl p-2 flex items-center gap-2 text-sm">
+    <div className="bg-zinc-800/70 rounded-xl p-3 flex items-center gap-2 text-sm">
       <div className="shrink-0">
-        <Card suit={suit} rank={firstRank} size="xs" />
+        <FannedCards 
+          cards={fullSet} 
+          size="xs" 
+          maxCards={7}
+        />
       </div>
       <div className="capitalize">
         {suit} <span className="opacity-70">{label}</span>
         <span className="ml-2 text-[11px] opacity-60">— Team {owner}</span>
       </div>
-      {expandable && (
-        <button
-          className="ml-auto text-[12px] px-2 py-1 rounded bg-zinc-700 hover:bg-zinc-600"
-          onClick={() => setOpen(v=>!v)}
-        >
-          {open ? 'Collapse' : 'Expand'}
-        </button>
-      )}
-      {expandable && open && (
-        <div className="w-full mt-2 flex flex-wrap gap-1">
-          {cards.map((c,i)=>(
-            <div key={`${c.suit}-${c.rank}-${i}`} className="rounded bg-zinc-700 p-[2px]">
-              <Card suit={c.suit} rank={c.rank} size="xs" />
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
