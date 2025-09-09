@@ -2,7 +2,11 @@ import { useState } from 'react';
 import { useStore } from '../store';
 import { generateUUID } from '../utils/uuid.js';
 
-const AVATARS = ['🦊','🐼','🐸','🐯','🐵','🐱','🐶','🦁','🐨','🐷'];
+const AVATARS = [
+  '🦊','🐼','🐸','🐯','🐵','🐱','🐶','🦁','🐨','🐷',
+  '🔥','⚡','🌟','💎','🎯','🎮','🏆','🎨','🎭','🎪',
+  '🚀','⚽','🏀','🎲','🎯','🎪','🎨','🎭','🎪','🎮'
+];
 
 export default function AvatarPicker(){
   const { setMe } = useStore();

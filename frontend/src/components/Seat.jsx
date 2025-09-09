@@ -24,9 +24,22 @@ export default function Seat({ seatIndex, player, highlight, selectable, onSelec
           player && !player.connected ? 'opacity-50 grayscale' : '',
         ].join(' ')}
       >
-        <div className="text-lg sm:text-xl md:text-2xl">🔥</div>
-        <div className="text-[10px] sm:text-xs mt-1 opacity-90 line-clamp-1">{player?.name || 'Empty'}</div>
-        <div className="text-[8px] sm:text-[10px] opacity-60">{player ? `Seat ${player.seat+1}` : `Seat ${seatIndex+1}`}</div>
+        {/* Avatar Background */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="text-4xl sm:text-5xl md:text-6xl opacity-60 select-none">
+            {player?.avatar || '🔥'}
+          </div>
+        </div>
+        
+        {/* Content Overlay */}
+        <div className="relative z-10 flex flex-col items-center justify-center">
+          <div className="text-[10px] sm:text-xs mt-1 opacity-90 line-clamp-1 bg-black/50 px-1 rounded backdrop-blur-sm">
+            {player?.name || 'Empty'}
+          </div>
+          <div className="text-[8px] sm:text-[10px] opacity-60 bg-black/50 px-1 rounded backdrop-blur-sm">
+            {player ? `Seat ${player.seat+1}` : `Seat ${seatIndex+1}`}
+          </div>
+        </div>
         {isMe && (
           <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[10px] bg-cyan-600/90 px-2 py-[2px] rounded-full">
             You
