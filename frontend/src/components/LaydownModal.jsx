@@ -217,23 +217,28 @@ export default function LaydownModal({ onClose }) {
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-3xl bg-zinc-900 rounded-2xl shadow-xl p-5">
+      <div className="w-full max-w-3xl max-h-[90vh] bg-zinc-900 rounded-2xl shadow-xl p-5 flex flex-col">
         <div className="flex items-center justify-between mb-4">
           <div className="text-lg font-semibold">Lay Down a Set</div>
           <button className="text-zinc-300 hover:text-white" onClick={handleClose}>✕</button>
         </div>
 
         {/* Stepper */}
-        <div className="flex items-center gap-2 text-xs mb-4">
-          <StepDot active={step >= 0} label="Select Set" /><span>›</span>
-          <StepDot active={step >= 1} label="Your Cards" /><span>›</span>
-          <StepDot active={step >= 2} label="Add Teammates (Optional)" /><span>›</span>
+        <div className="flex items-center gap-1 sm:gap-2 text-xs mb-4 overflow-x-auto">
+          <StepDot active={step >= 0} label="Select Set" />
+          <span className="hidden sm:inline">›</span>
+          <StepDot active={step >= 1} label="Your Cards" />
+          <span className="hidden sm:inline">›</span>
+          <StepDot active={step >= 2} label="Add Teammates (Optional)" />
+          <span className="hidden sm:inline">›</span>
           <StepDot active={step >= 3} label="Confirm" />
         </div>
 
         <div className="mb-3 font-medium">{stepTitle}</div>
 
-        {/* STEP 0: pick set (ONLY ELIGIBLE) */}
+        {/* Scrollable content area */}
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {/* STEP 0: pick set (ONLY ELIGIBLE) */}
         {step === 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {eligibleSets.length === 0 && (
@@ -245,7 +250,7 @@ export default function LaydownModal({ onClose }) {
               <button
                 key={`${suit}-${type}`}
                 className={`p-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-left ${
-                  pick.suit === suit && pick.setType === type ? "ring-2 ring-emerald-500" : ""
+                  pick.suit === suit && pick.setType === type ? "border-2 border-emerald-500" : "border-2 border-transparent"
                 }`}
                 onClick={() => {
                   setPick({ suit, setType: type });
@@ -286,7 +291,7 @@ export default function LaydownModal({ onClose }) {
             </div>
             <div className="flex justify-center">
               {mySetRanks.length > 0 ? (
-                <div className="bg-emerald-500/10 rounded-xl p-4 ring-2 ring-emerald-500">
+                <div className="bg-emerald-500/10 rounded-xl p-4 border-2 border-emerald-500">
                   <FannedCards 
                     cards={mySetRanks} 
                     size="sm" 
@@ -335,7 +340,7 @@ export default function LaydownModal({ onClose }) {
 
                 return (
                   <div key={tm.id} className={`rounded-xl p-3 ${
-                    assigned.size > 0 ? "bg-emerald-500/20 ring-2 ring-emerald-500" : "bg-zinc-850/40"
+                    assigned.size > 0 ? "bg-emerald-500/20 border-2 border-emerald-500" : "bg-zinc-850/40 border-2 border-transparent"
                   }`}>
                     <div className="mb-2 text-sm">{tm.avatar} {tm.name}</div>
                     {available.length ? (
@@ -347,7 +352,7 @@ export default function LaydownModal({ onClose }) {
                               key={`pick-${tm.id}-${r}`}
                               onClick={() => addRankFor(tm.id, r)}
                               className={`rounded-lg p-1 ${
-                                on ? "ring-2 ring-emerald-500 bg-emerald-500/10" : "bg-zinc-800 hover:bg-zinc-700"
+                                on ? "border-2 border-emerald-500 bg-emerald-500/10" : "bg-zinc-800 hover:bg-zinc-700 border-2 border-transparent"
                               }`}
                               title={on ? "Selected" : "Select"}
                             >
@@ -427,6 +432,7 @@ export default function LaydownModal({ onClose }) {
             </div>
           </div>
         )}
+        </div>
 
         {/* Footer */}
         <div className="mt-5 flex items-center justify-between">
@@ -459,8 +465,9 @@ export default function LaydownModal({ onClose }) {
 
 function StepDot({ active, label }) {
   return (
-    <div className={`px-2 py-1 rounded-full ${active ? "bg-zinc-700" : "bg-zinc-800"} text-zinc-200`}>
-      {label}
+    <div className={`px-2 py-1 rounded-full ${active ? "bg-zinc-700" : "bg-zinc-800"} text-zinc-200 whitespace-nowrap text-xs`}>
+      <span className="hidden sm:inline">{label}</span>
+      <span className="sm:hidden">{label.split(' ')[0]}</span>
     </div>
   );
 }
