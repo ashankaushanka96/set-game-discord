@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../store";
 import Card from "./Card";
+import FannedCards from "./FannedCards";
 
 /**
  * Seat bubbles with auto-flip:
@@ -139,18 +140,22 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
           );
         } else if (m.variant === "laydown_cards") {
           content = (
-            <div className="inline-flex gap-1">
-              {m.cards?.map((card, i) => (
-                <Card key={i} suit={card.suit} rank={card.rank} size="xs" />
-              ))}
+            <div className="flex justify-center">
+              <FannedCards 
+                cards={m.cards || []} 
+                size="xs" 
+                maxCards={6}
+              />
             </div>
           );
         } else if (m.variant === "laydown_teammate") {
           content = (
-            <div className="inline-flex gap-1">
-              {m.cards?.map((card, i) => (
-                <Card key={i} suit={card.suit} rank={card.rank} size="xs" />
-              ))}
+            <div className="flex justify-center">
+              <FannedCards 
+                cards={m.cards || []} 
+                size="xs" 
+                maxCards={6}
+              />
             </div>
           );
         } else {

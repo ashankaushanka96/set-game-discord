@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../store";
 import { send } from "../ws";
 import Card from "./Card";
+import FannedCards from "./FannedCards";
 import { SUITS, RANKS_LOWER, RANKS_UPPER } from "../lib/deck";
 
 const SETS = { lower: RANKS_LOWER, upper: RANKS_UPPER };
@@ -260,8 +261,14 @@ export default function LaydownModal({ onClose }) {
                   });
                 }}
               >
-                <div className="flex items-center gap-2">
-                  <Card suit={suit} rank={type === "lower" ? "2" : "8"} size="xs" />
+                <div className="flex flex-col items-center gap-3">
+                  <div className="bg-zinc-700/30 rounded-lg p-3">
+                    <FannedCards 
+                      cards={SETS[type].map(rank => ({ suit, rank }))} 
+                      size="xs" 
+                      maxCards={6}
+                    />
+                  </div>
                   <div className="text-sm capitalize">
                     {suit} <span className="opacity-70">{type}</span>
                   </div>
@@ -277,21 +284,16 @@ export default function LaydownModal({ onClose }) {
             <div className="text-xs opacity-70 mb-2">
               Your cards for this set (auto-selected):
             </div>
-            <div className="flex flex-wrap gap-2">
-              {mySetRanks.map((c) => {
-                const selected = myRanks.includes(c.rank);
-                return (
-                  <div
-                    key={`${c.suit}-${c.rank}`}
-                    className={`rounded-xl p-1 ${
-                      selected ? "ring-2 ring-emerald-500 bg-emerald-500/10" : "bg-zinc-800"
-                    }`}
-                  >
-                    <Card suit={c.suit} rank={c.rank} size="md" />
-                  </div>
-                );
-              })}
-              {!mySetRanks.length && (
+            <div className="flex justify-center">
+              {mySetRanks.length > 0 ? (
+                <div className="bg-emerald-500/10 rounded-xl p-4 ring-2 ring-emerald-500">
+                  <FannedCards 
+                    cards={mySetRanks} 
+                    size="sm" 
+                    maxCards={6}
+                  />
+                </div>
+              ) : (
                 <div className="text-xs opacity-60">You don't hold any cards from this set.</div>
               )}
             </div>
@@ -305,15 +307,18 @@ export default function LaydownModal({ onClose }) {
               Assign remaining ranks to teammates <span className="italic">(you won’t see their cards)</span>.
             </div>
 
-            {/* Remaining ranks as cards */}
+            {/* Remaining ranks as fanned cards */}
             <div className="flex items-center gap-2 flex-wrap mb-2">
               <span className="text-xs opacity-80">Remaining:</span>
-              {remainingNeeded.map((r) => (
-                <div key={`rem-${r}`} className="rounded-lg bg-zinc-800 p-1">
-                  <Card suit={pick.suit} rank={r} size="xs" />
+              {remainingNeeded.length > 0 ? (
+                <div className="bg-zinc-800 rounded-lg p-2">
+                  <FannedCards 
+                    cards={remainingNeeded.map(rank => ({ suit: pick.suit, rank }))} 
+                    size="xs" 
+                    maxCards={6}
+                  />
                 </div>
-              ))}
-              {!remainingNeeded.length && (
+              ) : (
                 <span className="text-xs opacity-60">None — you already have a full set.</span>
               )}
             </div>
@@ -358,11 +363,13 @@ export default function LaydownModal({ onClose }) {
                     {assigned.size > 0 && (
                       <div className="mt-2 text-xs opacity-80 flex items-center gap-2 flex-wrap">
                         <span>Selected:</span>
-                        {Array.from(assigned).map((r) => (
-                          <span key={`sel-${tm.id}-${r}`} className="inline-block rounded bg-emerald-500/10 p-1">
-                            <Card suit={pick.suit} rank={r} size="xs" />
-                          </span>
-                        ))}
+                        <div className="bg-emerald-500/10 rounded-lg p-2">
+                          <FannedCards 
+                            cards={Array.from(assigned).map(rank => ({ suit: pick.suit, rank }))} 
+                            size="xs" 
+                            maxCards={6}
+                          />
+                        </div>
                         <button className="ml-2 text-rose-300 hover:underline" onClick={() => resetCollab(tm.id)}>
                           clear
                         </button>
@@ -387,12 +394,12 @@ export default function LaydownModal({ onClose }) {
             <div className="text-xs">
               <span className="opacity-70 mr-1">You:</span>
               {myRanks.length ? (
-                <div className="inline-flex gap-1 align-middle">
-                  {myRanks.map((r) => (
-                    <span key={`me-${r}`} className="inline-block rounded bg-zinc-800 p-1">
-                      <Card suit={pick.suit} rank={r} size="xs" />
-                    </span>
-                  ))}
+                <div className="inline-block bg-zinc-800 rounded-lg p-2">
+                  <FannedCards 
+                    cards={myRanks.map(rank => ({ suit: pick.suit, rank }))} 
+                    size="xs" 
+                    maxCards={6}
+                  />
                 </div>
               ) : (
                 "—"
@@ -402,12 +409,12 @@ export default function LaydownModal({ onClose }) {
               {Object.entries(collabRanks).map(([pid, set]) => (
                 <div key={pid} className="flex items-center gap-2">
                   <span className="opacity-70">{players[pid]?.name}:</span>
-                  <div className="inline-flex gap-1">
-                    {Array.from(set || []).map((r) => (
-                      <span key={`c-${pid}-${r}`} className="inline-block rounded bg-zinc-800 p-1">
-                        <Card suit={pick.suit} rank={r} size="xs" />
-                      </span>
-                    ))}
+                  <div className="bg-zinc-800 rounded-lg p-2">
+                    <FannedCards 
+                      cards={Array.from(set || []).map(rank => ({ suit: pick.suit, rank }))} 
+                      size="xs" 
+                      maxCards={6}
+                    />
                   </div>
                 </div>
               ))}
