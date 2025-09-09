@@ -38,6 +38,9 @@ export const useStore = create((set, get) => ({
   gameMessage: null,
   gameMessageTimer: null,
 
+  // toast notifications
+  toast: null,
+
   setMe: (me) => { setMeInSession(me); set({ me }); },
   setWS: (ws) => set({ ws }),
   setRoom: (roomId) => set({ roomId }),
@@ -78,6 +81,11 @@ export const useStore = create((set, get) => ({
   },
 
   closeVotingResult: () => set({ votingResult: null }),
+
+  showToast: (type, title, message) => set({ 
+    toast: { type, title, message, id: mid() } 
+  }),
+  clearToast: () => set({ toast: null }),
 
   applyServer: (msg) => {
     if (msg.type === "state" || msg.type === "dealt") {
@@ -401,6 +409,32 @@ export const useStore = create((set, get) => ({
     if (msg.type === "clear_bubble_messages") {
       const { player_id } = msg.payload;
       get().removeMessageByTag(`laydown-${player_id}`);
+    }
+
+    // PLAYER DISCONNECTED
+    if (msg.type === "player_disconnected") {
+      const s = msg.payload.state;
+      set({ state: s });
+      const players = s.players || {};
+      const playerName = players[msg.payload.player_id]?.name || msg.payload.player_name || "Unknown";
+      get().setGameMessage("PLAYER DISCONNECTED", [
+        `${playerName} has disconnected`,
+        "They can reconnect to continue playing"
+      ]);
+      get().showToast("disconnect", "Player Disconnected", `${playerName} has left the game`);
+    }
+
+    // PLAYER RECONNECTED
+    if (msg.type === "player_reconnected") {
+      const s = msg.payload.state;
+      set({ state: s });
+      const players = s.players || {};
+      const playerName = players[msg.payload.player_id]?.name || msg.payload.player_name || "Unknown";
+      get().setGameMessage("PLAYER RECONNECTED", [
+        `${playerName} has reconnected`,
+        "Welcome back!"
+      ]);
+      get().showToast("reconnect", "Player Reconnected", `${playerName} has rejoined the game`);
     }
 
     // GAME STARTED - trigger navigation for all players

@@ -21,6 +21,7 @@ export default function Seat({ seatIndex, player, highlight, selectable, onSelec
           selectable ? 'cursor-pointer hover:scale-[1.03] transition' : 'cursor-default',
           highlight ? 'ring-4 ring-emerald-400 shadow-[0_0_0_6px_rgba(16,185,129,0.3)] animate-pulse' : '',
           isMe ? 'ring-2 ring-cyan-400/70' : '',
+          player && !player.connected ? 'opacity-50 grayscale' : '',
         ].join(' ')}
       >
         <div className="text-lg sm:text-xl md:text-2xl">🔥</div>
@@ -39,6 +40,11 @@ export default function Seat({ seatIndex, player, highlight, selectable, onSelec
         {highlight && !isLaydownPlayer && (
           <div className="absolute -top-1 left-1/2 -translate-x-1/2 text-[10px] bg-emerald-500/90 px-2 py-[2px] rounded-full font-semibold">
             TURN
+          </div>
+        )}
+        {player && !player.connected && (
+          <div className="absolute -bottom-1 right-1 text-[8px] bg-red-500/90 px-1 py-[1px] rounded-full font-semibold">
+            OFFLINE
           </div>
         )}
       </button>

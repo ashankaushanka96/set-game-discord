@@ -76,10 +76,27 @@ def http_join_room(room_id: str, body: JoinReq):
 async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
     await ws.accept()
     game = get_or_create_room(room_id)
+    
+    # Check if this is a reconnection
+    was_disconnected = player_id in game.state.players and not game.state.players[player_id].connected
+    
+    # Update connection status
+    if player_id in game.state.players:
+        game.state.players[player_id].connected = True
+    
     connections[room_id][player_id] = ws
 
     await ws.send_text(json.dumps({"type": "state", "payload": game.state.model_dump()}))
-    await broadcast(room_id, "state", game.state.model_dump())
+    
+    # Notify other players about reconnection
+    if was_disconnected:
+        await broadcast(room_id, "player_reconnected", {
+            "player_id": player_id,
+            "player_name": game.state.players[player_id].name,
+            "state": game.state.model_dump()
+        })
+    else:
+        await broadcast(room_id, "state", game.state.model_dump())
 
     try:
         while True:
@@ -234,6 +251,18 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
 
     except WebSocketDisconnect:
         try:
+            # Mark player as disconnected
+            if player_id in game.state.players:
+                game.state.players[player_id].connected = False
+            
+            # Remove from connections
             del connections[room_id][player_id]
+            
+            # Notify other players about disconnection
+            await broadcast(room_id, "player_disconnected", {
+                "player_id": player_id,
+                "player_name": game.state.players[player_id].name if player_id in game.state.players else "Unknown",
+                "state": game.state.model_dump()
+            })
         except Exception:
             pass

@@ -16,6 +16,7 @@ class Player(BaseModel):
     team: Optional[str] = None  # "A" or "B"
     seat: Optional[int] = None  # 0..5
     hand: List[Card] = Field(default_factory=list)
+    connected: bool = True  # Track connection status
 
 class TableSet(BaseModel):
     suit: Suit
