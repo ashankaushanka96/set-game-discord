@@ -565,6 +565,18 @@ export default function Table() {
           onCardSelect={handleHandCardClick}
           selectable={true}
         />
+        
+        {/* Clear Selection Button - only show when cards are selected */}
+        {selectedCardsToPass.length > 0 && (
+          <div className="mt-3">
+            <button 
+              className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
+              onClick={() => setSelectedCardsToPass([])}
+            >
+              Clear Selection ({selectedCardsToPass.length})
+            </button>
+          </div>
+        )}
       </div>
       <div className="mt-4 flex items-center justify-center gap-3">
         {/* Game action buttons - only show when game is playing */}

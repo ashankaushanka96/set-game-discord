@@ -94,7 +94,7 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
 
       {/* Desktop: One single line, centered; no wrap; constrained to viewport */}
       {/* Mobile: Up to 2 rows with wrapping */}
-      <div className="max-w-[95vw] overflow-hidden">
+      <div className="max-w-[95vw]">
         <div className="hidden md:inline-flex items-center justify-center whitespace-nowrap gap-2">
           {/* LOWER */}
           {lowerItems.map((it) =>
