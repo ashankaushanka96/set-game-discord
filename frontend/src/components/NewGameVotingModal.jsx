@@ -1,7 +1,7 @@
 import { useStore } from "../store";
 import { send } from "../ws";
 
-export default function AbortVotingModal({ open, onClose, votingData }) {
+export default function NewGameVotingModal({ open, onClose, votingData }) {
   const { state, me, ws } = useStore();
   
   if (!open || !votingData) return null;
@@ -35,12 +35,18 @@ export default function AbortVotingModal({ open, onClose, votingData }) {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-zinc-800 rounded-lg p-6 max-w-md w-full mx-4 border border-zinc-700">
         <div className="text-center">
+          <div className="mb-4">
+            <svg className="w-12 h-12 mx-auto text-emerald-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </div>
+          
           <h2 className="text-2xl font-bold text-white mb-4">
-            Abort Game Vote
+            New Game Vote
           </h2>
           
           <p className="text-zinc-300 mb-4">
-            {requester?.name || "A player"} wants to abort the current game.
+            {requester?.name || "A player"} wants to start a new game with fresh cards.
           </p>
 
           <div className="mb-4">
@@ -49,7 +55,7 @@ export default function AbortVotingModal({ open, onClose, votingData }) {
             </div>
             <div className="w-full bg-zinc-700 rounded-full h-2 mt-2">
               <div 
-                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                className="bg-emerald-600 h-2 rounded-full transition-all duration-300"
                 style={{ width: `${(votes_for_abort / votes_needed) * 100}%` }}
               ></div>
             </div>
@@ -75,14 +81,20 @@ export default function AbortVotingModal({ open, onClose, votingData }) {
             <div className="flex gap-3 justify-center mb-4">
               <button
                 onClick={() => handleVote(true)}
-                className="bg-green-600 hover:bg-green-500 text-white px-6 py-2 rounded-lg transition-colors"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2 rounded-lg transition-colors flex items-center gap-2"
               >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
                 Vote YES
               </button>
               <button
                 onClick={() => handleVote(false)}
-                className="bg-red-600 hover:bg-red-500 text-white px-6 py-2 rounded-lg transition-colors"
+                className="bg-red-600 hover:bg-red-500 text-white px-6 py-2 rounded-lg transition-colors flex items-center gap-2"
               >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
                 Vote NO
               </button>
             </div>
@@ -95,15 +107,11 @@ export default function AbortVotingModal({ open, onClose, votingData }) {
                   {myVote ? "YES" : "NO"}
                 </span>
               </p>
+              <p className="text-xs text-zinc-500 mt-2">
+                Waiting for other players to vote...
+              </p>
             </div>
           )}
-
-          <button
-            onClick={onClose}
-            className="bg-zinc-600 hover:bg-zinc-500 text-white px-6 py-2 rounded-lg transition-colors"
-          >
-            Close
-          </button>
         </div>
       </div>
     </div>

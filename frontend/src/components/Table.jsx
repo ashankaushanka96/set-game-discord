@@ -6,8 +6,8 @@ import Seat from './Seat';
 import PlayerHand from './PlayerHand';
 import LaydownModal from './LaydownModal';
 import GameOverModal from './GameOverModal';
-import AbortVotingModal from './AbortVotingModal';
-import RequestAbortModal from './RequestAbortModal';
+import NewGameVotingModal from './NewGameVotingModal';
+import NewGameModal from './NewGameModal';
 import MessageBubbles from './MessageBubbles';
 import Celebration from './Celebration';
 import MessageBox from './MessageBox';
@@ -248,15 +248,20 @@ export default function Table() {
       <Celebration />
       <DealingAnimation />
       
-      {/* Abort Game Button - Top Right */}
+      {/* New Game Button - Top Right */}
       {state.phase === 'playing' && (
-        <div className="fixed top-2 right-2 md:top-4 md:right-4 z-40">
+        <div className="fixed top-2 right-2 md:top-3 md:right-3 z-40">
           <button 
-            className="bg-red-600 hover:bg-red-500 text-white px-2 md:px-4 py-1 md:py-2 rounded-lg transition-colors shadow-lg text-sm md:text-base"
+            className="group bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg md:rounded-xl shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center gap-2"
             onClick={() => setRequestAbortOpen(true)}
           >
-            <span className="hidden md:inline">Abort Game</span>
-            <span className="md:hidden">Abort</span>
+            <svg className="w-4 h-4 transition-transform group-hover:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span className="text-sm font-medium">
+              <span className="hidden sm:inline">New Game</span>
+              <span className="sm:hidden">New</span>
+            </span>
           </button>
         </div>
       )}
@@ -286,21 +291,20 @@ export default function Table() {
         </div>
       )}
 
-      {/* HUD */}
-      <div className="fixed top-2 left-2 md:top-3 md:left-3 bg-zinc-800/80 backdrop-blur px-2 md:px-4 py-1 md:py-2 rounded-xl card-shadow text-xs md:text-sm z-[95]">
+      {/* Back to Lobby Button */}
+      <div className="fixed top-2 left-2 md:top-3 md:left-3 z-[95]">
         <button
           onClick={() => navigate('/')}
-          className="mb-1 md:mb-2 bg-zinc-700 hover:bg-zinc-600 text-white px-2 md:px-3 py-1 rounded text-[10px] md:text-xs transition-colors"
+          className="group bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg md:rounded-xl shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center gap-2"
         >
-          <span className="hidden sm:inline">← Back to Lobby</span>
-          <span className="sm:hidden">← Lobby</span>
+          <svg className="w-4 h-4 transition-transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          <span className="text-sm font-medium">
+            <span className="hidden sm:inline">Back to Lobby</span>
+            <span className="sm:hidden">Lobby</span>
+          </span>
         </button>
-        <div className="font-semibold">{my?.name ?? 'Me'}</div>
-        <div className="opacity-80">Seat {typeof my?.seat === 'number' ? my.seat+1 : '-'}</div>
-        <div className={`mt-1 inline-flex items-center gap-2 px-2 py-[2px] rounded-full text-[12px] ${my?.team==='A'?'bg-blue-600/30 text-blue-300':'bg-rose-600/30 text-rose-300'}`}>
-          <span className={`inline-block h-2 w-2 rounded-full ${my?.team==='A'?'bg-blue-400':'bg-rose-400'}`} />
-          {my?.team ? `Team ${my.team}` : 'No team'}
-        </div>
       </div>
 
       <MessageBubbles seatEls={seatEls} seatVersion={seatVersion} hideLaydownBubbles={layOpen} />
@@ -472,14 +476,14 @@ export default function Table() {
         gameResult={gameResult}
       />
 
-      {/* Request Abort Modal */}
-      <RequestAbortModal
+      {/* New Game Modal */}
+      <NewGameModal
         open={requestAbortOpen}
         onClose={() => setRequestAbortOpen(false)}
       />
 
-      {/* Abort Voting Modal */}
-      <AbortVotingModal
+      {/* New Game Voting Modal */}
+      <NewGameVotingModal
         open={!!abortVoting}
         onClose={() => {}}
         votingData={abortVoting}
