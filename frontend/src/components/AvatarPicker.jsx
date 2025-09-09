@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../store';
+import { generateUUID } from '../utils/uuid.js';
 
 const AVATARS = ['🦊','🐼','🐸','🐯','🐵','🐱','🐶','🦁','🐨','🐷'];
 
@@ -20,7 +21,7 @@ export default function AvatarPicker(){
       <button
         disabled={!name}
         onClick={()=>{
-          const id = crypto.randomUUID();
+          const id = generateUUID();
           setMe({ id, name, avatar }); // writes to sessionStorage
         }}
         className="px-4 py-2 rounded bg-emerald-600 disabled:opacity-50"

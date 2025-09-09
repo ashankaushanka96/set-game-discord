@@ -1,4 +1,6 @@
-const BASE = "http://localhost:8000";
+import { API_BASE } from './config.js';
+
+const BASE = API_BASE;
 
 export async function apiCreateRoom() {
   const r = await fetch(`${BASE}/rooms`, { method: "POST" });

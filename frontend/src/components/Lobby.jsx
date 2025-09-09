@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useStore } from "../store";
 import { connectWS, send } from "../ws";
-
-const API = "http://localhost:8000";
+import { API_BASE } from "../config.js";
+import { generateUUID } from "../utils/uuid.js";
 
 export default function Lobby() {
   const navigate = useNavigate();
@@ -50,7 +50,7 @@ export default function Lobby() {
 
   // ensure per-tab identity
   useEffect(() => {
-    setMe({ id: me?.id || crypto.randomUUID(), name, avatar });
+    setMe({ id: me?.id || generateUUID(), name, avatar });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -68,7 +68,7 @@ export default function Lobby() {
       name: useStore.getState().me.name,
       avatar: useStore.getState().me.avatar,
     };
-    const res = await fetch(`${API}/rooms/${rid}/players`, {
+    const res = await fetch(`${API_BASE}/rooms/${rid}/players`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -80,7 +80,7 @@ export default function Lobby() {
   const createRoom = async () => {
     setError(""); setBusy(true);
     try {
-      const res = await fetch(`${API}/rooms`, { method: "POST" });
+      const res = await fetch(`${API_BASE}/rooms`, { method: "POST" });
       if (!res.ok) throw new Error(`Create failed: ${res.status}`);
       const data = await res.json(); // {room_id}
       const rid = data.room_id;
@@ -140,10 +140,41 @@ export default function Lobby() {
 
   const copyRoomId = async () => {
     try {
-      await navigator.clipboard.writeText(roomInput);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1200);
-    } catch {}
+      // Try modern clipboard API first
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(roomInput);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1200);
+        return;
+      }
+      
+      // Fallback for non-secure contexts (like IP addresses)
+      const textArea = document.createElement('textarea');
+      textArea.value = roomInput;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      
+      try {
+        document.execCommand('copy');
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1200);
+      } catch (err) {
+        console.error('Failed to copy text: ', err);
+        // Show error to user
+        setError('Failed to copy room ID. Please copy manually: ' + roomInput);
+        setTimeout(() => setError(''), 3000);
+      }
+      
+      document.body.removeChild(textArea);
+    } catch (error) {
+      console.error('Copy failed:', error);
+      setError('Failed to copy room ID. Please copy manually: ' + roomInput);
+      setTimeout(() => setError(''), 3000);
+    }
   };
 
   const players = useMemo(() => Object.values(state?.players || {}), [state]);
