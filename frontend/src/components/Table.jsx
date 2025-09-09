@@ -16,6 +16,7 @@ import MessageBox from './MessageBox';
 import Card from './Card';
 import DealingAnimation from './DealingAnimation';
 import CompletedSetsModal from './CompletedSetsModal';
+import PassedCardsDisplay from './PassedCardsDisplay';
 import { RANKS_LOWER, RANKS_UPPER, SUITS } from '../lib/deck';
 
 const TEAM_RING = {
@@ -69,6 +70,7 @@ export default function Table() {
 
   const [anim, setAnim] = useState(null);
   const [lays, setLays] = useState([]);
+  const [passedCards, setPassedCards] = useState({}); // Track passed cards on each player
   const tableCenterRef = useRef(null);
 
   const seatEls = useRef({});
@@ -118,7 +120,7 @@ export default function Table() {
     function onAnim(e) {
       const { asker_id, target_id, card, from_player, to_player, cards } = e.detail || {};
       
-      // Handle new card passing (multiple cards)
+      // Handle new card passing (multiple cards) - animate fanned deck flying
       if (from_player && to_player && cards) {
         const fromEl = seatEls.current[from_player];
         const toEl = seatEls.current[to_player];
@@ -127,19 +129,40 @@ export default function Table() {
         const from = fromEl.getBoundingClientRect();
         const to = toEl.getBoundingClientRect();
         
-        // Animate each card with a slight delay
-        cards.forEach((card, index) => {
-          setTimeout(() => {
-            setAnim({
-              suit: card.suit, rank: card.rank,
-              from: { x: from.left + from.width/2, y: from.top + from.height/2 },
-              to: { x: to.left + to.width/2, y: to.top + to.height/2 },
-              go: false,
-            });
-            requestAnimationFrame(() => requestAnimationFrame(() => setAnim(a=>a?{...a,go:true}:a)));
-            setTimeout(() => setAnim(null), 900);
-          }, index * 100); // 100ms delay between each card
+        // Create flying fanned deck animation
+        setAnim({
+          cards: cards,
+          from: { x: from.left + from.width/2, y: from.top + from.height/2 },
+          to: { x: to.left + to.width/2, y: to.top + to.height/2 },
+          go: false,
+          type: 'fanned_deck'
         });
+        
+        // Start animation
+        requestAnimationFrame(() => requestAnimationFrame(() => setAnim(a=>a?{...a,go:true}:a)));
+        
+        // After animation completes, show deck on target player
+        setTimeout(() => {
+          setAnim(null);
+          setPassedCards(prev => ({
+            ...prev,
+            [to_player]: {
+              cards: cards,
+              timestamp: Date.now(),
+              type: 'deck'
+            }
+          }));
+          
+          // Remove deck after 15 seconds
+          setTimeout(() => {
+            setPassedCards(prev => {
+              const updated = { ...prev };
+              delete updated[to_player];
+              return updated;
+            });
+          }, 15000);
+        }, 900);
+        
         return;
       }
       
@@ -150,6 +173,17 @@ export default function Table() {
       if (!fromEl || !toEl) return;
       const from = fromEl.getBoundingClientRect();
       const to   = toEl.getBoundingClientRect();
+      
+      // Show single card on target player
+      setPassedCards(prev => ({
+        ...prev,
+        [asker_id]: {
+          cards: [card],
+          timestamp: Date.now(),
+          type: 'single'
+        }
+      }));
+      
       setAnim({
         suit: card.suit, rank: card.rank,
         from: { x: from.left + from.width/2, y: from.top + from.height/2 },
@@ -158,6 +192,15 @@ export default function Table() {
       });
       requestAnimationFrame(() => requestAnimationFrame(() => setAnim(a=>a?{...a,go:true}:a)));
       setTimeout(()=>setAnim(null), 900);
+      
+      // Remove single card after 15 seconds
+      setTimeout(() => {
+        setPassedCards(prev => {
+          const updated = { ...prev };
+          delete updated[asker_id];
+          return updated;
+        });
+      }, 15000);
     }
     window.addEventListener('pass_anim', onAnim);
     return () => window.removeEventListener('pass_anim', onAnim);
@@ -375,6 +418,14 @@ export default function Table() {
                       isLaydownPlayer={isLaydownPlayer}
                     />
                   </div>
+                  {/* Show passed cards on this player */}
+                  {p && passedCards[p.id] && (
+                    <PassedCardsDisplay
+                      cards={passedCards[p.id].cards}
+                      type={passedCards[p.id].type}
+                      playerName={p.name}
+                    />
+                  )}
                   {p && p.id !== my.id && !dealingAnimation && (
                     <div className="mt-1 text-center text-xs opacity-70">{handCount(pid)} cards</div>
                   )}
@@ -386,7 +437,41 @@ export default function Table() {
               <div className="fixed z-[90] pointer-events-none" style={{ left: anim.from.x, top: anim.from.y, transform: 'translate(-50%,-50%)' }}>
                 <div style={{ position: 'relative', left: anim.go ? (anim.to.x - anim.from.x) : 0, top: anim.go ? (anim.to.y - anim.from.y) : 0,
                               transition: 'left 0.8s cubic-bezier(.2,.8,.2,1), top 0.8s cubic-bezier(.2,.8,.2,1)' }}>
-                  <Card suit={anim.suit} rank={anim.rank} size="sm" />
+                  {anim.type === 'fanned_deck' ? (
+                    // Render fanned deck animation
+                    <div className="relative flex justify-center items-center" style={{ 
+                      width: `${Math.min(anim.cards.length * 20 + 60, 350)}px`,
+                      height: '80px'
+                    }}>
+                      {anim.cards.map((card, index) => {
+                        const totalCards = anim.cards.length;
+                        const maxRotation = Math.min(totalCards * 6, 45);
+                        const rotation = totalCards > 1 ? 
+                          (index - (totalCards - 1) / 2) * (maxRotation / (totalCards - 1)) : 0;
+                        const offsetX = totalCards > 1 ? 
+                          (index - (totalCards - 1) / 2) * 20 : 0;
+                        
+                        return (
+                          <div
+                            key={`${card.suit}-${card.rank}-${index}`}
+                            className="absolute transform"
+                            style={{
+                              transform: `translateX(${offsetX}px) rotate(${rotation}deg)`,
+                              zIndex: index + 1,
+                              left: '50%',
+                              marginLeft: '-19px',
+                              filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))'
+                            }}
+                          >
+                            <Card suit={card.suit} rank={card.rank} size="sm-xs" />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    // Render single card animation
+                    <Card suit={anim.suit} rank={anim.rank} size="sm" />
+                  )}
                 </div>
               </div>
             )}

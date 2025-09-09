@@ -2,6 +2,8 @@ export default function Card({ suit="spades", rank="A", size="md" }) {
     const SUIT_SYMBOL = { hearts:"♥", diamonds:"♦", clubs:"♣", spades:"♠" };
     const red = suit === "hearts" || suit === "diamonds";
     const sizes = {
+      xs: { w: 32, h: 44, r: 6, f: 10, big: 14 },
+      'sm-xs': { w: 38, h: 52, r: 7, f: 11, big: 16 },
       sm: { w: 44, h: 60, r: 8, f: 12, big: 18 },
       md: { w: 64, h: 88, r: 10, f: 14, big: 24 },
       lg: { w: 96, h: 132, r: 12, f: 18, big: 36 },
