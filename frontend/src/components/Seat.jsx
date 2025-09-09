@@ -15,7 +15,7 @@ export default function Seat({ seatIndex, player, highlight, selectable, onSelec
         data-seat={seatIndex}
         onClick={handleClick}
         className={[
-          'w-28 h-28 rounded-full flex flex-col items-center justify-center',
+          'w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-full flex flex-col items-center justify-center',
           'bg-zinc-800/90 card-shadow relative overflow-hidden',
           teamBg,
           selectable ? 'cursor-pointer hover:scale-[1.03] transition' : 'cursor-default',
@@ -23,9 +23,9 @@ export default function Seat({ seatIndex, player, highlight, selectable, onSelec
           isMe ? 'ring-2 ring-cyan-400/70' : '',
         ].join(' ')}
       >
-        <div className="text-2xl">🔥</div>
-        <div className="text-xs mt-1 opacity-90 line-clamp-1">{player?.name || 'Empty'}</div>
-        <div className="text-[10px] opacity-60">{player ? `Seat ${player.seat+1}` : `Seat ${seatIndex+1}`}</div>
+        <div className="text-lg sm:text-xl md:text-2xl">🔥</div>
+        <div className="text-[10px] sm:text-xs mt-1 opacity-90 line-clamp-1">{player?.name || 'Empty'}</div>
+        <div className="text-[8px] sm:text-[10px] opacity-60">{player ? `Seat ${player.seat+1}` : `Seat ${seatIndex+1}`}</div>
         {isMe && (
           <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[10px] bg-cyan-600/90 px-2 py-[2px] rounded-full">
             You

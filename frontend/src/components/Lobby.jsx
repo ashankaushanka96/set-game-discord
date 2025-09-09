@@ -180,8 +180,8 @@ export default function Lobby() {
   const players = useMemo(() => Object.values(state?.players || {}), [state]);
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Card Set Collection – Lobby</h1>
+    <div className="p-4 md:p-8 max-w-5xl mx-auto">
+      <h1 className="text-xl md:text-2xl font-bold mb-4">Card Set Collection – Lobby</h1>
 
       {error && (
         <div className="mb-4 text-sm bg-rose-600/20 border border-rose-500/40 px-3 py-2 rounded">
@@ -189,7 +189,7 @@ export default function Lobby() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
         {/* Profile */}
         <div className="bg-zinc-900/50 rounded-xl p-4">
           <h2 className="font-semibold mb-2">Create Profile (per tab)</h2>
@@ -213,7 +213,7 @@ export default function Lobby() {
 
           <div className="flex gap-2 mb-3">
             <button
-              className="bg-emerald-600 px-4 py-2 rounded disabled:opacity-50"
+              className="bg-emerald-600 px-3 md:px-4 py-2 rounded disabled:opacity-50 text-sm md:text-base"
               onClick={createRoom}
               disabled={busy}
               title="Create a new room"
@@ -240,16 +240,16 @@ export default function Lobby() {
           </div>
           {copied && <div className="text-xs mt-1 text-emerald-400">Copied!</div>}
 
-          <div className="mt-3 flex gap-2">
+          <div className="mt-3 flex flex-col sm:flex-row gap-2">
             <button
-              className="bg-indigo-600 px-4 py-2 rounded disabled:opacity-50"
+              className="bg-indigo-600 px-3 md:px-4 py-2 rounded disabled:opacity-50 text-sm md:text-base"
               onClick={joinRoom}
               disabled={busy}
             >
               {busy ? "Joining..." : "Join"}
             </button>
             <button 
-              className={`px-4 py-2 rounded ${
+              className={`px-3 md:px-4 py-2 rounded text-sm md:text-base ${
                 players.length >= 6 && players.filter(p => p.team).length >= 6 
                   ? 'bg-amber-600 hover:bg-amber-500' 
                   : 'bg-zinc-600 cursor-not-allowed'
@@ -270,7 +270,7 @@ export default function Lobby() {
         {/* Teams */}
         <div className="bg-zinc-900/50 rounded-xl p-4">
           <h2 className="font-semibold mb-2">Teams</h2>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <div className="inline-flex items-center gap-2 text-sm mb-2">
                 <span className="inline-block h-2 w-2 rounded-full bg-blue-400"></span>
@@ -284,7 +284,7 @@ export default function Lobby() {
                 ))}
               </div>
               <button
-                className="mt-3 bg-blue-600/30 hover:bg-blue-600/40 px-3 py-1 rounded text-sm"
+                className="mt-3 bg-blue-600/30 hover:bg-blue-600/40 px-2 md:px-3 py-1 rounded text-xs md:text-sm"
                 onClick={()=>send(useStore.getState().ws,'select_team',{ player_id: useStore.getState().me.id, team:'A' })}
               >
                 Join Team A
@@ -303,7 +303,7 @@ export default function Lobby() {
                 ))}
               </div>
               <button
-                className="mt-3 bg-rose-600/30 hover:bg-rose-600/40 px-3 py-1 rounded text-sm"
+                className="mt-3 bg-rose-600/30 hover:bg-rose-600/40 px-2 md:px-3 py-1 rounded text-xs md:text-sm"
                 onClick={()=>send(useStore.getState().ws,'select_team',{ player_id: useStore.getState().me.id, team:'B' })}
               >
                 Join Team B

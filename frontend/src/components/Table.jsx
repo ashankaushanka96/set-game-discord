@@ -13,6 +13,7 @@ import Celebration from './Celebration';
 import MessageBox from './MessageBox';
 import Card from './Card';
 import DealingAnimation from './DealingAnimation';
+import CompletedSetsModal from './CompletedSetsModal';
 import { RANKS_LOWER, RANKS_UPPER, SUITS } from '../lib/deck';
 
 const TEAM_RING = {
@@ -62,6 +63,7 @@ export default function Table() {
   const [selectedSet, setSelectedSet] = useState({ suit: null, setType: null });
   const [requestAbortOpen, setRequestAbortOpen] = useState(false);
   const [selectedCardsToPass, setSelectedCardsToPass] = useState([]);
+  const [completedSetsOpen, setCompletedSetsOpen] = useState(false);
 
   const [anim, setAnim] = useState(null);
   const [lays, setLays] = useState([]);
@@ -80,10 +82,13 @@ export default function Table() {
   const AREA_W = 900, AREA_H = 640, TABLE_SIZE = 420, RADIUS = 280;
   const mySeatIndex = typeof my?.seat === 'number' ? my.seat : 0;
   const seatPositions = useMemo(() => {
-    const cx = AREA_W / 2, cy = AREA_H / 2, pos = {};
+    // Use percentage-based positioning for responsive design
+    const pos = {};
     for (let i = 0; i < 6; i++) {
       const angle = (90 + (i - mySeatIndex) * 60) * (Math.PI / 180);
-      pos[i] = { left: `${cx + RADIUS * Math.cos(angle) - 56}px`, top: `${cy + RADIUS * Math.sin(angle) - 56}px` };
+      const x = 50 + (RADIUS / AREA_W) * 100 * Math.cos(angle);
+      const y = 50 + (RADIUS / AREA_H) * 100 * Math.sin(angle);
+      pos[i] = { left: `${x}%`, top: `${y}%`, transform: 'translate(-50%, -50%)' };
     }
     return pos;
   }, [mySeatIndex]);
@@ -239,18 +244,19 @@ export default function Table() {
 
 
   return (
-    <div className="p-6 relative min-h-screen flex flex-col">
+    <div className="p-3 md:p-6 relative min-h-screen flex flex-col">
       <Celebration />
       <DealingAnimation />
       
       {/* Abort Game Button - Top Right */}
       {state.phase === 'playing' && (
-        <div className="fixed top-20 right-4 z-40">
+        <div className="fixed top-2 right-2 md:top-4 md:right-4 z-40">
           <button 
-            className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg transition-colors shadow-lg"
+            className="bg-red-600 hover:bg-red-500 text-white px-2 md:px-4 py-1 md:py-2 rounded-lg transition-colors shadow-lg text-sm md:text-base"
             onClick={() => setRequestAbortOpen(true)}
           >
-            Abort Game
+            <span className="hidden md:inline">Abort Game</span>
+            <span className="md:hidden">Abort</span>
           </button>
         </div>
       )}
@@ -267,24 +273,27 @@ export default function Table() {
       )}
 
       {handoffFor && handoffFor.who_id === me.id && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[95] bg-zinc-900/90 backdrop-blur px-4 py-2 rounded-xl card-shadow flex items-center gap-2">
-          <span className="text-sm opacity-80">Pass turn to teammate:</span>
-          {handoffFor.eligible.map(pid => (
-            <button key={pid} className="text-sm bg-emerald-700/70 hover:bg-emerald-700 px-3 py-1 rounded"
-              onClick={() => doHandoff(pid)}>
-              {players[pid]?.avatar} {players[pid]?.name}
-            </button>
-          ))}
+        <div className="fixed top-2 md:top-4 left-1/2 -translate-x-1/2 z-[95] bg-zinc-900/90 backdrop-blur px-2 md:px-4 py-1 md:py-2 rounded-xl card-shadow flex flex-col sm:flex-row items-center gap-1 md:gap-2">
+          <span className="text-xs md:text-sm opacity-80">Pass turn to teammate:</span>
+          <div className="flex flex-wrap gap-1 md:gap-2">
+            {handoffFor.eligible.map(pid => (
+              <button key={pid} className="text-xs md:text-sm bg-emerald-700/70 hover:bg-emerald-700 px-2 md:px-3 py-1 rounded"
+                onClick={() => doHandoff(pid)}>
+                {players[pid]?.avatar} {players[pid]?.name}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
       {/* HUD */}
-      <div className="fixed top-3 left-3 bg-zinc-800/80 backdrop-blur px-4 py-2 rounded-xl card-shadow text-sm z-[95]">
+      <div className="fixed top-2 left-2 md:top-3 md:left-3 bg-zinc-800/80 backdrop-blur px-2 md:px-4 py-1 md:py-2 rounded-xl card-shadow text-xs md:text-sm z-[95]">
         <button
           onClick={() => navigate('/')}
-          className="mb-2 bg-zinc-700 hover:bg-zinc-600 text-white px-3 py-1 rounded text-xs transition-colors"
+          className="mb-1 md:mb-2 bg-zinc-700 hover:bg-zinc-600 text-white px-2 md:px-3 py-1 rounded text-[10px] md:text-xs transition-colors"
         >
-          ← Back to Lobby
+          <span className="hidden sm:inline">← Back to Lobby</span>
+          <span className="sm:hidden">← Lobby</span>
         </button>
         <div className="font-semibold">{my?.name ?? 'Me'}</div>
         <div className="opacity-80">Seat {typeof my?.seat === 'number' ? my.seat+1 : '-'}</div>
@@ -309,10 +318,16 @@ export default function Table() {
           </div>
         </div>
 
-        <div className="relative">
-          <div className="relative mx-auto bg-zinc-900/30 rounded-3xl card-shadow" style={{ width: `${AREA_W}px`, height: `${AREA_H}px` }}>
+        <div className="relative w-full max-w-[95vw] md:w-[900px] h-[400px] md:h-[640px] mx-auto">
+          <div className="relative w-full h-full bg-zinc-900/30 rounded-3xl card-shadow">
             <div ref={tableCenterRef} className="absolute rounded-full border-4 border-zinc-700 bg-zinc-800/40 flex items-center justify-center"
-                 style={{ width: `${TABLE_SIZE}px`, height: `${TABLE_SIZE}px`, left: `calc(50% - ${TABLE_SIZE/2}px)`, top: `calc(50% - ${TABLE_SIZE/2}px)` }}>
+                 style={{ 
+                   width: 'min(420px, 70vw)', 
+                   height: 'min(420px, 70vw)', 
+                   left: '50%', 
+                   top: '50%', 
+                   transform: 'translate(-50%, -50%)' 
+                 }}>
               {/* Shuffle & Deal button - show for current dealer when game is ready, ended, or when no cards are dealt */}
               {me?.id === state.current_dealer && (state.phase === 'ready' || state.phase === 'ended' || !state.deck_count || state.deck_count === 0 || !my?.hand?.length) && (
                 <button 
@@ -380,22 +395,6 @@ export default function Table() {
             ))}
           </div>
 
-          <div className="mt-3 mx-auto flex items-center justify-center gap-6 text-sm">
-            <div className="px-3 py-1 rounded-full bg-zinc-900/70">
-              <span className="inline-flex items-center gap-2 text-blue-300">
-                <span className="inline-block h-2 w-2 rounded-full bg-blue-400" />
-                Team A <span className="text-zinc-300">—</span> <span className="text-white">{state.team_scores?.A ?? 0}</span> pts
-                <span className="opacity-60"> ({(state.table_sets||[]).filter(s=>s.owner_team==='A').length} sets)</span>
-              </span>
-            </div>
-            <div className="px-3 py-1 rounded-full bg-zinc-900/70">
-              <span className="inline-flex items-center gap-2 text-rose-300">
-                <span className="inline-block h-2 w-2 rounded-full bg-rose-400" />
-                Team B <span className="text-zinc-300">—</span> <span className="text-white">{state.team_scores?.B ?? 0}</span> pts
-                <span className="opacity-60"> ({(state.table_sets||[]).filter(s=>s.owner_team==='B').length} sets)</span>
-              </span>
-            </div>
-          </div>
         </div>
 
         <div className="hidden xl:block w-[260px]">
@@ -406,6 +405,32 @@ export default function Table() {
               <SetChip key={`B-${idx}`} suit={ts.suit} set_type={ts.set_type} owner="B" expandable cards={ts.cards}/>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* Scoreboard - positioned between table and player hand */}
+      <div className="mt-4 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-6 text-xs sm:text-sm">
+        <div className="px-2 sm:px-3 py-1 rounded-full bg-zinc-900/70">
+          <span className="inline-flex items-center gap-1 sm:gap-2 text-blue-300">
+            <span className="inline-block h-2 w-2 rounded-full bg-blue-400" />
+            <span className="hidden sm:inline">Team A</span>
+            <span className="sm:hidden">A</span>
+            <span className="text-zinc-300">—</span> 
+            <span className="text-white">{state.team_scores?.A ?? 0}</span>
+            <span className="hidden sm:inline">pts</span>
+            <span className="opacity-60"> ({(state.table_sets||[]).filter(s=>s.owner_team==='A').length})</span>
+          </span>
+        </div>
+        <div className="px-2 sm:px-3 py-1 rounded-full bg-zinc-900/70">
+          <span className="inline-flex items-center gap-1 sm:gap-2 text-rose-300">
+            <span className="inline-block h-2 w-2 rounded-full bg-rose-400" />
+            <span className="hidden sm:inline">Team B</span>
+            <span className="sm:hidden">B</span>
+            <span className="text-zinc-300">—</span> 
+            <span className="text-white">{state.team_scores?.B ?? 0}</span>
+            <span className="hidden sm:inline">pts</span>
+            <span className="opacity-60"> ({(state.table_sets||[]).filter(s=>s.owner_team==='B').length})</span>
+          </span>
         </div>
       </div>
 
@@ -421,7 +446,17 @@ export default function Table() {
         {/* Game action buttons - only show when game is playing */}
         {state.phase === 'playing' && (
           <>
-            <button className="bg-emerald-600 px-4 py-2 rounded" onClick={()=>setLayOpen(true)}>Laydown</button>
+            <button className="bg-emerald-600 px-3 md:px-4 py-2 rounded text-sm md:text-base" onClick={()=>setLayOpen(true)}>
+              <span className="hidden sm:inline">Laydown</span>
+              <span className="sm:hidden">Lay</span>
+            </button>
+            {/* Mobile: View completed sets button */}
+            <button 
+              className="md:hidden bg-blue-600 px-3 py-2 rounded text-sm" 
+              onClick={() => setCompletedSetsOpen(true)}
+            >
+              Sets
+            </button>
           </>
         )}
       </div>
@@ -448,6 +483,13 @@ export default function Table() {
         open={!!abortVoting}
         onClose={() => {}}
         votingData={abortVoting}
+      />
+
+      {/* Completed Sets Modal - Mobile only */}
+      <CompletedSetsModal
+        open={completedSetsOpen}
+        onClose={() => setCompletedSetsOpen(false)}
+        tableSets={state.table_sets || []}
       />
     </div>
   );
