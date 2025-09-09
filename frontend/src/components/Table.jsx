@@ -110,26 +110,48 @@ export default function Table() {
     function onAnim(e) {
       const { asker_id, target_id, card, from_player, to_player, cards } = e.detail || {};
       
+      // Clear any existing animation first to prevent conflicts
+      setAnim(null);
+      
       // Handle new card passing (multiple cards) - animate fanned deck flying
       if (from_player && to_player && cards) {
+        
         const fromEl = seatEls.current[from_player];
         const toEl = seatEls.current[to_player];
-        if (!fromEl || !toEl) return;
+        if (!fromEl || !toEl) {
+          console.warn('Card pass animation failed: missing DOM elements', { 
+            from_player, 
+            to_player, 
+            fromEl: !!fromEl, 
+            toEl: !!toEl,
+            availableSeatEls: Object.keys(seatEls.current),
+            availablePlayers: Object.keys(players)
+          });
+          return;
+        }
         
-        const from = fromEl.getBoundingClientRect();
-        const to = toEl.getBoundingClientRect();
-        
-        // Create flying fanned deck animation
-        setAnim({
-          cards: cards,
-          from: { x: from.left + from.width/2, y: from.top + from.height/2 },
-          to: { x: to.left + to.width/2, y: to.top + to.height/2 },
-          go: false,
-          type: 'fanned_deck'
-        });
-        
-        // Start animation
-        requestAnimationFrame(() => requestAnimationFrame(() => setAnim(a=>a?{...a,go:true}:a)));
+        // Add small delay to ensure DOM elements are properly positioned
+        setTimeout(() => {
+          const from = fromEl.getBoundingClientRect();
+          const to = toEl.getBoundingClientRect();
+          
+          
+          // Create flying fanned deck animation
+          const animationData = {
+            cards: cards,
+            from: { x: from.left + from.width/2, y: from.top + from.height/2 },
+            to: { x: to.left + to.width/2, y: to.top + to.height/2 },
+            go: false,
+            type: 'fanned_deck'
+          };
+          
+          setAnim(animationData);
+          
+          // Start animation after a brief delay
+          setTimeout(() => {
+            setAnim(a => a ? { ...a, go: true } : a);
+          }, 100);
+        }, 50);
         
         // After animation completes, keep deck on target player for 15 seconds
         setTimeout(() => {
@@ -140,46 +162,49 @@ export default function Table() {
           setTimeout(() => {
             setAnim(null);
           }, 15000);
-        }, 900);
+        }, 1050); // Increased to account for the 50ms + 100ms delays
         
         return;
       }
       
-      // Handle old ask-based passing (single card)
-      if (!asker_id || !target_id || !card) return;
-      const fromEl = seatEls.current[target_id];
-      const toEl   = seatEls.current[asker_id];
-      if (!fromEl || !toEl) return;
-      const from = fromEl.getBoundingClientRect();
-      const to   = toEl.getBoundingClientRect();
-      
-      // Show single card on target player
-      setPassedCards(prev => ({
-        ...prev,
-        [asker_id]: {
-          cards: [card],
-          timestamp: Date.now(),
-          type: 'single'
+      // Handle single card passing (if only one card is passed)
+      if (from_player && to_player && cards && cards.length === 1) {
+        const fromEl = seatEls.current[from_player];
+        const toEl = seatEls.current[to_player];
+        if (!fromEl || !toEl) {
+          console.warn('Single card pass animation failed: missing DOM elements', { from_player, to_player, fromEl: !!fromEl, toEl: !!toEl });
+          return;
         }
-      }));
-      
-      setAnim({
-        suit: card.suit, rank: card.rank,
-        from: { x: from.left + from.width/2, y: from.top + from.height/2 },
-        to:   { x: to.left   + to.width/2,   y: to.top  + to.height/2 },
-        go: false,
-      });
-      requestAnimationFrame(() => requestAnimationFrame(() => setAnim(a=>a?{...a,go:true}:a)));
-      setTimeout(()=>setAnim(null), 900);
-      
-      // Remove single card after 15 seconds
-      setTimeout(() => {
-        setPassedCards(prev => {
-          const updated = { ...prev };
-          delete updated[asker_id];
-          return updated;
+        
+        const from = fromEl.getBoundingClientRect();
+        const to = toEl.getBoundingClientRect();
+        
+        // Create flying single card animation
+        setAnim({
+          suit: cards[0].suit, 
+          rank: cards[0].rank,
+          from: { x: from.left + from.width/2, y: from.top + from.height/2 },
+          to: { x: to.left + to.width/2, y: to.top + to.height/2 },
+          go: false,
+          type: 'single_card'
         });
-      }, 15000);
+        
+        // Start animation
+        requestAnimationFrame(() => requestAnimationFrame(() => setAnim(a=>a?{...a,go:true}:a)));
+        
+        // After animation completes, keep card on target player for 15 seconds
+        setTimeout(() => {
+          // Keep the animation in place but mark it as landed
+          setAnim(prev => prev ? { ...prev, landed: true } : null);
+          
+          // Remove card after 15 seconds
+          setTimeout(() => {
+            setAnim(null);
+          }, 15000);
+        }, 900);
+        
+        return;
+      }
     }
     window.addEventListener('pass_anim', onAnim);
     return () => window.removeEventListener('pass_anim', onAnim);
@@ -462,8 +487,22 @@ export default function Table() {
                         );
                       })}
                     </div>
+                  ) : anim.type === 'single_card' ? (
+                    // Render single card animation with landing effects
+                    <div className={`relative flex justify-center items-center ${anim.landed ? 'animate-pulse' : ''}`} style={{
+                      ...(anim.landed && {
+                        filter: 'drop-shadow(0 0 20px rgba(59, 130, 246, 1))',
+                        border: '4px solid rgba(59, 130, 246, 0.8)',
+                        borderRadius: '15px',
+                        padding: '15px',
+                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                        boxShadow: '0 0 30px rgba(59, 130, 246, 0.5)'
+                      })
+                    }}>
+                      <Card suit={anim.suit} rank={anim.rank} size={anim.landed ? "sm" : "sm"} />
+                    </div>
                   ) : (
-                    // Render single card animation
+                    // Fallback for old single card animation (should not happen anymore)
                     <Card suit={anim.suit} rank={anim.rank} size="sm" />
                   )}
                 </div>

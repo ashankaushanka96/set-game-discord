@@ -160,7 +160,8 @@ export const useStore = create((set, get) => ({
           `Action: Card passed to ${asker}`,
           `Next Turn: ${asker} (continues)`
         ]);
-        try { window.dispatchEvent(new CustomEvent("pass_anim", { detail })); } catch {}
+        // Note: Ask-based card passing has been removed, this should not be called anymore
+        console.warn('Ask-based pass_anim event attempted - this should not happen with new card passing system');
       } else {
         if (msg.payload.reason === "no_card") {
           const rank = msg.payload.ranks?.[0];
@@ -269,14 +270,15 @@ export const useStore = create((set, get) => ({
       
       // Trigger passing animation
       try {
-        window.dispatchEvent(new CustomEvent("pass_anim", {
-          detail: { 
-            from_player: msg.payload.from_player, 
-            to_player: msg.payload.to_player, 
-            cards: msg.payload.cards 
-          }
-        }));
-      } catch {}
+        const detail = { 
+          from_player: msg.payload.from_player, 
+          to_player: msg.payload.to_player, 
+          cards: msg.payload.cards 
+        };
+        window.dispatchEvent(new CustomEvent("pass_anim", { detail }));
+      } catch (e) {
+        console.error('Failed to dispatch card pass_anim event:', e);
+      }
       
       get().setGameMessage("CARDS PASSED", [
         `From: ${fromName}`,
