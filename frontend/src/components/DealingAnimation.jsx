@@ -251,7 +251,7 @@ const DealingAnimation = () => {
         );
       })}
       
-      <style jsx>{`
+      <style>{`
 
         @keyframes cardAppear {
           0% { 
