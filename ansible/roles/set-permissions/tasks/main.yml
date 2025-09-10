@@ -1,5 +1,5 @@
 ---
-- name: Set executable permissions for .sh files
+- name: Set executable permissions for shell scripts
   ansible.builtin.shell: chmod 755 *.sh
   args:
     chdir: "{{ component_path }}"

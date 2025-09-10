@@ -1,5 +1,5 @@
 ---
-- name: Run restart.sh
+- name: Restart application service
   command: "{{ component_path }}/restart.sh"
   args:
     chdir: "{{ component_path }}"

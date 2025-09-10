@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'backend/**'
+      - 'ansible/**'
+      - '.github/workflows/backend-deploy.yml'
 
 jobs:
   create-tarball:

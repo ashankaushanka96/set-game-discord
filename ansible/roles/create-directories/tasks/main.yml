@@ -1,17 +1,17 @@
 ---
-- name: Ensure component_path exists
+- name: Create main application directory
   file:
     path: "{{ component_path }}"
     state: directory
     mode: '0755'
 
-- name: Ensure log_path exists
+- name: Create application logs directory
   file:
     path: "{{ component_path }}/logs"
     state: directory
     mode: '0755'
 
-- name: Ensure database exists
+- name: Create shared database directory
   file:
     path: "{{ component_path }}/../database"
     state: directory
