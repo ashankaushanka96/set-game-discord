@@ -10,9 +10,14 @@ from game import Game
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://ashankaushanka96.github.io",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "*"  # Keep wildcard for development
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -52,6 +57,10 @@ class JoinReq(BaseModel):
     id: str
     name: str
     avatar: str
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok", "message": "Backend is running"}
 
 @app.post("/rooms", response_model=CreateRoomResp)
 def create_room():
