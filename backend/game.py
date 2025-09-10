@@ -1,6 +1,7 @@
 from __future__ import annotations
 import random
 from typing import Dict, List, Tuple, Optional
+from loguru import logger
 from models import Card, RoomState, Player, TableSet, Suit
 
 RANKS_LOWER = ["2", "3", "4", "5", "6", "7"]
@@ -72,6 +73,8 @@ class Game:
         
         # No turn player set yet - will be set after shuffle & deal
         self.state.turn_player = None
+        
+        logger.info(f"Game started in room {self.state.room_id}, dealer: {dealer}")
 
     # ---------------- Helpers ----------------
     @staticmethod
@@ -325,6 +328,9 @@ class Game:
             ) or self._next_ccw_matching(start_seat, lambda pid: self._has_cards(pid))
             self.state.turn_player = next_pid
 
+            # Check if game has ended
+            game_end_result = self.check_game_end()
+
             return {
                 "success": False,
                 "who_id": who_id,
@@ -333,6 +339,7 @@ class Game:
                 "set_type": set_type,
                 "contributors": contributors,
                 "scores": self.state.team_scores,
+                "game_end": game_end_result,
             }
 
         # --- Success: remove only declarers' cards and score for my team
@@ -468,7 +475,7 @@ class Game:
             else:
                 winner = "tie"
             
-            return {
+            result = {
                 "game_ended": True,
                 "winner": winner,
                 "team_a_score": team_a_score,
@@ -476,6 +483,9 @@ class Game:
                 "team_a_sets": len([s for s in self.state.table_sets if s.owner_team == "A"]),
                 "team_b_sets": len([s for s in self.state.table_sets if s.owner_team == "B"])
             }
+            
+            logger.info(f"Game ended in room {self.state.room_id}: Winner={winner}, A={team_a_score}, B={team_b_score}, Sets={len(self.state.table_sets)}")
+            return result
         return {"game_ended": False}
 
     def request_abort(self, requester_id: str):

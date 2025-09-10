@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from loguru import logger
 
 from models import WSMessage, Card
 from services.game_service import GameService
@@ -10,6 +11,8 @@ router = APIRouter()
 
 @router.websocket("/ws/{room_id}/{player_id}")
 async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
+    logger.info(f"WebSocket connection attempt: room={room_id}, player={player_id}")
+    
     await ws.accept()
     game = GameService.get_or_create_room(room_id)
     
@@ -19,10 +22,14 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
     # Update connection status
     if player_id in game.state.players:
         game.state.players[player_id].connected = True
+        logger.info(f"Player {player_id} connected to room {room_id} (reconnection: {was_disconnected})")
+    else:
+        logger.warning(f"Unknown player {player_id} connected to room {room_id}")
     
     # Ensure room_id exists in connections dictionary
     if room_id not in WebSocketService.connections:
         WebSocketService.connections[room_id] = {}
+        logger.debug(f"Created new connection dictionary for room {room_id}")
     
     WebSocketService.connections[room_id][player_id] = ws
 
@@ -44,12 +51,16 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
             data = WSMessage.model_validate_json(text)
             t = data.type
             p = data.payload or {}
+            
+            logger.debug(f"Received message from {player_id} in room {room_id}: type={t}")
 
             if t == "select_team":
+                logger.info(f"Player {p['player_id']} selecting team {p['team']} in room {room_id}")
                 game.assign_seat(p["player_id"], p["team"])
                 await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
 
             elif t == "start":
+                logger.info(f"Game starting in room {room_id}")
                 game.start()
                 await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
                 await WebSocketService.broadcast(room_id, "game_started", {
@@ -112,6 +123,7 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                 })
 
             elif t == "laydown":
+                logger.info(f"Laydown attempt by {p['who_id']}: {p['suit']} {p['set_type']} in room {room_id}")
                 await WebSocketService.broadcast(room_id, "laydown_started", {
                     "who_id": p["who_id"], "suit": p["suit"], "set_type": p["set_type"],
                     "collaborators": p.get("collaborators") or [],
@@ -119,8 +131,13 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                 })
                 try:
                     res = game.laydown(p["who_id"], p["suit"], p["set_type"], p.get("collaborators"))
+                    success = res.get("success", False)
+                    logger.info(f"Laydown result: {'SUCCESS' if success else 'FAILED'} - {p['suit']} {p['set_type']} by {p['who_id']}")
+                    if res.get("game_end", {}).get("game_ended"):
+                        logger.info(f"Game ended in room {room_id}: {res['game_end']}")
                     await WebSocketService.broadcast(room_id, "laydown_result", {**res, "state": game.state.model_dump()})
                 except ValueError as e:
+                    logger.error(f"Laydown error for {p['who_id']}: {e}")
                     await WebSocketService.broadcast(room_id, "laydown_error", {
                         "error": str(e),
                         "who_id": p["who_id"],
@@ -189,14 +206,17 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                 await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
 
     except WebSocketDisconnect:
+        logger.info(f"WebSocket disconnected: room={room_id}, player={player_id}")
         try:
             # Mark player as disconnected
             if player_id in game.state.players:
                 game.state.players[player_id].connected = False
+                logger.info(f"Marked player {player_id} as disconnected in room {room_id}")
             
             # Remove from connections
             if room_id in WebSocketService.connections and player_id in WebSocketService.connections[room_id]:
                 del WebSocketService.connections[room_id][player_id]
+                logger.debug(f"Removed player {player_id} from connections in room {room_id}")
             
             # Notify other players about disconnection
             await WebSocketService.broadcast(room_id, "player_disconnected", {
@@ -204,5 +224,5 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                 "player_name": game.state.players[player_id].name if player_id in game.state.players else "Unknown",
                 "state": game.state.model_dump()
             })
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"Error handling WebSocket disconnect for player {player_id}: {e}")

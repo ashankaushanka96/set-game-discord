@@ -2,6 +2,7 @@ from __future__ import annotations
 import uuid
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from loguru import logger
 
 from models import Player
 from services.game_service import GameService
@@ -23,6 +24,7 @@ def health_check():
 @router.post("/", response_model=CreateRoomResp)
 def create_room():
     rid = uuid.uuid4().hex[:6]
+    logger.info(f"Creating new room: {rid}")
     GameService.get_or_create_room(rid)
     return CreateRoomResp(room_id=rid)
 
@@ -34,6 +36,7 @@ def get_state(room_id: str):
 
 @router.post("/{room_id}/players")
 def http_join_room(room_id: str, body: JoinReq):
+    logger.info(f"Player {body.id} ({body.name}) joining room {room_id}")
     game = GameService.get_or_create_room(room_id)
     game.state.players[body.id] = Player(**body.model_dump())
     return game.state.model_dump()

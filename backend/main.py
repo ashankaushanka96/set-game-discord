@@ -1,9 +1,15 @@
 from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from loguru import logger
 
 from routes import rooms_router, websocket_router
 from services.websocket_service import WebSocketService
+from config import setup_logging
+
+# Setup logging
+setup_logging()
+logger.info("Starting Set Game Backend")
 
 app = FastAPI()
 
