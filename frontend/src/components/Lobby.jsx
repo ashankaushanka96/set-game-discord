@@ -2,10 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useStore } from "../store";
 import { connectWS, send } from "../ws";
+import { apiCreateRoom, apiJoinRoom } from "../api";
 import AvatarSelector from "./AvatarSelector";
 import { generateUUID } from "../utils/uuid";
-
-const API = "http://localhost:8000";
 
 export default function Lobby() {
   const navigate = useNavigate();
@@ -65,26 +64,18 @@ export default function Lobby() {
 
   async function httpJoinRoom(rid) {
     // add this player to the room via HTTP before WebSocket
-    const body = {
+    const player = {
       id: useStore.getState().me.id,
       name: useStore.getState().me.name,
       avatar: useStore.getState().me.avatar,
     };
-    const res = await fetch(`${API}/rooms/${rid}/players`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) throw new Error(`Join failed: ${res.status}`);
-    return res.json();
+    return await apiJoinRoom(rid, player);
   }
 
   const createRoom = async () => {
     setError(""); setBusy(true);
     try {
-      const res = await fetch(`${API}/rooms`, { method: "POST" });
-      if (!res.ok) throw new Error(`Create failed: ${res.status}`);
-      const data = await res.json(); // {room_id}
+      const data = await apiCreateRoom(); // {room_id}
       const rid = data.room_id;
       setRoomInput(rid);
       setRoom(rid);

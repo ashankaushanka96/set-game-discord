@@ -1,0 +1,56 @@
+name: Create Tarball & Deploy with Ansible
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  create-tarball:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Create a directory and move files
+        run: |
+          mkdir -p app
+          cp -rf cogs configs models  services views .env WaldermortBot.py WaldermortBotRun.sh WaldermortBotWatcher.sh WaldermortBotRestart.sh requirements.txt app/
+      
+      - name: Create tarball of the repository
+        run: tar -czvf app.tar.gz app
+
+      - name: Upload tarball as an artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-tarball
+          path: app.tar.gz
+
+  deploy:
+    needs: create-tarball
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Install Ansible
+        run: sudo apt update && sudo apt install ansible -y
+
+      - name: Download tarball artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-tarball
+
+      - name: Set up SSH key
+        run: |
+          cd ansible
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+      - name: Run Ansible Playbook
+        run: |
+          cd ansible
+          ansible-playbook waldermortbot-playbook.yml --extra-vars "ansible_host=${{ secrets.HOST }} ansible_private_key_file=~/.ssh/id_rsa ansible_ssh_common_args='-o StrictHostKeyChecking=no'" -i "${{ secrets.HOST }},"

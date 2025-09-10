@@ -1,0 +1,7 @@
+---
+- name: Run restart.sh
+  command: "{{ component_path }}/WaldermortBotRestart.sh"
+  args:
+    chdir: "{{ component_path }}"
+  ignore_errors: yes
+

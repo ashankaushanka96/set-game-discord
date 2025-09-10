@@ -1,0 +1,48 @@
+name: Deploy Backend to GCP
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  create-tarball:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Create a directory and move files
+        run: |
+          cp -rf backend app
+      
+      - name: Create tarball of the repository
+        run: tar -czvf app.tar.gz app
+
+      - name: Upload tarball as an artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-tarball
+          path: app.tar.gz
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Ansible
+        run: |
+          pip install ansible
+
+      - name: Create SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+      - name: Deploy with Ansible
+        run: |
+          cd ansible
+          ansible-playbook backend-deploy-playbook.yml --extra-vars "ansible_host=${{ secrets.HOST }} ansible_private_key_file=~/.ssh/id_rsa ansible_ssh_common_args='-o StrictHostKeyChecking=no'" -i "${{ secrets.HOST }},"
+

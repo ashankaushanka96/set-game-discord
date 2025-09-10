@@ -1,0 +1,37 @@
+- name: Check if component_path exists
+  stat:
+    path: "{{ component_path }}"
+  register: component_path_exists
+
+- name: Backup and archive configurations
+  block:
+    - name: Backup directory create
+      file:
+        path: "{{ component_path }}/deployments/{{ _date }}"
+        state: directory
+        mode: '0755'
+
+    - name: Find all items in component_path except deployments
+      find:
+        paths: "{{ component_path }}"
+        file_type: any
+        excludes: ["deployments"]
+      register: files_to_move
+
+    - name: Move all contents except deployments to backup directory
+      command: >
+        mv "{{ item.path }}" "{{ component_path }}/deployments/{{ _date }}/"
+      loop: "{{ files_to_move.files }}"
+      when: files_to_move.matched > 0
+
+    - name: Archive the backup directory
+      archive:
+        path: "{{ component_path }}/deployments/{{ _date }}"
+        dest: "{{ component_path }}/deployments/{{ _date }}.tar.gz"
+        format: gz
+
+    - name: Delete the backup folder after archiving
+      file:
+        path: "{{ component_path }}/deployments/{{ _date }}"
+        state: absent
+  when: component_path_exists.stat.exists

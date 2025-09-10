@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 const AVATARS = [
   '🦊','🐼','🐸','🐯','🐵','🐱','🐶','🦁','🐨','🐷',
   '🔥','⚡','🌟','💎','🎯','🎮','🏆','🎨','🎭','🎪',
-  '🚀','⚽','🏀','🎲','🎯','🎪','🎨','🎭','🎪','🎮'
+  '🚀','⚽','🏀','🎲','🎸','🎺','🎻','🎹','🎤','🎧'
 ];
 
 export default function AvatarSelector({ selectedAvatar, onAvatarSelect, className = "" }) {

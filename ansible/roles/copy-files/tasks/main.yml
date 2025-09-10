@@ -1,0 +1,36 @@
+---
+- name: Copy watcher stuff to server
+  copy:
+    src: "../app.tar.gz"
+    dest: "{{ component_path }}/"
+
+- name: Extract app.tar.gz
+  ansible.builtin.unarchive:
+    src: "{{ component_path }}/app.tar.gz"
+    dest: "{{ component_path }}/"
+    remote_src: yes
+
+- name: Find all files and directories in app directory
+  ansible.builtin.find:
+    paths: "{{ component_path }}/app"
+    file_type: any 
+    recurse: yes
+    hidden: yes
+  register: found_items
+
+- name: Copy files and directories to component_path
+  ansible.builtin.copy:
+    src: "{{ item.path }}"
+    dest: "{{ component_path }}/{{ item.path | regex_replace('^.*/app/', '') }}"
+    remote_src: yes
+  loop: "{{ found_items.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}" 
+
+- name: Remove app directory and tar file
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ component_path }}/app"
+    - "{{ component_path }}/app.tar.gz"
