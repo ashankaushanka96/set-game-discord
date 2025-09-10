@@ -14,7 +14,7 @@ const getBackendUrl = () => {
         return productionHost;
       }
       // If it's just an IP, construct the full URL
-      return `http://${productionHost}:8000`;
+      return `http://${productionHost}`;
     }
     // Fallback - this should not happen if HOST secret is set correctly
     console.error('VITE_API_BASE is not set! Check your GitHub secret HOST');
@@ -42,7 +42,7 @@ const getWebSocketUrl = () => {
         return productionHost.replace('http://', 'ws://').replace('https://', 'wss://');
       }
       // If it's just an IP, construct the WebSocket URL
-      return `ws://${productionHost}:8000`;
+      return `ws://${productionHost}`;
     }
     // Fallback to WebSocket if no WSS available
     return 'ws://35.45.13.71:8000'; // Hardcoded fallback to your actual IP
