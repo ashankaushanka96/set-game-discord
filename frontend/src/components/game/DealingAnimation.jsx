@@ -1,0 +1,313 @@
+import { useEffect, useState, useRef } from 'react';
+import { useStore } from '../../store';
+import { Card, CardBack } from '../cards';
+
+const DealingAnimation = () => {
+  const { dealingAnimation, me } = useStore();
+  const [phase, setPhase] = useState('idle'); // 'idle', 'dealing', 'complete'
+  const [flyingCards, setFlyingCards] = useState([]);
+  const [handCards, setHandCards] = useState({}); // Track cards appearing in hands
+  const seatRefs = useRef({});
+
+  // Get seat positions from the actual table
+  useEffect(() => {
+    const updateSeatPositions = () => {
+      const seats = document.querySelectorAll('[data-seat]');
+      seats.forEach(seat => {
+        const seatNumber = seat.getAttribute('data-seat');
+        const rect = seat.getBoundingClientRect();
+        seatRefs.current[seatNumber] = {
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2
+        };
+      });
+    };
+
+    updateSeatPositions();
+    window.addEventListener('resize', updateSeatPositions);
+    return () => window.removeEventListener('resize', updateSeatPositions);
+  }, []);
+
+  // Get dealer position for shuffle animation
+  const getDealerPosition = () => {
+    if (!dealingAnimation) return { x: '50%', y: '50%' };
+    const dealerSeat = dealingAnimation.dealerSeat;
+    const dealerPos = seatRefs.current[dealerSeat];
+    if (dealerPos) {
+      return { x: dealerPos.x, y: dealerPos.y };
+    }
+    return { x: '50%', y: '50%' };
+  };
+
+  useEffect(() => {
+    if (!dealingAnimation) {
+      setPhase('idle');
+      setFlyingCards([]);
+      setHandCards({});
+      return;
+    }
+
+    // Update seat positions when dealing animation starts
+    const updateSeatPositions = () => {
+      const seats = document.querySelectorAll('[data-seat]');
+      seats.forEach(seat => {
+        const seatNumber = seat.getAttribute('data-seat');
+        const rect = seat.getBoundingClientRect();
+        seatRefs.current[seatNumber] = {
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2
+        };
+      });
+    };
+    
+    // Small delay to ensure DOM is ready
+    setTimeout(updateSeatPositions, 100);
+
+    const { dealerSeat, players, seats, dealingSequence } = dealingAnimation;
+    
+    // Use the dealing sequence from backend if available, otherwise create default order
+    let dealingOrder = [];
+    if (dealingSequence && dealingSequence.length > 0) {
+      // Use the real dealing sequence from backend
+      dealingOrder = dealingSequence;
+    } else {
+      // Fallback to creating dealing order starting from dealer
+      for (let i = 0; i < 6; i++) {
+        const seat = (dealerSeat + i) % 6;
+        const playerId = seats[seat];
+        if (playerId && players[playerId]) {
+          dealingOrder.push({ seat, playerId, player: players[playerId] });
+        }
+      }
+    }
+
+    // Skip shuffle animation, go directly to dealing
+    // Add a small delay to ensure seat positions are updated
+    setTimeout(() => {
+      setPhase('dealing');
+      setFlyingCards([]);
+      setHandCards({});
+      
+      // Create dealing sequence - one card at a time
+      const dealSequence = [];
+      let cardIndex = 0;
+      
+      if (dealingSequence && dealingSequence.length > 0) {
+        // Use real dealing sequence from backend
+        dealingSequence.forEach((dealData, index) => {
+          dealSequence.push({
+            id: `deal-${index}`,
+            seat: dealData.seat,
+            playerId: dealData.player_id,
+            round: dealData.round,
+            card: dealData.card,
+            fromSeat: dealData.from_seat, // Use the from_seat for animation origin
+            delay: index * 200, // 200ms between each card for realistic pace
+          });
+        });
+      } else {
+        // Fallback to creating sequence without real cards
+        for (let round = 0; round < 8; round++) {
+          for (const { seat, playerId } of dealingOrder) {
+            dealSequence.push({
+              id: `deal-${cardIndex}`,
+              seat,
+              playerId,
+              round,
+              delay: cardIndex * 200, // 200ms between each card for realistic pace
+            });
+            cardIndex++;
+          }
+        }
+      }
+
+      // Process each card in sequence
+      dealSequence.forEach((cardData, index) => {
+        setTimeout(() => {
+          // Add flying card
+          setFlyingCards(prev => [...prev, {
+            ...cardData,
+            key: `${cardData.id}-${Date.now()}`
+          }]);
+
+          // Remove flying card after animation and add to hand
+          setTimeout(() => {
+            setFlyingCards(prev => prev.filter(c => c.key !== cardData.key));
+            
+            // Add card to player's hand
+            setHandCards(prev => ({
+              ...prev,
+              [cardData.playerId]: [
+                ...(prev[cardData.playerId] || []),
+                {
+                  id: cardData.id,
+                  seat: cardData.seat,
+                  round: cardData.round
+                }
+              ]
+            }));
+          }, 800); // Card flight duration
+
+        }, cardData.delay);
+      });
+
+      // Complete animation after all cards are dealt
+      const totalDealingTime = dealSequence.length * 200 + 1000;
+      setTimeout(() => {
+        setPhase('complete');
+        setTimeout(() => {
+          setPhase('idle');
+          setFlyingCards([]);
+          setHandCards({});
+        }, 500);
+      }, totalDealingTime);
+
+    }, 200); // Small delay to ensure seat positions are updated
+
+    return () => {
+      // Cleanup handled by individual timeouts
+    };
+  }, [dealingAnimation]);
+
+  if (!dealingAnimation || phase === 'idle') {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 pointer-events-none z-50">
+
+      {/* Flying Cards */}
+      {flyingCards.map((card) => {
+        const seatPos = seatRefs.current[card.seat];
+        // Use fromSeat if available, otherwise fall back to dealer position
+        const fromSeat = card.fromSeat !== undefined ? card.fromSeat : dealingAnimation.dealerSeat;
+        const fromPos = seatRefs.current[fromSeat];
+        if (!seatPos || !fromPos) return null;
+
+        // Only show real cards for the current player, card backs for others
+        const isMyCard = card.playerId === me?.id;
+        const showRealCard = isMyCard && card.card;
+
+        return (
+          <div
+            key={card.key}
+            className="absolute"
+            style={{
+              left: `${fromPos.x}px`,
+              top: `${fromPos.y}px`,
+              transform: 'translate(-50%, -50%)',
+              animation: `dealCardToSeat${card.seat} 0.8s ease-out forwards`,
+              animationFillMode: 'forwards',
+              '--target-x': `${seatPos.x}px`,
+              '--target-y': `${seatPos.y}px`,
+            }}
+          >
+            {showRealCard ? (
+              <Card suit={card.card.suit} rank={card.card.rank} size="sm" />
+            ) : (
+              <CardBack size="sm" />
+            )}
+          </div>
+        );
+      })}
+
+      {/* Cards appearing in hands */}
+      {Object.entries(handCards).map(([playerId, cards]) => {
+        const player = dealingAnimation.players[playerId];
+        const playerHand = player?.hand || [];
+        
+        return (
+          <div key={playerId}>
+            {cards.map((card, index) => {
+              const seatPos = seatRefs.current[card.seat];
+              if (!seatPos) return null;
+
+              const isMyHand = playerId === me?.id;
+              const cardOffset = (index - 3.5) * 15; // Spread cards horizontally
+              const actualCard = playerHand[index]; // Get the actual card from player's hand
+
+              return (
+                <div
+                  key={card.id}
+                  className="absolute"
+                  style={{
+                    left: `${seatPos.x + cardOffset}px`,
+                    top: `${seatPos.y}px`,
+                    transform: 'translate(-50%, -50%)',
+                    animation: 'cardAppear 0.3s ease-out forwards',
+                    animationFillMode: 'forwards',
+                  }}
+                >
+                  {isMyHand && actualCard ? (
+                    <Card suit={actualCard.suit} rank={actualCard.rank} size="sm" />
+                  ) : (
+                    <CardBack size="sm" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+      
+      <style>{`
+
+        @keyframes cardAppear {
+          0% { 
+            opacity: 0; 
+            transform: translate(-50%, -50%) scale(0.5) rotate(180deg);
+          }
+          100% { 
+            opacity: 1; 
+            transform: translate(-50%, -50%) scale(1) rotate(0deg);
+          }
+        }
+
+        @keyframes dealCardToSeat0 {
+          to {
+            left: var(--target-x);
+            top: var(--target-y);
+            transform: translate(-50%, -50%) rotate(0deg);
+          }
+        }
+        @keyframes dealCardToSeat1 {
+          to {
+            left: var(--target-x);
+            top: var(--target-y);
+            transform: translate(-50%, -50%) rotate(0deg);
+          }
+        }
+        @keyframes dealCardToSeat2 {
+          to {
+            left: var(--target-x);
+            top: var(--target-y);
+            transform: translate(-50%, -50%) rotate(0deg);
+          }
+        }
+        @keyframes dealCardToSeat3 {
+          to {
+            left: var(--target-x);
+            top: var(--target-y);
+            transform: translate(-50%, -50%) rotate(0deg);
+          }
+        }
+        @keyframes dealCardToSeat4 {
+          to {
+            left: var(--target-x);
+            top: var(--target-y);
+            transform: translate(-50%, -50%) rotate(0deg);
+          }
+        }
+        @keyframes dealCardToSeat5 {
+          to {
+            left: var(--target-x);
+            top: var(--target-y);
+            transform: translate(-50%, -50%) rotate(0deg);
+          }
+        }
+      `}</style>
+    </div>
+  );
+};
+
+export default DealingAnimation;

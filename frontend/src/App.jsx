@@ -1,8 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useStore } from './store';
-import Lobby from './components/Lobby';
-import Table from './components/Table';
-import GameRoom from './components/GameRoom';
+import { Lobby, Table, GameRoom } from './components';
 import './styles.css';
 
 export default function App(){
