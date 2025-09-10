@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 DIR="$( cd -P "$( dirname "$0" )" && pwd )"
 cd "$DIR"
 
@@ -6,4 +6,4 @@ cd "$DIR"
 pkill -f main.py
 
 # Start the bot again
-./run.sh &
+./start.sh 

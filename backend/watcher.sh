@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 DIR="$( cd -P "$( dirname "$0" )" && pwd )"
 cd "$DIR"
 
@@ -7,7 +7,7 @@ do
 numproc=`ps x | grep -ai main.py | grep -v "grep" | wc -l`
 if [ $numproc -lt 1 ]
 then
-./run.sh &
+./start.sh 
 sleep 100
 fi
 

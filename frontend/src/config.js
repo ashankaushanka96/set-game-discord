@@ -13,12 +13,13 @@ const getBackendUrl = () => {
       if (productionHost.startsWith('http://') || productionHost.startsWith('https://')) {
         return productionHost;
       }
-      // If it's just an IP, construct the full URL
-      return `http://${productionHost}`;
+      // If it's just an IP, construct the full URL with HTTPS
+      // Note: This will fail until you set up HTTPS on your backend
+      return `https://${productionHost}`;
     }
     // Fallback - this should not happen if HOST secret is set correctly
     console.error('VITE_API_BASE is not set! Check your GitHub secret HOST');
-    return 'http://35.197.5.54:8000'; // Hardcoded fallback to your actual IP
+    return 'https://35.197.5.54'; // Hardcoded fallback with HTTPS
   }
   const productionHost = import.meta.env.VITE_API_BASE;
   if (productionHost) {
@@ -41,11 +42,11 @@ const getWebSocketUrl = () => {
       if (productionHost.startsWith('http://') || productionHost.startsWith('https://')) {
         return productionHost.replace('http://', 'ws://').replace('https://', 'wss://');
       }
-      // If it's just an IP, construct the WebSocket URL
-      return `ws://${productionHost}`;
+      // If it's just an IP, construct the WebSocket URL with WSS
+      return `wss://${productionHost}`;
     }
     // Fallback to WebSocket if no WSS available
-    return 'ws://35.45.13.71:8000'; // Hardcoded fallback to your actual IP
+    return 'wss://35.197.5.54'; // Hardcoded fallback with WSS
   }
   const productionHost = import.meta.env.VITE_API_BASE;
   if (productionHost) {
