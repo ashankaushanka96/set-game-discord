@@ -17,6 +17,26 @@ export default function GameRoom() {
     };
   }, [setWS]);
 
+  // Listen for navigation events from the store (in case we need to navigate within the game room)
+  useEffect(() => {
+    const handleNavigateToGame = (event) => {
+      const { roomId, playerId } = event.detail;
+      if (roomId && playerId) {
+        // Only navigate if we're not already at the correct route
+        const currentPath = window.location.pathname;
+        if (!currentPath.includes(`/room/${roomId}/${playerId}`)) {
+          navigate(`/room/${roomId}/${playerId}`);
+        }
+      }
+    };
+
+    window.addEventListener('navigate-to-game', handleNavigateToGame);
+    
+    return () => {
+      window.removeEventListener('navigate-to-game', handleNavigateToGame);
+    };
+  }, [navigate]);
+
   useEffect(() => {
     // If we don't have player info, we need to get it from localStorage or redirect
     if (!me || me.id !== playerId) {

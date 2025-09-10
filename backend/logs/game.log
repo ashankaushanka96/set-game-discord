@@ -60,3 +60,9 @@
 2025-09-10 22:59:47 | DEBUG    | routes.websocket:ws_endpoint:55 - Received message from 83051e4c-6756-4a81-ab58-1e945922e950 in room 035a39: type=shuffle_deal
 2025-09-10 23:01:47 | INFO     | services.game_service:get_or_create_room:13 - Created new game room: 9a1600
 2025-09-10 23:03:49 | INFO     | game:start:77 - Game started in room 9a1600, dealer: 6d7b1f08-a42f-4a28-97d2-a8b2e1a7c262
+2025-09-10 23:14:09 | INFO     | services.game_service:get_or_create_room:13 - Created new game room: 9a1600
+2025-09-10 23:14:57 | INFO     | services.game_service:get_or_create_room:13 - Created new game room: 447c9e
+2025-09-10 23:15:29 | INFO     | game:start:77 - Game started in room 447c9e, dealer: 83051e4c-6756-4a81-ab58-1e945922e950
+2025-09-10 23:15:42 | DEBUG    | routes.websocket:ws_endpoint:55 - Received message from 83051e4c-6756-4a81-ab58-1e945922e950 in room 447c9e: type=shuffle_deal
+2025-09-10 23:16:05 | DEBUG    | routes.websocket:ws_endpoint:55 - Received message from 83051e4c-6756-4a81-ab58-1e945922e950 in room 447c9e: type=pass_cards
+2025-09-10 23:16:05 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting cards_passed to 6 players in room 447c9e

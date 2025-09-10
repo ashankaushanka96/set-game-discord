@@ -469,7 +469,11 @@ export const useStore = create((set, get) => ({
           
           // Navigate to game room if not already there
           if (!currentPath.includes(`/room/${roomId}/${me.id}`)) {
-            window.location.href = `/room/${roomId}/${me.id}`;
+            // Use React Router navigation instead of window.location.href to avoid WebSocket disconnection
+            // Dispatch a custom event that components can listen to for navigation
+            window.dispatchEvent(new CustomEvent('navigate-to-game', {
+              detail: { roomId, playerId: me.id }
+            }));
           }
         }
       }, 1000);

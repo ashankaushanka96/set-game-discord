@@ -55,6 +55,22 @@ export default function Lobby() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Listen for navigation events from the store
+  useEffect(() => {
+    const handleNavigateToGame = (event) => {
+      const { roomId, playerId } = event.detail;
+      if (roomId && playerId) {
+        navigate(`/room/${roomId}/${playerId}`);
+      }
+    };
+
+    window.addEventListener('navigate-to-game', handleNavigateToGame);
+    
+    return () => {
+      window.removeEventListener('navigate-to-game', handleNavigateToGame);
+    };
+  }, [navigate]);
+
   useEffect(() => {
     setMe({ ...useStore.getState().me, name, avatar });
     // Save to localStorage whenever name or avatar changes

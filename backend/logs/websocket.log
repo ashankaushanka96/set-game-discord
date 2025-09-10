@@ -981,3 +981,158 @@
 2025-09-10 23:05:16 | INFO     | routes.websocket:ws_endpoint:214 - Marked player 6d7b1f08-a42f-4a28-97d2-a8b2e1a7c262 as disconnected in room 9a1600
 2025-09-10 23:05:16 | DEBUG    | routes.websocket:ws_endpoint:219 - Removed player 6d7b1f08-a42f-4a28-97d2-a8b2e1a7c262 from connections in room 9a1600
 2025-09-10 23:05:16 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting player_disconnected to 5 players in room 9a1600
+2025-09-10 23:14:07 | INFO     | routes.websocket:ws_endpoint:14 - WebSocket connection attempt: room=9a1600, player=1ba61ea3-4c5a-451a-aec8-4257f49370a5
+2025-09-10 23:14:07 | INFO     | routes.websocket:ws_endpoint:25 - Player 1ba61ea3-4c5a-451a-aec8-4257f49370a5 connected to room 9a1600 (reconnection: False)
+2025-09-10 23:14:07 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 5 players in room 9a1600
+2025-09-10 23:14:07 | INFO     | routes.websocket:ws_endpoint:14 - WebSocket connection attempt: room=9a1600, player=b08afdd5-5da0-4051-9d3d-0beec2d772ed
+2025-09-10 23:14:07 | INFO     | routes.websocket:ws_endpoint:25 - Player b08afdd5-5da0-4051-9d3d-0beec2d772ed connected to room 9a1600 (reconnection: False)
+2025-09-10 23:14:07 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 5 players in room 9a1600
+2025-09-10 23:14:07 | INFO     | routes.websocket:ws_endpoint:209 - WebSocket disconnected: room=9a1600, player=b08afdd5-5da0-4051-9d3d-0beec2d772ed
+2025-09-10 23:14:07 | INFO     | routes.websocket:ws_endpoint:214 - Marked player b08afdd5-5da0-4051-9d3d-0beec2d772ed as disconnected in room 9a1600
+2025-09-10 23:14:07 | DEBUG    | routes.websocket:ws_endpoint:219 - Removed player b08afdd5-5da0-4051-9d3d-0beec2d772ed from connections in room 9a1600
+2025-09-10 23:14:07 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting player_disconnected to 4 players in room 9a1600
+2025-09-10 23:14:07 | WARNING  | services.websocket_service:broadcast:26 - Failed to send message to player 37ea0e3a-ba11-4fc8-a89f-d45f3bb8db44 in room 9a1600: 
+2025-09-10 23:14:07 | WARNING  | services.websocket_service:broadcast:26 - Failed to send message to player 5eb1899e-78e8-4784-aa20-6c4c1cbe27f4 in room 9a1600: 
+2025-09-10 23:14:07 | WARNING  | services.websocket_service:broadcast:26 - Failed to send message to player 1ba61ea3-4c5a-451a-aec8-4257f49370a5 in room 9a1600: 
+2025-09-10 23:14:07 | WARNING  | services.websocket_service:broadcast:26 - Failed to send message to player 88b5937f-18df-4bfc-8d83-dfdb6357dbdf in room 9a1600: 
+2025-09-10 23:14:07 | INFO     | services.websocket_service:broadcast:32 - Removed dead connection for player 37ea0e3a-ba11-4fc8-a89f-d45f3bb8db44 in room 9a1600
+2025-09-10 23:14:07 | INFO     | services.websocket_service:broadcast:32 - Removed dead connection for player 5eb1899e-78e8-4784-aa20-6c4c1cbe27f4 in room 9a1600
+2025-09-10 23:14:07 | INFO     | services.websocket_service:broadcast:32 - Removed dead connection for player 1ba61ea3-4c5a-451a-aec8-4257f49370a5 in room 9a1600
+2025-09-10 23:14:07 | INFO     | services.websocket_service:broadcast:32 - Removed dead connection for player 88b5937f-18df-4bfc-8d83-dfdb6357dbdf in room 9a1600
+2025-09-10 23:14:07 | INFO     | routes.websocket:ws_endpoint:209 - WebSocket disconnected: room=9a1600, player=5eb1899e-78e8-4784-aa20-6c4c1cbe27f4
+2025-09-10 23:14:07 | INFO     | routes.websocket:ws_endpoint:214 - Marked player 5eb1899e-78e8-4784-aa20-6c4c1cbe27f4 as disconnected in room 9a1600
+2025-09-10 23:14:07 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting player_disconnected to 0 players in room 9a1600
+2025-09-10 23:14:07 | INFO     | routes.websocket:ws_endpoint:209 - WebSocket disconnected: room=9a1600, player=1ba61ea3-4c5a-451a-aec8-4257f49370a5
+2025-09-10 23:14:07 | INFO     | routes.websocket:ws_endpoint:214 - Marked player 1ba61ea3-4c5a-451a-aec8-4257f49370a5 as disconnected in room 9a1600
+2025-09-10 23:14:07 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting player_disconnected to 0 players in room 9a1600
+2025-09-10 23:14:07 | INFO     | routes.websocket:ws_endpoint:209 - WebSocket disconnected: room=9a1600, player=37ea0e3a-ba11-4fc8-a89f-d45f3bb8db44
+2025-09-10 23:14:07 | INFO     | routes.websocket:ws_endpoint:214 - Marked player 37ea0e3a-ba11-4fc8-a89f-d45f3bb8db44 as disconnected in room 9a1600
+2025-09-10 23:14:07 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting player_disconnected to 0 players in room 9a1600
+2025-09-10 23:14:07 | INFO     | routes.websocket:ws_endpoint:209 - WebSocket disconnected: room=9a1600, player=88b5937f-18df-4bfc-8d83-dfdb6357dbdf
+2025-09-10 23:14:07 | INFO     | routes.websocket:ws_endpoint:214 - Marked player 88b5937f-18df-4bfc-8d83-dfdb6357dbdf as disconnected in room 9a1600
+2025-09-10 23:14:07 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting player_disconnected to 0 players in room 9a1600
+2025-09-10 23:14:07 | INFO     | routes.websocket:ws_endpoint:209 - WebSocket disconnected: room=9a1600, player=88b5937f-18df-4bfc-8d83-dfdb6357dbdf
+2025-09-10 23:14:07 | INFO     | routes.websocket:ws_endpoint:214 - Marked player 88b5937f-18df-4bfc-8d83-dfdb6357dbdf as disconnected in room 9a1600
+2025-09-10 23:14:07 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting player_disconnected to 0 players in room 9a1600
+2025-09-10 23:14:07 | INFO     | routes.websocket:ws_endpoint:209 - WebSocket disconnected: room=9a1600, player=5eb1899e-78e8-4784-aa20-6c4c1cbe27f4
+2025-09-10 23:14:07 | INFO     | routes.websocket:ws_endpoint:214 - Marked player 5eb1899e-78e8-4784-aa20-6c4c1cbe27f4 as disconnected in room 9a1600
+2025-09-10 23:14:07 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting player_disconnected to 0 players in room 9a1600
+2025-09-10 23:14:07 | INFO     | routes.websocket:ws_endpoint:209 - WebSocket disconnected: room=9a1600, player=1ba61ea3-4c5a-451a-aec8-4257f49370a5
+2025-09-10 23:14:07 | INFO     | routes.websocket:ws_endpoint:214 - Marked player 1ba61ea3-4c5a-451a-aec8-4257f49370a5 as disconnected in room 9a1600
+2025-09-10 23:14:07 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting player_disconnected to 0 players in room 9a1600
+2025-09-10 23:14:07 | INFO     | routes.websocket:ws_endpoint:209 - WebSocket disconnected: room=9a1600, player=1ba61ea3-4c5a-451a-aec8-4257f49370a5
+2025-09-10 23:14:07 | INFO     | routes.websocket:ws_endpoint:214 - Marked player 1ba61ea3-4c5a-451a-aec8-4257f49370a5 as disconnected in room 9a1600
+2025-09-10 23:14:07 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting player_disconnected to 0 players in room 9a1600
+2025-09-10 23:14:07 | INFO     | routes.websocket:ws_endpoint:209 - WebSocket disconnected: room=9a1600, player=b08afdd5-5da0-4051-9d3d-0beec2d772ed
+2025-09-10 23:14:07 | INFO     | routes.websocket:ws_endpoint:214 - Marked player b08afdd5-5da0-4051-9d3d-0beec2d772ed as disconnected in room 9a1600
+2025-09-10 23:14:07 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting player_disconnected to 0 players in room 9a1600
+2025-09-10 23:14:07 | INFO     | routes.websocket:ws_endpoint:209 - WebSocket disconnected: room=9a1600, player=b08afdd5-5da0-4051-9d3d-0beec2d772ed
+2025-09-10 23:14:07 | INFO     | routes.websocket:ws_endpoint:214 - Marked player b08afdd5-5da0-4051-9d3d-0beec2d772ed as disconnected in room 9a1600
+2025-09-10 23:14:07 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting player_disconnected to 0 players in room 9a1600
+2025-09-10 23:14:07 | INFO     | routes.websocket:ws_endpoint:209 - WebSocket disconnected: room=9a1600, player=37ea0e3a-ba11-4fc8-a89f-d45f3bb8db44
+2025-09-10 23:14:07 | INFO     | routes.websocket:ws_endpoint:214 - Marked player 37ea0e3a-ba11-4fc8-a89f-d45f3bb8db44 as disconnected in room 9a1600
+2025-09-10 23:14:07 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting player_disconnected to 0 players in room 9a1600
+2025-09-10 23:14:09 | INFO     | routes.websocket:ws_endpoint:14 - WebSocket connection attempt: room=9a1600, player=88b5937f-18df-4bfc-8d83-dfdb6357dbdf
+2025-09-10 23:14:09 | WARNING  | routes.websocket:ws_endpoint:27 - Unknown player 88b5937f-18df-4bfc-8d83-dfdb6357dbdf connected to room 9a1600
+2025-09-10 23:14:09 | DEBUG    | routes.websocket:ws_endpoint:32 - Created new connection dictionary for room 9a1600
+2025-09-10 23:14:09 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 1 players in room 9a1600
+2025-09-10 23:14:09 | INFO     | routes.websocket:ws_endpoint:14 - WebSocket connection attempt: room=9a1600, player=5eb1899e-78e8-4784-aa20-6c4c1cbe27f4
+2025-09-10 23:14:09 | WARNING  | routes.websocket:ws_endpoint:27 - Unknown player 5eb1899e-78e8-4784-aa20-6c4c1cbe27f4 connected to room 9a1600
+2025-09-10 23:14:09 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 2 players in room 9a1600
+2025-09-10 23:14:09 | INFO     | routes.websocket:ws_endpoint:14 - WebSocket connection attempt: room=9a1600, player=37ea0e3a-ba11-4fc8-a89f-d45f3bb8db44
+2025-09-10 23:14:09 | WARNING  | routes.websocket:ws_endpoint:27 - Unknown player 37ea0e3a-ba11-4fc8-a89f-d45f3bb8db44 connected to room 9a1600
+2025-09-10 23:14:09 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 3 players in room 9a1600
+2025-09-10 23:14:10 | INFO     | routes.websocket:ws_endpoint:14 - WebSocket connection attempt: room=9a1600, player=b08afdd5-5da0-4051-9d3d-0beec2d772ed
+2025-09-10 23:14:10 | WARNING  | routes.websocket:ws_endpoint:27 - Unknown player b08afdd5-5da0-4051-9d3d-0beec2d772ed connected to room 9a1600
+2025-09-10 23:14:10 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 4 players in room 9a1600
+2025-09-10 23:14:10 | INFO     | routes.websocket:ws_endpoint:14 - WebSocket connection attempt: room=9a1600, player=b08afdd5-5da0-4051-9d3d-0beec2d772ed
+2025-09-10 23:14:10 | WARNING  | routes.websocket:ws_endpoint:27 - Unknown player b08afdd5-5da0-4051-9d3d-0beec2d772ed connected to room 9a1600
+2025-09-10 23:14:10 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 4 players in room 9a1600
+2025-09-10 23:14:10 | INFO     | routes.websocket:ws_endpoint:14 - WebSocket connection attempt: room=9a1600, player=b08afdd5-5da0-4051-9d3d-0beec2d772ed
+2025-09-10 23:14:10 | WARNING  | routes.websocket:ws_endpoint:27 - Unknown player b08afdd5-5da0-4051-9d3d-0beec2d772ed connected to room 9a1600
+2025-09-10 23:14:10 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 4 players in room 9a1600
+2025-09-10 23:14:10 | INFO     | routes.websocket:ws_endpoint:14 - WebSocket connection attempt: room=9a1600, player=1ba61ea3-4c5a-451a-aec8-4257f49370a5
+2025-09-10 23:14:10 | WARNING  | routes.websocket:ws_endpoint:27 - Unknown player 1ba61ea3-4c5a-451a-aec8-4257f49370a5 connected to room 9a1600
+2025-09-10 23:14:10 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 5 players in room 9a1600
+2025-09-10 23:14:10 | INFO     | routes.websocket:ws_endpoint:14 - WebSocket connection attempt: room=9a1600, player=1ba61ea3-4c5a-451a-aec8-4257f49370a5
+2025-09-10 23:14:10 | WARNING  | routes.websocket:ws_endpoint:27 - Unknown player 1ba61ea3-4c5a-451a-aec8-4257f49370a5 connected to room 9a1600
+2025-09-10 23:14:10 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 5 players in room 9a1600
+2025-09-10 23:14:10 | INFO     | routes.websocket:ws_endpoint:14 - WebSocket connection attempt: room=9a1600, player=1ba61ea3-4c5a-451a-aec8-4257f49370a5
+2025-09-10 23:14:10 | WARNING  | routes.websocket:ws_endpoint:27 - Unknown player 1ba61ea3-4c5a-451a-aec8-4257f49370a5 connected to room 9a1600
+2025-09-10 23:14:10 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 5 players in room 9a1600
+2025-09-10 23:14:11 | INFO     | routes.websocket:ws_endpoint:14 - WebSocket connection attempt: room=9a1600, player=5eb1899e-78e8-4784-aa20-6c4c1cbe27f4
+2025-09-10 23:14:11 | WARNING  | routes.websocket:ws_endpoint:27 - Unknown player 5eb1899e-78e8-4784-aa20-6c4c1cbe27f4 connected to room 9a1600
+2025-09-10 23:14:11 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 5 players in room 9a1600
+2025-09-10 23:14:11 | INFO     | routes.websocket:ws_endpoint:14 - WebSocket connection attempt: room=9a1600, player=5eb1899e-78e8-4784-aa20-6c4c1cbe27f4
+2025-09-10 23:14:11 | WARNING  | routes.websocket:ws_endpoint:27 - Unknown player 5eb1899e-78e8-4784-aa20-6c4c1cbe27f4 connected to room 9a1600
+2025-09-10 23:14:11 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 5 players in room 9a1600
+2025-09-10 23:14:11 | INFO     | routes.websocket:ws_endpoint:14 - WebSocket connection attempt: room=9a1600, player=88b5937f-18df-4bfc-8d83-dfdb6357dbdf
+2025-09-10 23:14:11 | WARNING  | routes.websocket:ws_endpoint:27 - Unknown player 88b5937f-18df-4bfc-8d83-dfdb6357dbdf connected to room 9a1600
+2025-09-10 23:14:11 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 5 players in room 9a1600
+2025-09-10 23:14:11 | INFO     | routes.websocket:ws_endpoint:14 - WebSocket connection attempt: room=9a1600, player=88b5937f-18df-4bfc-8d83-dfdb6357dbdf
+2025-09-10 23:14:11 | WARNING  | routes.websocket:ws_endpoint:27 - Unknown player 88b5937f-18df-4bfc-8d83-dfdb6357dbdf connected to room 9a1600
+2025-09-10 23:14:11 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 5 players in room 9a1600
+2025-09-10 23:14:11 | INFO     | routes.websocket:ws_endpoint:14 - WebSocket connection attempt: room=9a1600, player=37ea0e3a-ba11-4fc8-a89f-d45f3bb8db44
+2025-09-10 23:14:11 | WARNING  | routes.websocket:ws_endpoint:27 - Unknown player 37ea0e3a-ba11-4fc8-a89f-d45f3bb8db44 connected to room 9a1600
+2025-09-10 23:14:11 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 5 players in room 9a1600
+2025-09-10 23:14:11 | INFO     | routes.websocket:ws_endpoint:14 - WebSocket connection attempt: room=9a1600, player=37ea0e3a-ba11-4fc8-a89f-d45f3bb8db44
+2025-09-10 23:14:11 | WARNING  | routes.websocket:ws_endpoint:27 - Unknown player 37ea0e3a-ba11-4fc8-a89f-d45f3bb8db44 connected to room 9a1600
+2025-09-10 23:14:11 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 5 players in room 9a1600
+2025-09-10 23:14:57 | INFO     | routes.websocket:ws_endpoint:14 - WebSocket connection attempt: room=447c9e, player=83051e4c-6756-4a81-ab58-1e945922e950
+2025-09-10 23:14:57 | INFO     | routes.websocket:ws_endpoint:25 - Player 83051e4c-6756-4a81-ab58-1e945922e950 connected to room 447c9e (reconnection: False)
+2025-09-10 23:14:57 | DEBUG    | routes.websocket:ws_endpoint:32 - Created new connection dictionary for room 447c9e
+2025-09-10 23:14:57 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 1 players in room 447c9e
+2025-09-10 23:14:57 | DEBUG    | routes.websocket:ws_endpoint:55 - Received message from 83051e4c-6756-4a81-ab58-1e945922e950 in room 447c9e: type=sync
+2025-09-10 23:14:57 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 1 players in room 447c9e
+2025-09-10 23:15:01 | DEBUG    | routes.websocket:ws_endpoint:55 - Received message from 83051e4c-6756-4a81-ab58-1e945922e950 in room 447c9e: type=select_team
+2025-09-10 23:15:01 | INFO     | routes.websocket:ws_endpoint:58 - Player 83051e4c-6756-4a81-ab58-1e945922e950 selecting team A in room 447c9e
+2025-09-10 23:15:01 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 1 players in room 447c9e
+2025-09-10 23:15:07 | INFO     | routes.websocket:ws_endpoint:14 - WebSocket connection attempt: room=447c9e, player=b08afdd5-5da0-4051-9d3d-0beec2d772ed
+2025-09-10 23:15:07 | INFO     | routes.websocket:ws_endpoint:25 - Player b08afdd5-5da0-4051-9d3d-0beec2d772ed connected to room 447c9e (reconnection: False)
+2025-09-10 23:15:07 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 2 players in room 447c9e
+2025-09-10 23:15:07 | DEBUG    | routes.websocket:ws_endpoint:55 - Received message from b08afdd5-5da0-4051-9d3d-0beec2d772ed in room 447c9e: type=sync
+2025-09-10 23:15:07 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 2 players in room 447c9e
+2025-09-10 23:15:08 | DEBUG    | routes.websocket:ws_endpoint:55 - Received message from b08afdd5-5da0-4051-9d3d-0beec2d772ed in room 447c9e: type=select_team
+2025-09-10 23:15:08 | INFO     | routes.websocket:ws_endpoint:58 - Player b08afdd5-5da0-4051-9d3d-0beec2d772ed selecting team A in room 447c9e
+2025-09-10 23:15:08 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 2 players in room 447c9e
+2025-09-10 23:15:12 | INFO     | routes.websocket:ws_endpoint:14 - WebSocket connection attempt: room=447c9e, player=37ea0e3a-ba11-4fc8-a89f-d45f3bb8db44
+2025-09-10 23:15:12 | INFO     | routes.websocket:ws_endpoint:25 - Player 37ea0e3a-ba11-4fc8-a89f-d45f3bb8db44 connected to room 447c9e (reconnection: False)
+2025-09-10 23:15:12 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 3 players in room 447c9e
+2025-09-10 23:15:12 | DEBUG    | routes.websocket:ws_endpoint:55 - Received message from 37ea0e3a-ba11-4fc8-a89f-d45f3bb8db44 in room 447c9e: type=sync
+2025-09-10 23:15:12 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 3 players in room 447c9e
+2025-09-10 23:15:12 | DEBUG    | routes.websocket:ws_endpoint:55 - Received message from 37ea0e3a-ba11-4fc8-a89f-d45f3bb8db44 in room 447c9e: type=select_team
+2025-09-10 23:15:12 | INFO     | routes.websocket:ws_endpoint:58 - Player 37ea0e3a-ba11-4fc8-a89f-d45f3bb8db44 selecting team A in room 447c9e
+2025-09-10 23:15:12 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 3 players in room 447c9e
+2025-09-10 23:15:17 | INFO     | routes.websocket:ws_endpoint:14 - WebSocket connection attempt: room=447c9e, player=1ba61ea3-4c5a-451a-aec8-4257f49370a5
+2025-09-10 23:15:17 | INFO     | routes.websocket:ws_endpoint:25 - Player 1ba61ea3-4c5a-451a-aec8-4257f49370a5 connected to room 447c9e (reconnection: False)
+2025-09-10 23:15:17 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 4 players in room 447c9e
+2025-09-10 23:15:17 | DEBUG    | routes.websocket:ws_endpoint:55 - Received message from 1ba61ea3-4c5a-451a-aec8-4257f49370a5 in room 447c9e: type=sync
+2025-09-10 23:15:17 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 4 players in room 447c9e
+2025-09-10 23:15:18 | DEBUG    | routes.websocket:ws_endpoint:55 - Received message from 1ba61ea3-4c5a-451a-aec8-4257f49370a5 in room 447c9e: type=select_team
+2025-09-10 23:15:18 | INFO     | routes.websocket:ws_endpoint:58 - Player 1ba61ea3-4c5a-451a-aec8-4257f49370a5 selecting team B in room 447c9e
+2025-09-10 23:15:18 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 4 players in room 447c9e
+2025-09-10 23:15:21 | INFO     | routes.websocket:ws_endpoint:14 - WebSocket connection attempt: room=447c9e, player=88b5937f-18df-4bfc-8d83-dfdb6357dbdf
+2025-09-10 23:15:21 | INFO     | routes.websocket:ws_endpoint:25 - Player 88b5937f-18df-4bfc-8d83-dfdb6357dbdf connected to room 447c9e (reconnection: False)
+2025-09-10 23:15:21 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 5 players in room 447c9e
+2025-09-10 23:15:22 | DEBUG    | routes.websocket:ws_endpoint:55 - Received message from 88b5937f-18df-4bfc-8d83-dfdb6357dbdf in room 447c9e: type=sync
+2025-09-10 23:15:22 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 5 players in room 447c9e
+2025-09-10 23:15:22 | DEBUG    | routes.websocket:ws_endpoint:55 - Received message from 88b5937f-18df-4bfc-8d83-dfdb6357dbdf in room 447c9e: type=select_team
+2025-09-10 23:15:22 | INFO     | routes.websocket:ws_endpoint:58 - Player 88b5937f-18df-4bfc-8d83-dfdb6357dbdf selecting team B in room 447c9e
+2025-09-10 23:15:22 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 5 players in room 447c9e
+2025-09-10 23:15:26 | INFO     | routes.websocket:ws_endpoint:14 - WebSocket connection attempt: room=447c9e, player=5eb1899e-78e8-4784-aa20-6c4c1cbe27f4
+2025-09-10 23:15:26 | INFO     | routes.websocket:ws_endpoint:25 - Player 5eb1899e-78e8-4784-aa20-6c4c1cbe27f4 connected to room 447c9e (reconnection: False)
+2025-09-10 23:15:26 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 6 players in room 447c9e
+2025-09-10 23:15:26 | DEBUG    | routes.websocket:ws_endpoint:55 - Received message from 5eb1899e-78e8-4784-aa20-6c4c1cbe27f4 in room 447c9e: type=sync
+2025-09-10 23:15:26 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 6 players in room 447c9e
+2025-09-10 23:15:27 | DEBUG    | routes.websocket:ws_endpoint:55 - Received message from 5eb1899e-78e8-4784-aa20-6c4c1cbe27f4 in room 447c9e: type=select_team
+2025-09-10 23:15:27 | INFO     | routes.websocket:ws_endpoint:58 - Player 5eb1899e-78e8-4784-aa20-6c4c1cbe27f4 selecting team B in room 447c9e
+2025-09-10 23:15:27 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 6 players in room 447c9e
+2025-09-10 23:15:29 | DEBUG    | routes.websocket:ws_endpoint:55 - Received message from 5eb1899e-78e8-4784-aa20-6c4c1cbe27f4 in room 447c9e: type=start
+2025-09-10 23:15:29 | INFO     | routes.websocket:ws_endpoint:63 - Game starting in room 447c9e
+2025-09-10 23:15:29 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 6 players in room 447c9e
+2025-09-10 23:15:29 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting game_started to 6 players in room 447c9e
+2025-09-10 23:15:42 | DEBUG    | routes.websocket:ws_endpoint:55 - Received message from 83051e4c-6756-4a81-ab58-1e945922e950 in room 447c9e: type=shuffle_deal
+2025-09-10 23:15:42 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting new_game_started to 6 players in room 447c9e
+2025-09-10 23:16:05 | DEBUG    | routes.websocket:ws_endpoint:55 - Received message from 83051e4c-6756-4a81-ab58-1e945922e950 in room 447c9e: type=pass_cards
+2025-09-10 23:16:05 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting state to 6 players in room 447c9e
+2025-09-10 23:16:05 | DEBUG    | services.websocket_service:broadcast:20 - Broadcasting cards_passed to 6 players in room 447c9e
