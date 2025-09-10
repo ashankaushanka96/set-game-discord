@@ -1,0 +1,13 @@
+- name: "frontend-deploy-ansible-playbook"
+  hosts: "{{ ansible_host }}"
+  remote_user: ashan
+  connection: ssh
+  vars:
+    component_path: /home/ashan/app/set-game-frontend
+    _date: "{{ansible_date_time.iso8601}}"
+  roles:
+    - backup-files
+    - create-directories
+    - copy-files
+    - set-permissions
+    - restart-service

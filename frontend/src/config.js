@@ -2,7 +2,13 @@
 // This automatically detects the current host and uses it for the backend
 
 const getBackendUrl = () => {
-  // Check if we're in production (GitHub Pages)
+  // Check if we're in production (deployed to server)
+  if (window.location.hostname === '35.197.5.54') {
+    // In production, use the same domain as the frontend
+    return window.location.origin;
+  }
+  
+  // Check if we're in production (GitHub Pages) - keep for backward compatibility
   if (window.location.hostname === 'ashankaushanka96.github.io') {
     // In production, use the HOST environment variable (set during build)
     const productionHost = import.meta.env.VITE_API_BASE;
@@ -14,7 +20,6 @@ const getBackendUrl = () => {
         return productionHost;
       }
       // If it's just an IP, construct the full URL with HTTPS
-      // Note: This will fail until you set up HTTPS on your backend
       return `https://${productionHost}`;
     }
     // Fallback - this should not happen if HOST secret is set correctly
@@ -33,7 +38,13 @@ const getBackendUrl = () => {
 };
 
 const getWebSocketUrl = () => {
-  // Check if we're in production (GitHub Pages)
+  // Check if we're in production (deployed to server)
+  if (window.location.hostname === '35.197.5.54') {
+    // In production, use the same domain as the frontend with WSS
+    return window.location.origin.replace('https://', 'wss://').replace('http://', 'ws://');
+  }
+  
+  // Check if we're in production (GitHub Pages) - keep for backward compatibility
   if (window.location.hostname === 'ashankaushanka96.github.io') {
     // In production, use the HOST environment variable (set during build)
     const productionHost = import.meta.env.VITE_API_BASE;
