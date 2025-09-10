@@ -104,6 +104,21 @@ export const useStore = create((set, get) => ({
   applyServer: (msg) => {
     if (msg.type === "state" || msg.type === "dealt") {
       set({ state: msg.payload, phase: msg.payload.phase });
+      
+      // Auto-navigate to game room if game has started and we're not already there
+      if (msg.payload.phase === "ready" || msg.payload.phase === "playing") {
+        const currentPath = window.location.pathname;
+        const roomId = msg.payload.room_id;
+        const me = get().me;
+        
+        // Only navigate if we're not already in the game room
+        if (me && roomId && !currentPath.includes(`/room/${roomId}/${me.id}`)) {
+          // Dispatch navigation event to avoid WebSocket disconnection
+          window.dispatchEvent(new CustomEvent('navigate-to-game', {
+            detail: { roomId, playerId: me.id }
+          }));
+        }
+      }
     }
 
     // ASK started -> add ASK bubble (sticky until pass/NO)
@@ -442,13 +457,27 @@ export const useStore = create((set, get) => ({
     // PLAYER RECONNECTED
     if (msg.type === "player_reconnected") {
       const s = msg.payload.state;
-      set({ state: s });
+      set({ state: s, phase: s.phase });
       const players = s.players || {};
       const playerName = players[msg.payload.player_id]?.name || msg.payload.player_name || "Unknown";
       get().setGameMessage("PLAYER RECONNECTED", [
         `${playerName} has reconnected`,
         "Welcome back!"
       ]);
+      
+      // If the reconnected player is the current user and game has started, navigate to game room
+      const me = get().me;
+      if (me && msg.payload.player_id === me.id && (s.phase === "ready" || s.phase === "playing")) {
+        const currentPath = window.location.pathname;
+        const roomId = s.room_id;
+        
+        if (roomId && !currentPath.includes(`/room/${roomId}/${me.id}`)) {
+          // Dispatch navigation event to avoid WebSocket disconnection
+          window.dispatchEvent(new CustomEvent('navigate-to-game', {
+            detail: { roomId, playerId: me.id }
+          }));
+        }
+      }
     }
 
     // GAME STARTED - trigger navigation for all players
