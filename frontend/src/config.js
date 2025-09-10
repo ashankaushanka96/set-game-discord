@@ -18,9 +18,12 @@ const getBackendUrl = () => {
     }
     // Fallback - this should not happen if HOST secret is set correctly
     console.error('VITE_API_BASE is not set! Check your GitHub secret HOST');
-    return 'http://35.45.13.71:8000'; // Hardcoded fallback to your actual IP
+    return 'http://35.197.5.54:8000'; // Hardcoded fallback to your actual IP
   }
-  
+  const productionHost = import.meta.env.VITE_API_BASE;
+  if (productionHost) {
+    return `http://${productionHost}`;
+  }
   // Development: Get the current host (e.g., localhost:5173, 192.168.1.100:5173, etc.)
   const host = window.location.hostname;
   
@@ -43,6 +46,10 @@ const getWebSocketUrl = () => {
     }
     // Fallback to WebSocket if no WSS available
     return 'ws://35.45.13.71:8000'; // Hardcoded fallback to your actual IP
+  }
+  const productionHost = import.meta.env.VITE_API_BASE;
+  if (productionHost) {
+    return `ws://${productionHost}`;
   }
   
   // Development: Get the current host
