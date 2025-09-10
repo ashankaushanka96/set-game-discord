@@ -11,8 +11,3 @@
     state: directory
     mode: '0755'
 
-- name: Create shared database directory
-  file:
-    path: "{{ component_path }}/../database"
-    state: directory
-    mode: '0755'
