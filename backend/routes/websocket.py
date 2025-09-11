@@ -19,6 +19,12 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
     # Check if this is a reconnection
     was_disconnected = player_id in game.state.players and not game.state.players[player_id].connected
     
+    # Clean up any disconnected players' seats in lobby phase
+    if game.state.phase == "lobby":
+        cleaned_count = game.cleanup_disconnected_seats()
+        if cleaned_count > 0:
+            logger.info(f"Cleaned up {cleaned_count} disconnected seats when {player_id} connected")
+    
     # Update connection status
     if player_id in game.state.players:
         game.state.players[player_id].connected = True
@@ -212,6 +218,12 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
             if player_id in game.state.players:
                 game.state.players[player_id].connected = False
                 logger.info(f"Marked player {player_id} as disconnected in room {room_id}")
+                
+                # In lobby phase, remove player from their seat to free it up
+                if game.state.phase == "lobby":
+                    seat_removed = game.remove_from_seat(player_id)
+                    if seat_removed:
+                        logger.info(f"Freed seat for disconnected player {player_id} in lobby phase")
             
             # Remove from connections
             if room_id in WebSocketService.connections and player_id in WebSocketService.connections[room_id]:

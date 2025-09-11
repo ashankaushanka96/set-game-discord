@@ -55,6 +55,9 @@ class Game:
 
     # ---------------- Seating & Teams ----------------
     def assign_seat(self, player_id: str, team: str) -> Optional[int]:
+        # First, remove player from their current seat if they have one
+        self.remove_from_seat(player_id)
+        
         preferred = [0, 2, 4] if team == "A" else [1, 3, 5]
         for s in preferred:
             if self.state.seats[s] is None:
@@ -64,6 +67,58 @@ class Game:
                 p.seat = s
                 return s
         return None
+
+    def remove_from_seat(self, player_id: str) -> bool:
+        """
+        Remove a player from their current seat.
+        Only works in lobby phase to prevent disrupting active games.
+        Returns True if player was removed from seat, False otherwise.
+        """
+        if self.state.phase != "lobby":
+            logger.warning(f"Cannot remove player {player_id} from seat during {self.state.phase} phase")
+            return False
+            
+        if player_id not in self.state.players:
+            logger.warning(f"Player {player_id} not found in room {self.state.room_id}")
+            return False
+            
+        player = self.state.players[player_id]
+        if player.seat is not None:
+            seat_number = player.seat
+            # Clear the seat
+            self.state.seats[seat_number] = None
+            # Clear player's seat and team
+            player.seat = None
+            player.team = None
+            logger.info(f"Removed player {player_id} from seat {seat_number} in room {self.state.room_id}")
+            return True
+        return False
+
+    def cleanup_disconnected_seats(self) -> int:
+        """
+        Clean up seats for all disconnected players in lobby phase.
+        Returns the number of seats cleaned up.
+        """
+        if self.state.phase != "lobby":
+            logger.warning(f"Cannot cleanup disconnected seats during {self.state.phase} phase")
+            return 0
+            
+        cleaned_count = 0
+        for player_id, player in self.state.players.items():
+            if not player.connected and player.seat is not None:
+                seat_number = player.seat
+                # Clear the seat
+                self.state.seats[seat_number] = None
+                # Clear player's seat and team
+                player.seat = None
+                player.team = None
+                logger.info(f"Cleaned up seat {seat_number} for disconnected player {player_id}")
+                cleaned_count += 1
+                
+        if cleaned_count > 0:
+            logger.info(f"Cleaned up {cleaned_count} seats for disconnected players in room {self.state.room_id}")
+            
+        return cleaned_count
 
     def start(self):
         self.state.phase = "ready"
