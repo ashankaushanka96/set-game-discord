@@ -14,7 +14,8 @@ import {
   NewGameVotingModal, 
   NewGameModal, 
   VotingResultModal, 
-  CompletedSetsModal 
+  CompletedSetsModal,
+  BackToLobbyModal
 } from '../modals';
 import { 
   Toast, 
@@ -312,9 +313,24 @@ export default function Table() {
       <Celebration />
       <DealingAnimation />
       
-      {/* New Game Button - Top Right */}
+      {/* Game Control Buttons - Top Right */}
       {state.phase === 'playing' && (
-        <div className="fixed top-2 right-2 md:top-3 md:right-3 z-40">
+        <div className="fixed top-2 right-2 md:top-3 md:right-3 z-40 flex gap-2">
+          {/* Back to Lobby Button */}
+          <button 
+            className="group bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg md:rounded-xl shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center gap-2"
+            onClick={() => send(ws, 'request_back_to_lobby', { requester_id: me.id })}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            <span className="text-sm font-medium">
+              <span className="hidden sm:inline">Back to Lobby</span>
+              <span className="sm:hidden">Lobby</span>
+            </span>
+          </button>
+          
+          {/* New Game Button */}
           <button 
             className="group bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg md:rounded-xl shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center gap-2"
             onClick={() => setRequestAbortOpen(true)}
@@ -642,6 +658,9 @@ export default function Table() {
         onClose={closeVotingResult}
         result={votingResult}
       />
+
+      {/* Back to Lobby Modal */}
+      <BackToLobbyModal />
 
       {/* Toast Notifications */}
       <Toast />

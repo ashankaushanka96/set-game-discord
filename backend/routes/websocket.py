@@ -24,6 +24,11 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
         cleaned_count = game.cleanup_disconnected_seats()
         if cleaned_count > 0:
             logger.info(f"Cleaned up {cleaned_count} disconnected seats when {player_id} connected")
+        
+        # Remove disconnected players entirely from lobby
+        removed_count = game.remove_disconnected_players()
+        if removed_count > 0:
+            logger.info(f"Removed {removed_count} disconnected players when {player_id} connected")
     
     # Update connection status
     if player_id in game.state.players:
@@ -208,22 +213,48 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                 res = game.start_new_round(p["player_id"])
                 await WebSocketService.broadcast(room_id, "new_round_started", {**res, "state": game.state.model_dump()})
 
+            elif t == "request_back_to_lobby":
+                res = game.request_back_to_lobby(p["requester_id"])
+                if res.get("success"):
+                    await WebSocketService.broadcast(room_id, "back_to_lobby_success", {**res, "state": game.state.model_dump()})
+                else:
+                    await WebSocketService.broadcast(room_id, "back_to_lobby_requested", {**res, "state": game.state.model_dump()})
+
+            elif t == "vote_back_to_lobby":
+                res = game.vote_back_to_lobby(p["voter_id"], p["vote"])
+                if res.get("success"):
+                    await WebSocketService.broadcast(room_id, "back_to_lobby_success", {**res, "state": game.state.model_dump()})
+                elif res.get("reason") == "voting_failed":
+                    await WebSocketService.broadcast(room_id, "back_to_lobby_failed", {**res, "state": game.state.model_dump()})
+                else:
+                    await WebSocketService.broadcast(room_id, "back_to_lobby_vote_cast", {**res, "state": game.state.model_dump()})
+
             elif t == "sync":
                 await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
 
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected: room={room_id}, player={player_id}")
         try:
-            # Mark player as disconnected
+            # Handle player disconnection based on game phase
+            player_name = "Unknown"
             if player_id in game.state.players:
-                game.state.players[player_id].connected = False
-                logger.info(f"Marked player {player_id} as disconnected in room {room_id}")
+                player_name = game.state.players[player_id].name
                 
-                # In lobby phase, remove player from their seat to free it up
                 if game.state.phase == "lobby":
-                    seat_removed = game.remove_from_seat(player_id)
-                    if seat_removed:
-                        logger.info(f"Freed seat for disconnected player {player_id} in lobby phase")
+                    # In lobby phase, remove player entirely from the room
+                    # Remove from any seat they might have first
+                    for seat_num, seat_player_id in game.state.seats.items():
+                        if seat_player_id == player_id:
+                            game.state.seats[seat_num] = None
+                            logger.info(f"Freed seat {seat_num} for disconnected player {player_id}")
+                    
+                    # Remove player from players dict
+                    del game.state.players[player_id]
+                    logger.info(f"Removed disconnected player {player_id} from lobby")
+                else:
+                    # In game phase, just mark as disconnected
+                    game.state.players[player_id].connected = False
+                    logger.info(f"Marked player {player_id} as disconnected in room {room_id}")
             
             # Remove from connections
             if room_id in WebSocketService.connections and player_id in WebSocketService.connections[room_id]:
@@ -233,7 +264,7 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
             # Notify other players about disconnection
             await WebSocketService.broadcast(room_id, "player_disconnected", {
                 "player_id": player_id,
-                "player_name": game.state.players[player_id].name if player_id in game.state.players else "Unknown",
+                "player_name": player_name,
                 "state": game.state.model_dump()
             })
         except Exception as e:

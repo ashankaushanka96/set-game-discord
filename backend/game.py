@@ -120,6 +120,37 @@ class Game:
             
         return cleaned_count
 
+    def remove_disconnected_players(self) -> int:
+        """
+        Remove disconnected players from the room entirely (lobby phase only).
+        Returns the number of players removed.
+        """
+        if self.state.phase != "lobby":
+            logger.warning(f"Cannot remove disconnected players during {self.state.phase} phase")
+            return 0
+            
+        removed_count = 0
+        disconnected_players = []
+        
+        for player_id, player in self.state.players.items():
+            if not player.connected:
+                disconnected_players.append(player_id)
+                
+        for player_id in disconnected_players:
+            # Remove from players dict
+            del self.state.players[player_id]
+            # Remove from any seat they might have
+            for seat_num, seat_player_id in self.state.seats.items():
+                if seat_player_id == player_id:
+                    self.state.seats[seat_num] = None
+            logger.info(f"Removed disconnected player {player_id} from room {self.state.room_id}")
+            removed_count += 1
+                
+        if removed_count > 0:
+            logger.info(f"Removed {removed_count} disconnected players from room {self.state.room_id}")
+            
+        return removed_count
+
     def start(self):
         self.state.phase = "ready"
         # Start with seat 0 as the first dealer (displays as "Seat 1")
@@ -129,7 +160,135 @@ class Game:
         # No turn player set yet - will be set after shuffle & deal
         self.state.turn_player = None
         
-        logger.info(f"Game started in room {self.state.room_id}, dealer: {dealer}")
+        # Lock the lobby to prevent new players from joining
+        self.state.lobby_locked = True
+        
+        logger.info(f"Game started in room {self.state.room_id}, dealer: {dealer}, lobby locked")
+
+    def request_back_to_lobby(self, requester_id: str) -> dict:
+        """
+        Request to return to lobby from game. Requires majority vote.
+        Returns voting status and result.
+        """
+        if self.state.phase not in ["playing", "ready"]:
+            return {"success": False, "reason": "not_in_game", "message": "Can only request back to lobby during active game"}
+        
+        if requester_id not in self.state.players:
+            return {"success": False, "reason": "unknown_player", "message": "Unknown player"}
+        
+        # Initialize voting if not already started
+        if not self.state.back_to_lobby_votes:
+            self.state.back_to_lobby_votes = {}
+            logger.info(f"Back to lobby voting started by {requester_id} in room {self.state.room_id}")
+        
+        # Add/update vote
+        self.state.back_to_lobby_votes[requester_id] = True
+        
+        # Count votes
+        total_players = len(self.state.players)
+        yes_votes = sum(1 for vote in self.state.back_to_lobby_votes.values() if vote)
+        
+        # Check if majority reached (4/6 players)
+        required_votes = 4
+        if yes_votes >= required_votes:
+            # Return to lobby
+            self.state.phase = "lobby"
+            self.state.lobby_locked = False
+            self.state.back_to_lobby_votes = {}
+            self.state.abort_votes = {}
+            
+            # Reset game state
+            self.state.turn_player = None
+            self.state.ask_chain_from = None
+            self.state.deck_count = 0
+            self.state.current_dealer = None
+            self.state.table_sets = []
+            
+            # Clear all players' hands
+            for player in self.state.players.values():
+                player.hand = []
+            
+            logger.info(f"Returned to lobby by majority vote in room {self.state.room_id}")
+            return {
+                "success": True, 
+                "reason": "majority_reached", 
+                "message": "Returning to lobby by majority vote",
+                "votes": {"yes": yes_votes, "total": total_players, "required": required_votes}
+            }
+        
+        return {
+            "success": False, 
+            "reason": "voting_in_progress", 
+            "message": f"Voting in progress: {yes_votes}/{required_votes} votes",
+            "votes": {"yes": yes_votes, "total": total_players, "required": required_votes}
+        }
+
+    def vote_back_to_lobby(self, voter_id: str, vote: bool) -> dict:
+        """
+        Cast a vote for returning to lobby.
+        """
+        if self.state.phase not in ["playing", "ready"]:
+            return {"success": False, "reason": "not_in_game", "message": "Can only vote during active game"}
+        
+        if voter_id not in self.state.players:
+            return {"success": False, "reason": "unknown_player", "message": "Unknown player"}
+        
+        if not self.state.back_to_lobby_votes:
+            return {"success": False, "reason": "no_voting", "message": "No back to lobby voting in progress"}
+        
+        # Cast vote
+        self.state.back_to_lobby_votes[voter_id] = vote
+        
+        # Count votes
+        total_players = len(self.state.players)
+        yes_votes = sum(1 for v in self.state.back_to_lobby_votes.values() if v)
+        no_votes = sum(1 for v in self.state.back_to_lobby_votes.values() if not v)
+        
+        # Check if majority reached (4/6 players)
+        required_votes = 4
+        if yes_votes >= required_votes:
+            # Return to lobby
+            self.state.phase = "lobby"
+            self.state.lobby_locked = False
+            self.state.back_to_lobby_votes = {}
+            self.state.abort_votes = {}
+            
+            # Reset game state
+            self.state.turn_player = None
+            self.state.ask_chain_from = None
+            self.state.deck_count = 0
+            self.state.current_dealer = None
+            self.state.table_sets = []
+            
+            # Clear all players' hands
+            for player in self.state.players.values():
+                player.hand = []
+            
+            logger.info(f"Returned to lobby by majority vote in room {self.state.room_id}")
+            return {
+                "success": True, 
+                "reason": "majority_reached", 
+                "message": "Returning to lobby by majority vote",
+                "votes": {"yes": yes_votes, "no": no_votes, "total": total_players, "required": required_votes}
+            }
+        
+        # Check if voting failed (too many no votes)
+        if no_votes > total_players - required_votes:
+            self.state.back_to_lobby_votes = {}
+            logger.info(f"Back to lobby voting failed in room {self.state.room_id}")
+            return {
+                "success": False, 
+                "reason": "voting_failed", 
+                "message": "Back to lobby voting failed",
+                "votes": {"yes": yes_votes, "no": no_votes, "total": total_players, "required": required_votes}
+            }
+        
+        return {
+            "success": False, 
+            "reason": "voting_in_progress", 
+            "message": f"Voting in progress: {yes_votes}/{required_votes} yes votes",
+            "votes": {"yes": yes_votes, "no": no_votes, "total": total_players, "required": required_votes}
+        }
 
     # ---------------- Helpers ----------------
     @staticmethod

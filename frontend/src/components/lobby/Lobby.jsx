@@ -126,26 +126,29 @@ export default function Lobby() {
   };
 
   const startGame = () => {
-    const players = Object.values(state?.players || {});
-    const playersWithTeams = players.filter(p => p.team);
+    const allPlayers = Object.values(state?.players || {});
+    // Only count connected players for game start
+    const connectedPlayers = allPlayers.filter(p => p.connected !== false);
+    const playersWithTeams = connectedPlayers.filter(p => p.team);
     const me = useStore.getState().me;
     
-    if (players.length < 6) {
-      setError("Need 6 players to start the game");
+    if (connectedPlayers.length < 6) {
+      setError("Need 6 connected players to start the game");
       return;
     }
     
     // Auto-assign room creator to Team A if they haven't selected a team
-    const mePlayer = players.find(p => p.id === me.id);
+    const mePlayer = connectedPlayers.find(p => p.id === me.id);
     if (mePlayer && !mePlayer.team) {
       send(useStore.getState().ws, 'select_team', { player_id: me.id, team: 'A' });
       // Wait a moment for the team selection to process
       setTimeout(() => {
-        const updatedPlayers = Object.values(state?.players || {});
-        const updatedPlayersWithTeams = updatedPlayers.filter(p => p.team);
+        const updatedAllPlayers = Object.values(state?.players || {});
+        const updatedConnectedPlayers = updatedAllPlayers.filter(p => p.connected !== false);
+        const updatedPlayersWithTeams = updatedConnectedPlayers.filter(p => p.team);
         
         if (updatedPlayersWithTeams.length < 6) {
-          setError("All players must select a team before starting");
+          setError("All connected players must select a team before starting");
           return;
         }
         
@@ -211,7 +214,15 @@ export default function Lobby() {
     }
   };
 
-  const players = useMemo(() => Object.values(state?.players || {}), [state]);
+  const players = useMemo(() => {
+    const allPlayers = Object.values(state?.players || {});
+    // In lobby phase, filter out disconnected players
+    if (state?.phase === 'lobby') {
+      return allPlayers.filter(p => p.connected !== false);
+    }
+    // In game phases, show all players (including disconnected ones)
+    return allPlayers;
+  }, [state]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 p-8">
@@ -228,6 +239,16 @@ export default function Lobby() {
             <div className="flex items-center gap-2">
               <span className="text-rose-400">⚠️</span>
               <span>{error}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Lobby Locked Message */}
+        {state?.lobby_locked && (
+          <div className="mb-6 text-sm bg-amber-600/20 border border-amber-500/40 px-4 py-3 rounded-lg backdrop-blur-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-amber-400">🔒</span>
+              <span>Lobby is locked - game in progress. New players cannot join until the game ends.</span>
             </div>
           </div>
         )}
@@ -302,9 +323,9 @@ export default function Lobby() {
                 <button
                   className="flex-1 bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-lg disabled:opacity-50 transition-colors"
                   onClick={joinRoom}
-                  disabled={busy}
+                  disabled={busy || state?.lobby_locked}
                 >
-                  {busy ? "Joining..." : "Join"}
+                  {busy ? "Joining..." : state?.lobby_locked ? "Lobby Locked" : "Join"}
                 </button>
                 <button 
                   className={`flex-1 px-4 py-2 rounded-lg transition-colors ${
@@ -316,7 +337,7 @@ export default function Lobby() {
                   disabled={players.length < 6 || players.filter(p => p.team).length < 6}
                 >
                   {players.length < 6 
-                    ? `Start (${players.length}/6 players)` 
+                    ? `Start (${players.length}/6 connected players)` 
                     : players.filter(p => p.team).length < 6
                       ? `Start (${players.filter(p => p.team).length}/6 teams)`
                       : 'Start Game'
@@ -405,7 +426,7 @@ export default function Lobby() {
             {players.length >= 6 && players.filter(p => p.team).length < 6 && (
               <div className="mt-4 p-3 bg-amber-600/20 border border-amber-500/40 rounded-lg">
                 <div className="text-sm text-amber-300">
-                  <span className="font-semibold">⚠️ Team Selection Required:</span> Some players need to select a team before starting the game.
+                  <span className="font-semibold">⚠️ Team Selection Required:</span> Some connected players need to select a team before starting the game.
                 </div>
               </div>
             )}
@@ -416,7 +437,7 @@ export default function Lobby() {
         <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-6 border border-zinc-700/50">
           <h2 className="font-semibold mb-4 text-lg flex items-center gap-2">
             <span className="text-green-400">🎮</span>
-            Players ({players.length}/6)
+            Players ({players.length}/6 connected)
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             {players.map(p=>(

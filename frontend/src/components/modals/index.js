@@ -1,6 +1,7 @@
 export { default as AskModal } from './AskModal';
 export { default as AskRankModal } from './AskRankModal';
 export { default as AskSetModal } from './AskSetModal';
+export { default as BackToLobbyModal } from './BackToLobbyModal';
 export { default as ConfirmPassModal } from './ConfirmPassModal';
 export { default as GameOverModal } from './GameOverModal';
 export { default as LaydownModal } from './LaydownModal';

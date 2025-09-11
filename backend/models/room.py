@@ -22,3 +22,5 @@ class RoomState(BaseModel):
     deck_count: int = 0
     current_dealer: Optional[str] = None
     abort_votes: Dict[str, bool] = Field(default_factory=dict)
+    lobby_locked: bool = False  # True when game is active, prevents new players from joining
+    back_to_lobby_votes: Dict[str, bool] = Field(default_factory=dict)  # Votes for returning to lobby

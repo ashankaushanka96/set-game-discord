@@ -38,5 +38,14 @@ def get_state(room_id: str):
 def http_join_room(room_id: str, body: JoinReq):
     logger.info(f"Player {body.id} ({body.name}) joining room {room_id}")
     game = GameService.get_or_create_room(room_id)
+    
+    # Check if lobby is locked (game in progress)
+    if game.state.lobby_locked:
+        raise HTTPException(status_code=403, detail="Lobby is locked - game in progress")
+    
+    # Check if room is full
+    if len(game.state.players) >= 6:
+        raise HTTPException(status_code=403, detail="Room is full (6/6 players)")
+    
     game.state.players[body.id] = Player(**body.model_dump())
     return game.state.model_dump()

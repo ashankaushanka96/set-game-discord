@@ -41,6 +41,9 @@ export const useStore = create((set, get) => ({
   // toast notifications
   toast: null,
 
+  // back to lobby voting
+  backToLobbyVoting: null,
+
   setMe: (me) => { setMeInSession(me); set({ me }); },
   setWS: (ws) => set({ ws }),
   setRoom: (roomId) => set({ roomId }),
@@ -89,6 +92,7 @@ export const useStore = create((set, get) => ({
   showToast: (type, title, message) => set({ 
     toast: { type, title, message, id: mid() } 
   }),
+
   clearToast: () => set({ toast: null }),
 
   getToastTypeFromTitle: (title) => {
@@ -419,6 +423,52 @@ export const useStore = create((set, get) => ({
       get().setGameMessage("NEW ROUND", [`Dealer: ${dealerName}`, "Ready for shuffle & deal"]);
     }
 
+    // BACK TO LOBBY REQUESTED
+    if (msg.type === "back_to_lobby_requested") {
+      const s = msg.payload.state;
+      set({ state: s, backToLobbyVoting: msg.payload });
+      get().setGameMessage("BACK TO LOBBY VOTE", [
+        `Voting to return to lobby`,
+        `${msg.payload.votes?.yes || 0}/${msg.payload.votes?.required || 4} votes needed`
+      ]);
+    }
+
+    // BACK TO LOBBY VOTE CAST
+    if (msg.type === "back_to_lobby_vote_cast") {
+      const s = msg.payload.state;
+      set({ state: s, backToLobbyVoting: msg.payload });
+      get().setGameMessage("BACK TO LOBBY VOTE", [
+        `Vote cast: ${msg.payload.votes?.yes || 0}/${msg.payload.votes?.required || 4} votes`,
+        msg.payload.message
+      ]);
+    }
+
+    // BACK TO LOBBY SUCCESS
+    if (msg.type === "back_to_lobby_success") {
+      const s = msg.payload.state;
+      set({ state: s, phase: s.phase, backToLobbyVoting: null });
+      get().setGameMessage("RETURNED TO LOBBY", [
+        "Game ended by majority vote",
+        "All players returned to lobby"
+      ]);
+      
+      // Show toast notification
+      get().showToast("success", "Returned to Lobby", "Game ended by majority vote");
+    }
+
+    // BACK TO LOBBY FAILED
+    if (msg.type === "back_to_lobby_failed") {
+      const s = msg.payload.state;
+      set({ state: s, backToLobbyVoting: null });
+      get().setGameMessage("BACK TO LOBBY FAILED", [
+        "Voting failed - not enough votes",
+        "Game continues"
+      ]);
+      
+      // Show toast notification
+      get().showToast("info", "Vote Failed", "Not enough votes to return to lobby");
+    }
+
     // SHUFFLE DEAL ERROR
     if (msg.type === "shuffle_deal_error") {
       get().setGameMessage("ERROR", [msg.payload.message]);
@@ -448,10 +498,25 @@ export const useStore = create((set, get) => ({
       set({ state: s });
       const players = s.players || {};
       const playerName = players[msg.payload.player_id]?.name || msg.payload.player_name || "Unknown";
-      get().setGameMessage("PLAYER DISCONNECTED", [
-        `${playerName} has disconnected`,
-        "They can reconnect to continue playing"
-      ]);
+      
+      // Check if player was completely removed (lobby phase) or just marked as disconnected (game phase)
+      const playerStillExists = msg.payload.player_id in players;
+      
+      if (playerStillExists) {
+        // Player still exists but is disconnected (game phase)
+        get().setGameMessage("PLAYER DISCONNECTED", [
+          `${playerName} has disconnected`,
+          "They can reconnect to continue playing"
+        ]);
+        get().showToast("disconnect", "Player Disconnected", `${playerName} has disconnected`);
+      } else {
+        // Player was completely removed (lobby phase)
+        get().setGameMessage("PLAYER LEFT", [
+          `${playerName} has left the lobby`,
+          "Their seat is now available"
+        ]);
+        get().showToast("info", "Player Left", `${playerName} has left the lobby`);
+      }
     }
 
     // PLAYER RECONNECTED
@@ -464,6 +529,9 @@ export const useStore = create((set, get) => ({
         `${playerName} has reconnected`,
         "Welcome back!"
       ]);
+      
+      // Show toast notification
+      get().showToast("reconnect", "Player Reconnected", `${playerName} has reconnected`);
       
       // If the reconnected player is the current user and game has started, navigate to game room
       const me = get().me;
