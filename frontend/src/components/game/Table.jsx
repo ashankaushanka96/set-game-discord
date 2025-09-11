@@ -61,7 +61,7 @@ function SetChip({ suit, set_type, owner, expandable=false, cards=[] }) {
 
 export default function Table() {
   const navigate = useNavigate();
-  const { state, me, ws, handoffFor, gameResult, abortVoting, dealingAnimation, pendingLay, votingResult, closeVotingResult } = useStore();
+  const { state, me, ws, handoffFor, gameResult, abortVoting, dealingAnimation, pendingLay, votingResult, closeVotingResult, backToLobbyVoting } = useStore();
   const [layOpen, setLayOpen] = useState(false);
   const [selectedSet, setSelectedSet] = useState({ suit: null, setType: null });
   const [requestAbortOpen, setRequestAbortOpen] = useState(false);
@@ -313,10 +313,9 @@ export default function Table() {
       <Celebration />
       <DealingAnimation />
       
-      {/* Game Control Buttons - Top Right */}
-      {state.phase === 'playing' && (
-        <div className="fixed top-2 right-2 md:top-3 md:right-3 z-40 flex gap-2">
-          {/* Back to Lobby Button */}
+      {/* Back to Lobby Button - Top Left */}
+      {(state.phase === 'playing' || state.phase === 'ready') && (
+        <div className="fixed top-2 left-2 md:top-3 md:left-3 z-40">
           <button 
             className="group bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg md:rounded-xl shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center gap-2"
             onClick={() => send(ws, 'request_back_to_lobby', { requester_id: me.id })}
@@ -329,8 +328,12 @@ export default function Table() {
               <span className="sm:hidden">Lobby</span>
             </span>
           </button>
-          
-          {/* New Game Button */}
+        </div>
+      )}
+
+      {/* New Game Button - Top Right */}
+      {(state.phase === 'playing' || state.phase === 'ready') && (
+        <div className="fixed top-2 right-2 md:top-3 md:right-3 z-40">
           <button 
             className="group bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg md:rounded-xl shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center gap-2"
             onClick={() => setRequestAbortOpen(true)}
@@ -371,21 +374,6 @@ export default function Table() {
         </div>
       )}
 
-      {/* Back to Lobby Button */}
-      <div className="fixed top-2 left-2 md:top-3 md:left-3 z-[95]">
-        <button
-          onClick={() => navigate('/')}
-          className="group bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg md:rounded-xl shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center gap-2"
-        >
-          <svg className="w-4 h-4 transition-transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-          <span className="text-sm font-medium">
-            <span className="hidden sm:inline">Back to Lobby</span>
-            <span className="sm:hidden">Lobby</span>
-          </span>
-        </button>
-      </div>
 
       <MessageBubbles seatEls={seatEls} seatVersion={seatVersion} hideLaydownBubbles={layOpen} />
       <div className="mt-16" />
@@ -660,7 +648,11 @@ export default function Table() {
       />
 
       {/* Back to Lobby Modal */}
-      <BackToLobbyModal />
+      <BackToLobbyModal
+        open={!!backToLobbyVoting}
+        onClose={() => {}}
+        votingData={backToLobbyVoting}
+      />
 
       {/* Toast Notifications */}
       <Toast />

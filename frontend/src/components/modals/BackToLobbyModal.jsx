@@ -1,12 +1,12 @@
 import { useStore } from '../../store';
 import { send } from '../../ws';
 
-export default function BackToLobbyModal() {
-  const { backToLobbyVoting, me, ws } = useStore();
+export default function BackToLobbyModal({ open, onClose, votingData }) {
+  const { me, ws } = useStore();
 
-  if (!backToLobbyVoting) return null;
+  if (!open || !votingData) return null;
 
-  const { votes, message } = backToLobbyVoting;
+  const { votes, message } = votingData;
   const { yes = 0, no = 0, total = 0, required = 4 } = votes || {};
 
   const handleVote = (vote) => {

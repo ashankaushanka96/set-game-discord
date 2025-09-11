@@ -4,6 +4,7 @@ import { useStore } from "../../store";
 import { connectWS, send } from "../../ws";
 import { apiCreateRoom, apiJoinRoom } from "../../api";
 import { AvatarSelector } from "../";
+import { Toast } from "../ui";
 import { generateUUID } from "../../utils/uuid";
 
 export default function Lobby() {
@@ -466,6 +467,9 @@ export default function Lobby() {
           </div>
         </div>
       </div>
+      
+      {/* Toast Notifications */}
+      <Toast />
     </div>
   );
 }
