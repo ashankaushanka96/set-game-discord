@@ -16,8 +16,9 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
     await ws.accept()
     game = GameService.get_or_create_room(room_id)
     
-    # Check if this is a reconnection
+    # Check if this is a reconnection or new connection
     was_disconnected = player_id in game.state.players and not game.state.players[player_id].connected
+    is_new_player = player_id not in game.state.players
     
     # Update connection status
     if player_id in game.state.players:
@@ -35,11 +36,18 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
 
     await ws.send_text(json.dumps({"type": "state", "payload": game.state.model_dump()}))
     
-    # Notify other players about reconnection
+    # Notify other players about connection
     if was_disconnected:
         await WebSocketService.broadcast(room_id, "player_reconnected", {
             "player_id": player_id,
             "player_name": game.state.players[player_id].name,
+            "state": game.state.model_dump()
+        })
+    elif is_new_player:
+        # For new players, send a player_connected message
+        await WebSocketService.broadcast(room_id, "player_connected", {
+            "player_id": player_id,
+            "player_name": game.state.players[player_id].name if player_id in game.state.players else "Unknown",
             "state": game.state.model_dump()
         })
     else:
@@ -208,10 +216,12 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected: room={room_id}, player={player_id}")
         try:
-            # Mark player as disconnected
+            # Mark player as disconnected and clear their seat
             if player_id in game.state.players:
                 game.state.players[player_id].connected = False
-                logger.info(f"Marked player {player_id} as disconnected in room {room_id}")
+                # Clear the player's seat when they disconnect
+                game.clear_player_seat(player_id)
+                logger.info(f"Marked player {player_id} as disconnected and cleared their seat in room {room_id}")
             
             # Remove from connections
             if room_id in WebSocketService.connections and player_id in WebSocketService.connections[room_id]:

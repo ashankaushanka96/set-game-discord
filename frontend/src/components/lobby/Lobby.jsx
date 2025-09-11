@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useStore } from "../../store";
 import { connectWS, send } from "../../ws";
 import { apiCreateRoom, apiJoinRoom } from "../../api";
+import { API_BASE } from "../../config";
 import { AvatarSelector } from "../";
 import { generateUUID } from "../../utils/uuid";
 
@@ -126,26 +127,28 @@ export default function Lobby() {
   };
 
   const startGame = () => {
-    const players = Object.values(state?.players || {});
-    const playersWithTeams = players.filter(p => p.team);
+    const allPlayers = Object.values(state?.players || {});
+    const connectedPlayers = allPlayers.filter(p => p.connected);
+    const connectedPlayersWithTeams = connectedPlayers.filter(p => p.team);
     const me = useStore.getState().me;
     
-    if (players.length < 6) {
-      setError("Need 6 players to start the game");
+    if (connectedPlayers.length < 6) {
+      setError("Need 6 connected players to start the game");
       return;
     }
     
     // Auto-assign room creator to Team A if they haven't selected a team
-    const mePlayer = players.find(p => p.id === me.id);
+    const mePlayer = connectedPlayers.find(p => p.id === me.id);
     if (mePlayer && !mePlayer.team) {
       send(useStore.getState().ws, 'select_team', { player_id: me.id, team: 'A' });
       // Wait a moment for the team selection to process
       setTimeout(() => {
         const updatedPlayers = Object.values(state?.players || {});
-        const updatedPlayersWithTeams = updatedPlayers.filter(p => p.team);
+        const updatedConnectedPlayers = updatedPlayers.filter(p => p.connected);
+        const updatedConnectedPlayersWithTeams = updatedConnectedPlayers.filter(p => p.team);
         
-        if (updatedPlayersWithTeams.length < 6) {
-          setError("All players must select a team before starting");
+        if (updatedConnectedPlayersWithTeams.length < 6) {
+          setError("All connected players must select a team before starting");
           return;
         }
         
@@ -159,8 +162,8 @@ export default function Lobby() {
       return;
     }
     
-    if (playersWithTeams.length < 6) {
-      setError("All players must select a team before starting");
+    if (connectedPlayersWithTeams.length < 6) {
+      setError("All connected players must select a team before starting");
       return;
     }
     
@@ -211,7 +214,11 @@ export default function Lobby() {
     }
   };
 
-  const players = useMemo(() => Object.values(state?.players || {}), [state]);
+
+  const players = useMemo(() => 
+    Object.values(state?.players || {}).filter(p => p.connected), 
+    [state]
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 p-8">
@@ -308,21 +315,22 @@ export default function Lobby() {
                 </button>
                 <button 
                   className={`flex-1 px-4 py-2 rounded-lg transition-colors ${
-                    players.length >= 6 && players.filter(p => p.team).length >= 6 
+                    players.length >= 6 && players.filter(p => p.team && p.connected).length >= 6 
                       ? 'bg-amber-600 hover:bg-amber-500' 
                       : 'bg-zinc-600 cursor-not-allowed'
                   }`}
                   onClick={startGame}
-                  disabled={players.length < 6 || players.filter(p => p.team).length < 6}
+                  disabled={players.length < 6 || players.filter(p => p.team && p.connected).length < 6}
                 >
                   {players.length < 6 
                     ? `Start (${players.length}/6 players)` 
-                    : players.filter(p => p.team).length < 6
-                      ? `Start (${players.filter(p => p.team).length}/6 teams)`
+                    : players.filter(p => p.team && p.connected).length < 6
+                      ? `Start (${players.filter(p => p.team && p.connected).length}/6 teams)`
                       : 'Start Game'
                   }
                 </button>
               </div>
+              
             </div>
           </div>
 
@@ -337,72 +345,72 @@ export default function Lobby() {
                 <div className="inline-flex items-center gap-2 text-sm font-medium">
                   <span className="inline-block h-3 w-3 rounded-full bg-blue-400"></span>
                   <span>Team A</span>
-                  <span className="text-xs text-zinc-400">({players.filter(p=>p.team==='A').length}/3)</span>
+                  <span className="text-xs text-zinc-400">({players.filter(p=>p.team==='A' && p.connected).length}/3)</span>
                 </div>
                 <div className="space-y-2 min-h-[100px]">
-                  {players.filter(p=>p.team==='A').map(p=>(
+                  {players.filter(p=>p.team==='A' && p.connected).map(p=>(
                     <div key={p.id} className="bg-blue-600/20 border border-blue-500/30 rounded-lg px-3 py-2 text-sm flex items-center gap-2">
                       <span className="text-lg">{p.avatar}</span>
                       <span>{p.name}</span>
                     </div>
                   ))}
-                  {players.filter(p=>p.team==='A').length === 0 && (
+                  {players.filter(p=>p.team==='A' && p.connected).length === 0 && (
                     <div className="text-xs text-zinc-500 italic">No players yet</div>
                   )}
                 </div>
                 <button
                   className={`w-full px-3 py-2 rounded-lg text-sm transition-colors ${
-                    players.filter(p=>p.team==='A').length >= 3 
+                    players.filter(p=>p.team==='A' && p.connected).length >= 3 
                       ? 'bg-zinc-600/30 border border-zinc-500/30 cursor-not-allowed opacity-50' 
                       : 'bg-blue-600/30 hover:bg-blue-600/40 border border-blue-500/30'
                   }`}
                   onClick={()=>{
-                    if (players.filter(p=>p.team==='A').length < 3) {
+                    if (players.filter(p=>p.team==='A' && p.connected).length < 3) {
                       send(useStore.getState().ws,'select_team',{ player_id: useStore.getState().me.id, team:'A' });
                     }
                   }}
-                  disabled={players.filter(p=>p.team==='A').length >= 3}
+                  disabled={players.filter(p=>p.team==='A' && p.connected).length >= 3}
                 >
-                  {players.filter(p=>p.team==='A').length >= 3 ? 'Team A Full' : 'Join Team A'}
+                  {players.filter(p=>p.team==='A' && p.connected).length >= 3 ? 'Team A Full' : 'Join Team A'}
                 </button>
               </div>
               <div className="space-y-3">
                 <div className="inline-flex items-center gap-2 text-sm font-medium">
                   <span className="inline-block h-3 w-3 rounded-full bg-rose-400"></span>
                   <span>Team B</span>
-                  <span className="text-xs text-zinc-400">({players.filter(p=>p.team==='B').length}/3)</span>
+                  <span className="text-xs text-zinc-400">({players.filter(p=>p.team==='B' && p.connected).length}/3)</span>
                 </div>
                 <div className="space-y-2 min-h-[100px]">
-                  {players.filter(p=>p.team==='B').map(p=>(
+                  {players.filter(p=>p.team==='B' && p.connected).map(p=>(
                     <div key={p.id} className="bg-rose-600/20 border border-rose-500/30 rounded-lg px-3 py-2 text-sm flex items-center gap-2">
                       <span className="text-lg">{p.avatar}</span>
                       <span>{p.name}</span>
                     </div>
                   ))}
-                  {players.filter(p=>p.team==='B').length === 0 && (
+                  {players.filter(p=>p.team==='B' && p.connected).length === 0 && (
                     <div className="text-xs text-zinc-500 italic">No players yet</div>
                   )}
                 </div>
                 <button
                   className={`w-full px-3 py-2 rounded-lg text-sm transition-colors ${
-                    players.filter(p=>p.team==='B').length >= 3 
+                    players.filter(p=>p.team==='B' && p.connected).length >= 3 
                       ? 'bg-zinc-600/30 border border-zinc-500/30 cursor-not-allowed opacity-50' 
                       : 'bg-rose-600/30 hover:bg-rose-600/40 border border-rose-500/30'
                   }`}
                   onClick={()=>{
-                    if (players.filter(p=>p.team==='B').length < 3) {
+                    if (players.filter(p=>p.team==='B' && p.connected).length < 3) {
                       send(useStore.getState().ws,'select_team',{ player_id: useStore.getState().me.id, team:'B' });
                     }
                   }}
-                  disabled={players.filter(p=>p.team==='B').length >= 3}
+                  disabled={players.filter(p=>p.team==='B' && p.connected).length >= 3}
                 >
-                  {players.filter(p=>p.team==='B').length >= 3 ? 'Team B Full' : 'Join Team B'}
+                  {players.filter(p=>p.team==='B' && p.connected).length >= 3 ? 'Team B Full' : 'Join Team B'}
                 </button>
               </div>
             </div>
             
             {/* Team Status Message */}
-            {players.length >= 6 && players.filter(p => p.team).length < 6 && (
+            {players.length >= 6 && players.filter(p => p.team && p.connected).length < 6 && (
               <div className="mt-4 p-3 bg-amber-600/20 border border-amber-500/40 rounded-lg">
                 <div className="text-sm text-amber-300">
                   <span className="font-semibold">⚠️ Team Selection Required:</span> Some players need to select a team before starting the game.
