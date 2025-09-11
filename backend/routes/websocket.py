@@ -16,16 +16,15 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
     await ws.accept()
     game = GameService.get_or_create_room(room_id)
     
-    # Check if this is a reconnection or new connection
+    # Check if this is a reconnection
     was_disconnected = player_id in game.state.players and not game.state.players[player_id].connected
-    is_new_player = player_id not in game.state.players
     
     # Update connection status
     if player_id in game.state.players:
         game.state.players[player_id].connected = True
         logger.info(f"Player {player_id} connected to room {room_id} (reconnection: {was_disconnected})")
     else:
-        logger.info(f"New player {player_id} connecting to room {room_id} (will be added via HTTP API)")
+        logger.warning(f"Unknown player {player_id} connected to room {room_id}")
     
     # Ensure room_id exists in connections dictionary
     if room_id not in WebSocketService.connections:
@@ -36,18 +35,11 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
 
     await ws.send_text(json.dumps({"type": "state", "payload": game.state.model_dump()}))
     
-    # Notify other players about connection
+    # Notify other players about reconnection
     if was_disconnected:
         await WebSocketService.broadcast(room_id, "player_reconnected", {
             "player_id": player_id,
             "player_name": game.state.players[player_id].name,
-            "state": game.state.model_dump()
-        })
-    elif is_new_player:
-        # For new players, send a player_connected message
-        await WebSocketService.broadcast(room_id, "player_connected", {
-            "player_id": player_id,
-            "player_name": game.state.players[player_id].name if player_id in game.state.players else "Unknown",
             "state": game.state.model_dump()
         })
     else:
@@ -216,12 +208,10 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected: room={room_id}, player={player_id}")
         try:
-            # Mark player as disconnected and clear their seat
+            # Mark player as disconnected
             if player_id in game.state.players:
                 game.state.players[player_id].connected = False
-                # Clear the player's seat when they disconnect
-                game.clear_player_seat(player_id)
-                logger.info(f"Marked player {player_id} as disconnected and cleared their seat in room {room_id}")
+                logger.info(f"Marked player {player_id} as disconnected in room {room_id}")
             
             # Remove from connections
             if room_id in WebSocketService.connections and player_id in WebSocketService.connections[room_id]:

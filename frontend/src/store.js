@@ -6,18 +6,6 @@ function getMe() {
 }
 function setMeInSession(me) { sessionStorage.setItem("me", JSON.stringify(me)); }
 
-function getRoomId() {
-  try { return sessionStorage.getItem("roomId") || ""; }
-  catch { return ""; }
-}
-function setRoomIdInSession(roomId) { 
-  if (roomId) {
-    sessionStorage.setItem("roomId", roomId);
-  } else {
-    sessionStorage.removeItem("roomId");
-  }
-}
-
 let uid = 0;
 const mid = () => `${Date.now()}-${uid++}`;
 
@@ -26,7 +14,7 @@ const cardLabel = (c) => (c ? `${c.rank} of ${c.suit}` : "card");
 
 export const useStore = create((set, get) => ({
   me: getMe(),
-  roomId: getRoomId(),
+  roomId: "",
   ws: null,
   state: null,
   phase: "lobby",
@@ -55,7 +43,7 @@ export const useStore = create((set, get) => ({
 
   setMe: (me) => { setMeInSession(me); set({ me }); },
   setWS: (ws) => set({ ws }),
-  setRoom: (roomId) => { setRoomIdInSession(roomId); set({ roomId }); },
+  setRoom: (roomId) => set({ roomId }),
 
   // --- seat bubbles helpers ---
   addMessage: (m) => {
@@ -101,7 +89,6 @@ export const useStore = create((set, get) => ({
   showToast: (type, title, message) => set({ 
     toast: { type, title, message, id: mid() } 
   }),
-
   clearToast: () => set({ toast: null }),
 
   getToastTypeFromTitle: (title) => {
@@ -116,31 +103,12 @@ export const useStore = create((set, get) => ({
 
   applyServer: (msg) => {
     if (msg.type === "state" || msg.type === "dealt") {
-      const oldState = get().state;
-      const newState = msg.payload;
-      
-      set({ state: newState, phase: newState.phase });
-      
-      // Check for new players joining in lobby
-      if (newState.phase === "lobby" && oldState && oldState.players) {
-        const oldPlayerIds = new Set(Object.keys(oldState.players));
-        const newPlayerIds = new Set(Object.keys(newState.players));
-        
-        // Find new players (not reconnections)
-        for (const playerId of newPlayerIds) {
-          if (!oldPlayerIds.has(playerId)) {
-            const player = newState.players[playerId];
-            if (player && player.connected) {
-              get().showToast("reconnect", "Player Connected", `${player.name} has joined the room`);
-            }
-          }
-        }
-      }
+      set({ state: msg.payload, phase: msg.payload.phase });
       
       // Auto-navigate to game room if game has started and we're not already there
-      if (newState.phase === "ready" || newState.phase === "playing") {
+      if (msg.payload.phase === "ready" || msg.payload.phase === "playing") {
         const currentPath = window.location.pathname;
-        const roomId = newState.room_id;
+        const roomId = msg.payload.room_id;
         const me = get().me;
         
         // Only navigate if we're not already in the game room
@@ -480,29 +448,10 @@ export const useStore = create((set, get) => ({
       set({ state: s });
       const players = s.players || {};
       const playerName = players[msg.payload.player_id]?.name || msg.payload.player_name || "Unknown";
-      
-      // Show toast notification in lobby
-      if (s.phase === "lobby") {
-        get().showToast("disconnect", "Player Disconnected", `${playerName} has left the room`);
-      } else {
-        get().setGameMessage("PLAYER DISCONNECTED", [
-          `${playerName} has disconnected`,
-          "They can reconnect to continue playing"
-        ]);
-      }
-    }
-
-    // PLAYER CONNECTED (new player)
-    if (msg.type === "player_connected") {
-      const s = msg.payload.state;
-      set({ state: s, phase: s.phase });
-      const players = s.players || {};
-      const playerName = players[msg.payload.player_id]?.name || msg.payload.player_name || "Unknown";
-      
-      // Show toast notification in lobby
-      if (s.phase === "lobby") {
-        get().showToast("reconnect", "Player Connected", `${playerName} has joined the room`);
-      }
+      get().setGameMessage("PLAYER DISCONNECTED", [
+        `${playerName} has disconnected`,
+        "They can reconnect to continue playing"
+      ]);
     }
 
     // PLAYER RECONNECTED
@@ -511,16 +460,10 @@ export const useStore = create((set, get) => ({
       set({ state: s, phase: s.phase });
       const players = s.players || {};
       const playerName = players[msg.payload.player_id]?.name || msg.payload.player_name || "Unknown";
-      
-      // Show toast notification in lobby
-      if (s.phase === "lobby") {
-        get().showToast("reconnect", "Player Reconnected", `${playerName} has rejoined the room`);
-      } else {
-        get().setGameMessage("PLAYER RECONNECTED", [
-          `${playerName} has reconnected`,
-          "Welcome back!"
-        ]);
-      }
+      get().setGameMessage("PLAYER RECONNECTED", [
+        `${playerName} has reconnected`,
+        "Welcome back!"
+      ]);
       
       // If the reconnected player is the current user and game has started, navigate to game room
       const me = get().me;

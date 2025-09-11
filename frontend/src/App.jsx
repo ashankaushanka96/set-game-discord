@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useStore } from './store';
-import { Lobby, Table, GameRoom, Toast } from './components';
+import { Lobby, Table, GameRoom } from './components';
 import './styles.css';
 
 export default function App(){
@@ -11,7 +11,6 @@ export default function App(){
         <Route path="/room/:roomId/:playerId" element={<GameRoom />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      <Toast />
     </Router>
   );
 }

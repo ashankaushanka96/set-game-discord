@@ -54,28 +54,7 @@ class Game:
         self.state.deck_count = 0
 
     # ---------------- Seating & Teams ----------------
-    def clear_player_seat(self, player_id: str):
-        """Clear the seat occupied by a player"""
-        if player_id in self.state.players:
-            player = self.state.players[player_id]
-            if player.seat is not None:
-                self.state.seats[player.seat] = None
-                player.seat = None
-                logger.info(f"Cleared seat for player {player_id}")
-
-    def remove_player(self, player_id: str):
-        """Completely remove a player from the room"""
-        if player_id in self.state.players:
-            # Clear their seat first
-            self.clear_player_seat(player_id)
-            # Remove from players dict
-            del self.state.players[player_id]
-            logger.info(f"Removed player {player_id} from room {self.state.room_id}")
-
     def assign_seat(self, player_id: str, team: str) -> Optional[int]:
-        # Clear any existing seat for this player first
-        self.clear_player_seat(player_id)
-        
         preferred = [0, 2, 4] if team == "A" else [1, 3, 5]
         for s in preferred:
             if self.state.seats[s] is None:
@@ -83,7 +62,6 @@ class Game:
                 p = self.state.players[player_id]
                 p.team = team
                 p.seat = s
-                logger.info(f"Assigned player {player_id} to seat {s} on team {team}")
                 return s
         return None
 
