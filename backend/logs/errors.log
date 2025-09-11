@@ -1,5 +1,0 @@
-2025-09-10 22:26:22 | ERROR    | __main__:test_logging:19 - This is an error message
-2025-09-10 22:35:39 | ERROR    | routes.websocket:ws_endpoint:140 - Laydown error for b08afdd5-5da0-4051-9d3d-0beec2d772ed: Cannot contribute from Wadda1 - they have no cards
-2025-09-10 23:00:59 | ERROR    | services.websocket_service:broadcast:34 - Error removing dead connection for player 1ba61ea3-4c5a-451a-aec8-4257f49370a5: '1ba61ea3-4c5a-451a-aec8-4257f49370a5'
-2025-09-10 23:00:59 | ERROR    | services.websocket_service:broadcast:34 - Error removing dead connection for player 1ba61ea3-4c5a-451a-aec8-4257f49370a5: '1ba61ea3-4c5a-451a-aec8-4257f49370a5'
-2025-09-10 23:00:59 | ERROR    | services.websocket_service:broadcast:34 - Error removing dead connection for player 88b5937f-18df-4bfc-8d83-dfdb6357dbdf: '88b5937f-18df-4bfc-8d83-dfdb6357dbdf'
