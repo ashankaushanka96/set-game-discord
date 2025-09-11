@@ -25,7 +25,7 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
         game.state.players[player_id].connected = True
         logger.info(f"Player {player_id} connected to room {room_id} (reconnection: {was_disconnected})")
     else:
-        logger.warning(f"Unknown player {player_id} connected to room {room_id}")
+        logger.info(f"New player {player_id} connecting to room {room_id} (will be added via HTTP API)")
     
     # Ensure room_id exists in connections dictionary
     if room_id not in WebSocketService.connections:

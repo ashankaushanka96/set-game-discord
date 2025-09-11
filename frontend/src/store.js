@@ -6,6 +6,18 @@ function getMe() {
 }
 function setMeInSession(me) { sessionStorage.setItem("me", JSON.stringify(me)); }
 
+function getRoomId() {
+  try { return sessionStorage.getItem("roomId") || ""; }
+  catch { return ""; }
+}
+function setRoomIdInSession(roomId) { 
+  if (roomId) {
+    sessionStorage.setItem("roomId", roomId);
+  } else {
+    sessionStorage.removeItem("roomId");
+  }
+}
+
 let uid = 0;
 const mid = () => `${Date.now()}-${uid++}`;
 
@@ -14,7 +26,7 @@ const cardLabel = (c) => (c ? `${c.rank} of ${c.suit}` : "card");
 
 export const useStore = create((set, get) => ({
   me: getMe(),
-  roomId: "",
+  roomId: getRoomId(),
   ws: null,
   state: null,
   phase: "lobby",
@@ -43,7 +55,7 @@ export const useStore = create((set, get) => ({
 
   setMe: (me) => { setMeInSession(me); set({ me }); },
   setWS: (ws) => set({ ws }),
-  setRoom: (roomId) => set({ roomId }),
+  setRoom: (roomId) => { setRoomIdInSession(roomId); set({ roomId }); },
 
   // --- seat bubbles helpers ---
   addMessage: (m) => {

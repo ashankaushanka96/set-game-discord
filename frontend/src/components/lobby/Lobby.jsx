@@ -2,14 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useStore } from "../../store";
 import { connectWS, send } from "../../ws";
-import { apiCreateRoom, apiJoinRoom } from "../../api";
+import { apiCreateRoom, apiJoinRoom, apiGetState } from "../../api";
 import { API_BASE } from "../../config";
 import { AvatarSelector } from "../";
 import { generateUUID } from "../../utils/uuid";
 
 export default function Lobby() {
   const navigate = useNavigate();
-  const { me, setMe, setWS, setRoom, roomId, state, applyServer } = useStore();
+  const { me, setMe, setWS, setRoom, roomId, state, applyServer, ws } = useStore();
   
   // Load saved profile data from localStorage
   const getSavedProfile = () => {
@@ -37,6 +37,7 @@ export default function Lobby() {
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [reconnectAttempted, setReconnectAttempted] = useState(false);
 
   // Save profile data to localStorage
   const saveProfile = (nameValue, avatarValue) => {
@@ -50,9 +51,19 @@ export default function Lobby() {
     }
   };
 
-  // ensure per-tab identity
+  // ensure per-tab identity and auto-reconnect if room ID exists
   useEffect(() => {
     setMe({ id: me?.id || generateUUID(), name, avatar });
+    
+    // Auto-reconnect if we have a room ID and no active connection (only once, with delay)
+    if (roomId && !ws && !reconnectAttempted) {
+      console.log("Auto-reconnecting to room:", roomId);
+      setReconnectAttempted(true);
+      // Add a small delay to allow backend to start up
+      setTimeout(() => {
+        autoReconnect();
+      }, 1000);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -99,7 +110,9 @@ export default function Lobby() {
 
       // Add this player (HTTP) then connect WebSocket
       await httpJoinRoom(rid);
-      const ws = connectWS(rid, useStore.getState().me.id, applyServer);
+      const ws = connectWS(rid, useStore.getState().me.id, applyServer, (newWs) => {
+        setWS(newWs);
+      });
       setWS(ws);
       setTimeout(() => send(ws, "sync", {}), 150);
     } catch (e) {
@@ -116,7 +129,9 @@ export default function Lobby() {
     try {
       setRoom(rid);
       await httpJoinRoom(rid);
-      const ws = connectWS(rid, useStore.getState().me.id, applyServer);
+      const ws = connectWS(rid, useStore.getState().me.id, applyServer, (newWs) => {
+        setWS(newWs);
+      });
       setWS(ws);
       setTimeout(() => send(ws, "sync", {}), 150);
     } catch (e) {
@@ -173,6 +188,46 @@ export default function Lobby() {
     
     // Send start command - navigation will be handled by the store
     send(useStore.getState().ws, "start", {});
+  };
+
+  const autoReconnect = async () => {
+    if (!roomId) return;
+    
+    setError(""); setBusy(true);
+    try {
+      console.log("Attempting to reconnect to room:", roomId);
+      setRoomInput(roomId);
+      
+      // First try to get the room state to see if it exists
+      try {
+        await apiGetState(roomId);
+        console.log("Room exists, attempting to join...");
+      } catch (e) {
+        console.log("Room does not exist, clearing saved room ID");
+        setRoom("");
+        setRoomInput("");
+        setError("Room no longer exists. Please create or join a new room.");
+        return;
+      }
+      
+      // Try to join the room (this will fail if player not in room)
+      await httpJoinRoom(roomId);
+      const ws = connectWS(roomId, useStore.getState().me.id, applyServer, (newWs) => {
+        setWS(newWs);
+      });
+      setWS(ws);
+      setTimeout(() => send(ws, "sync", {}), 150);
+      
+      console.log("Successfully reconnected to room:", roomId);
+    } catch (e) {
+      console.log("Failed to reconnect to room:", e.message);
+      // Clear the room ID if reconnection fails
+      setRoom("");
+      setRoomInput("");
+      setError("Could not reconnect to room. Please create or join a new room.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const copyRoomId = async () => {
@@ -330,6 +385,20 @@ export default function Lobby() {
                   }
                 </button>
               </div>
+              
+              {/* Reconnect button - show when room ID exists but no connection */}
+              {roomId && !ws && (
+                <button
+                  className="w-full bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg disabled:opacity-50 transition-colors text-sm"
+                  onClick={() => {
+                    setReconnectAttempted(false);
+                    autoReconnect();
+                  }}
+                  disabled={busy}
+                >
+                  {busy ? "Reconnecting..." : "Reconnect to Room"}
+                </button>
+              )}
               
             </div>
           </div>

@@ -1,6 +1,6 @@
 import { WS_BASE } from './config.js';
 
-export function connectWS(roomId, playerId, onMessage) {
+export function connectWS(roomId, playerId, onMessage, onReconnect) {
     const ws = new WebSocket(`${WS_BASE}/ws/${roomId}/${playerId}`);
     
     ws.onmessage = (ev) => {
@@ -13,14 +13,10 @@ export function connectWS(roomId, playerId, onMessage) {
         console.log('WebSocket connection lost, attempting to reconnect...');
         setTimeout(() => {
           // Attempt to reconnect after 3 seconds
-          const newWs = connectWS(roomId, playerId, onMessage);
-          // Replace the old WebSocket reference
-          if (window.currentWS) {
-            window.currentWS = newWs;
-          }
-          // Update the store with the new WebSocket
-          if (window.updateWS) {
-            window.updateWS(newWs);
+          const newWs = connectWS(roomId, playerId, onMessage, onReconnect);
+          // Call the reconnection callback to update the store
+          if (onReconnect) {
+            onReconnect(newWs);
           }
         }, 3000);
       }
