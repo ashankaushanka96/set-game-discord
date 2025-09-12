@@ -20,7 +20,8 @@ import {
 import { 
   Toast, 
   Celebration, 
-  MessageBox 
+  MessageBox,
+  WakeLock
 } from '../ui';
 import { 
   Card, 
@@ -309,7 +310,8 @@ export default function Table() {
   };
 
   return (
-    <div className="p-3 md:p-6 relative min-h-screen flex flex-col" onClick={handleTableClick}>
+    <WakeLock isActive={state.phase === 'playing'}>
+      <div className="p-3 md:p-6 relative min-h-screen flex flex-col" onClick={handleTableClick}>
       <Celebration />
       <DealingAnimation />
       
@@ -656,6 +658,7 @@ export default function Table() {
 
       {/* Toast Notifications */}
       <Toast />
-    </div>
+      </div>
+    </WakeLock>
   );
 }

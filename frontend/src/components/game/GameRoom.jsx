@@ -1,13 +1,28 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useStore } from '../../store';
 import { connectWS, send } from '../../ws';
 import { Table } from '../';
+import { useWakeLock } from '../../hooks/useWakeLock';
 
 export default function GameRoom() {
   const { roomId, playerId } = useParams();
   const navigate = useNavigate();
   const { state, me, setMe, setRoom, setWS, applyServer } = useStore();
+  const { isLocked, isSupported, error, toggle, request } = useWakeLock();
+  const [autoEnableAttempted, setAutoEnableAttempted] = useState(false);
+  
+  // Auto-enable wake lock when entering game room
+  useEffect(() => {
+    if (state && state.room_id === roomId && state.phase !== 'lobby') {
+      // Small delay to ensure the component is fully mounted
+      const timer = setTimeout(() => {
+        void request();
+        setAutoEnableAttempted(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [state, roomId, request]);
   
   // Set up global WebSocket update function for reconnection
   useEffect(() => {
@@ -112,6 +127,48 @@ export default function GameRoom() {
     return null;
   }
 
-  // Otherwise show the game table
-  return <Table />;
+  // Otherwise show the game table with wake lock toggle
+  return (
+    <div className="relative">
+      <Table />
+      
+      {/* Wake Lock Toggle Button - Floating in bottom right */}
+      <div className="fixed bottom-4 right-4 z-50">
+        <button
+          onClick={() => void toggle()}
+          className={`
+            px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200
+            ${!autoEnableAttempted 
+              ? 'bg-blue-500 hover:bg-blue-600 text-white' // Loading state
+              : isLocked 
+                ? 'bg-green-600 hover:bg-green-700 text-white' 
+                : 'bg-red-500 hover:bg-red-600 text-white'
+            }
+            shadow-lg border border-gray-500
+          `}
+          title={
+            !autoEnableAttempted 
+              ? "Enabling wake lock..." 
+              : isLocked 
+                ? "Screen awake (click to disable)" 
+                : "Screen will sleep (click to keep awake)"
+          }
+        >
+          {!autoEnableAttempted ? "⏳" : isLocked ? "🔒" : "🔓"}
+        </button>
+        
+        {/* Error message if wake lock fails */}
+        {error && (
+          <div className="absolute bottom-12 right-0 bg-red-600 text-white text-xs px-2 py-1 rounded shadow-lg max-w-48">
+            Wake lock failed: {String(error?.message || error)}
+          </div>
+        )}
+        
+        {/* Platform info tooltip */}
+        <div className="absolute bottom-12 right-0 bg-gray-800 text-white text-xs px-2 py-1 rounded shadow-lg opacity-0 hover:opacity-100 transition-opacity">
+          {isSupported ? "Native Wake Lock" : "iOS Fallback"}
+        </div>
+      </div>
+    </div>
+  );
 }

@@ -4,7 +4,7 @@ import { useStore } from "../../store";
 import { connectWS, send } from "../../ws";
 import { apiCreateRoom, apiJoinRoom } from "../../api";
 import { AvatarSelector } from "../";
-import { Toast } from "../ui";
+import { Toast, WakeLock } from "../ui";
 import { generateUUID } from "../../utils/uuid";
 
 export default function Lobby() {
@@ -226,7 +226,8 @@ export default function Lobby() {
   }, [state]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 p-8">
+    <WakeLock isActive={!!state && state.players && Object.keys(state.players).length > 0}>
+      <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 p-8">
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-emerald-400 to-blue-400 bg-clip-text text-transparent mb-2">
@@ -470,6 +471,7 @@ export default function Lobby() {
       
       {/* Toast Notifications */}
       <Toast />
-    </div>
+      </div>
+    </WakeLock>
   );
 }
