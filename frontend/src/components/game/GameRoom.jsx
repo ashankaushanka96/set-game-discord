@@ -169,6 +169,7 @@ export default function GameRoom() {
           {isSupported ? "Native Wake Lock" : "iOS Fallback"}
         </div>
       </div>
+      
     </div>
   );
 }

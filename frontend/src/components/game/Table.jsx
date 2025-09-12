@@ -312,7 +312,7 @@ export default function Table() {
   return (
     <WakeLock isActive={state.phase === 'playing'}>
       <div className="p-3 md:p-6 relative min-h-screen flex flex-col" onClick={handleTableClick}>
-      <Celebration />
+      <Celebration tableCenterRef={tableCenterRef} />
       <DealingAnimation />
       
       {/* Back to Lobby Button - Top Left */}
