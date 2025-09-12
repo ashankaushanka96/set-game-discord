@@ -6,10 +6,12 @@ import { apiCreateRoom, apiJoinRoom } from "../../api";
 import { AvatarSelector } from "../";
 import { Toast, WakeLock } from "../ui";
 import { generateUUID } from "../../utils/uuid";
+import { useWakeLock } from "../../hooks/useWakeLock";
 
 export default function Lobby() {
   const navigate = useNavigate();
   const { me, setMe, setWS, setRoom, roomId, state, applyServer } = useStore();
+  const { isLocked, isSupported, error: wakeLockError, toggle } = useWakeLock();
   
   // Load saved profile data from localStorage
   const getSavedProfile = () => {
@@ -471,6 +473,36 @@ export default function Lobby() {
       
       {/* Toast Notifications */}
       <Toast />
+      
+      {/* Wake Lock Toggle Button - Floating in bottom right */}
+      <div className="fixed bottom-4 right-4 z-50">
+        <button
+          onClick={() => void toggle()}
+          className={`
+            px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200
+            ${isLocked 
+              ? 'bg-green-600 hover:bg-green-700 text-white' 
+              : 'bg-red-500 hover:bg-red-600 text-white'
+            }
+            shadow-lg border border-gray-500
+          `}
+          title={isLocked ? "Screen awake (click to disable)" : "Screen will sleep (click to keep awake)"}
+        >
+          {isLocked ? "🔒" : "🔓"}
+        </button>
+        
+        {/* Error message if wake lock fails */}
+        {wakeLockError && (
+          <div className="absolute bottom-12 right-0 bg-red-600 text-white text-xs px-2 py-1 rounded shadow-lg max-w-48">
+            Wake lock failed: {String(wakeLockError?.message || wakeLockError)}
+          </div>
+        )}
+        
+        {/* Platform info tooltip */}
+        <div className="absolute bottom-12 right-0 bg-gray-800 text-white text-xs px-2 py-1 rounded shadow-lg opacity-0 hover:opacity-100 transition-opacity">
+          {isSupported ? "Native Wake Lock" : "iOS Fallback"}
+        </div>
+      </div>
       </div>
     </WakeLock>
   );
