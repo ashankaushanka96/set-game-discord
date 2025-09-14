@@ -34,7 +34,7 @@ jobs:
           cd frontend
           npm run build
         env:
-          VITE_API_BASE: ${{ secrets.HOST }}
+          VITE_API_BASE: ${{ secrets.API_BASE }}
 
       - name: Create a directory and move files
         run: |
