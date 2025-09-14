@@ -1,78 +1,35 @@
-// Centralized configuration for backend API endpoints
-// This automatically detects the current host and uses it for the backend
+// config.ts
+// Usage expectations for VITE_API_BASE (in .env):
+// - Can be a full URL (https://api.example.com or http://10.0.0.5:8000)
+// - Or just host[:port][/path] (api.example.com, 10.0.0.5:8000, api.example.com/v1)
 
-const getBackendUrl = () => {
-  // Check if we're in production (deployed to server)
-  if (window.location.hostname === '35.197.5.54') {
-    // In production, use the same domain as the frontend
-    return window.location.origin;
-  }
-  
-  // Check if we're in production (GitHub Pages) - keep for backward compatibility
-  if (window.location.hostname === 'ashankaushanka96.github.io') {
-    // In production, use the HOST environment variable (set during build)
-    const productionHost = import.meta.env.VITE_API_BASE;
-    console.log('Production host from env:', productionHost); // Debug log
-    
-    if (productionHost) {
-      // If it's already a complete URL, use it as is
-      if (productionHost.startsWith('http://') || productionHost.startsWith('https://')) {
-        return productionHost;
-      }
-      // If it's just an IP, construct the full URL with HTTPS
-      return `https://${productionHost}`;
-    }
-    // Fallback - this should not happen if HOST secret is set correctly
-    console.error('VITE_API_BASE is not set! Check your GitHub secret HOST');
-    return 'https://35.197.5.54'; // Hardcoded fallback with HTTPS
-  }
-  const productionHost = import.meta.env.VITE_API_BASE;
-  if (productionHost) {
-    return `http://${productionHost}`;
-  }
-  // Development: Get the current host (e.g., localhost:5173, 192.168.1.100:5173, etc.)
-  const host = window.location.hostname;
-  
-  // Use the same host but port 8000 for backend
-  return `http://${host}:8000`;
+const resolveApiAndWs = () => {
+  const raw = import.meta.env.VITE_API_BASE?.trim();
+  if (!raw) throw new Error('VITE_API_BASE is not set');
+
+  // If someone passed ws/wss, normalize to http/https first
+  const normalized = raw.replace(/^wss?:\/\//i, (m) => (m.toLowerCase() === 'wss://' ? 'https://' : 'http://'));
+
+  // If no protocol provided, use the current page's protocol
+  const withProtocol =
+    /^https?:\/\//i.test(normalized) ? normalized : `${window.location.protocol}//${normalized}`;
+
+  const apiUrl = new URL(withProtocol);
+
+  // Build API base (keep origin + optional path; trim trailing slash)
+  const apiBase =
+    apiUrl.origin + (apiUrl.pathname.endsWith('/') ? apiUrl.pathname.slice(0, -1) : apiUrl.pathname);
+
+  // Derive WS base by swapping protocol
+  const wsUrl = new URL(apiBase);
+  wsUrl.protocol = wsUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsBase =
+    wsUrl.origin + (wsUrl.pathname.endsWith('/') ? wsUrl.pathname.slice(0, -1) : wsUrl.pathname);
+
+  return { apiBase, wsBase };
 };
 
-const getWebSocketUrl = () => {
-  // Check if we're in production (deployed to server)
-  if (window.location.hostname === '35.197.5.54') {
-    // In production, use the same domain as the frontend with WSS
-    return window.location.origin.replace('https://', 'wss://').replace('http://', 'ws://');
-  }
-  
-  // Check if we're in production (GitHub Pages) - keep for backward compatibility
-  if (window.location.hostname === 'ashankaushanka96.github.io') {
-    // In production, use the HOST environment variable (set during build)
-    const productionHost = import.meta.env.VITE_API_BASE;
-    if (productionHost) {
-      // If it's already a complete URL, convert to WebSocket
-      if (productionHost.startsWith('http://') || productionHost.startsWith('https://')) {
-        return productionHost.replace('http://', 'ws://').replace('https://', 'wss://');
-      }
-      // If it's just an IP, construct the WebSocket URL with WSS
-      return `wss://${productionHost}`;
-    }
-    // Fallback to WebSocket if no WSS available
-    return 'wss://35.197.5.54'; // Hardcoded fallback with WSS
-  }
-  const productionHost = import.meta.env.VITE_API_BASE;
-  if (productionHost) {
-    return `ws://${productionHost}`;
-  }
-  
-  // Development: Get the current host
-  const host = window.location.hostname;
-  return `ws://${host}:8000`;
-};
+const { apiBase, wsBase } = resolveApiAndWs();
 
-export const API_BASE = getBackendUrl();
-export const WS_BASE = getWebSocketUrl();
-
-// For development, you can override with specific IP if needed
-// Uncomment and modify the line below if you want to use a specific IP
-// export const API_BASE = "http://192.168.1.100:8000";
-// export const WS_BASE = "ws://192.168.1.100:8000";
+export const API_BASE = apiBase;
+export const WS_BASE = wsBase;

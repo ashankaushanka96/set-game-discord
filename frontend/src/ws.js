@@ -1,7 +1,7 @@
 import { WS_BASE } from './config.js';
 
 export function connectWS(roomId, playerId, onMessage) {
-    const ws = new WebSocket(`${WS_BASE}/ws/${roomId}/${playerId}`);
+    const ws = new WebSocket(`${WS_BASE}/api/v1/ws/${roomId}/${playerId}`);
     
     ws.onmessage = (ev) => {
       try { onMessage(JSON.parse(ev.data)); } catch {}

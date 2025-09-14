@@ -7,7 +7,7 @@ from models import WSMessage, Card
 from services.game_service import GameService
 from services.websocket_service import WebSocketService
 
-router = APIRouter()
+router = APIRouter(prefix="/api/v1")
 
 @router.websocket("/ws/{room_id}/{player_id}")
 async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):

@@ -7,7 +7,7 @@ from loguru import logger
 from models import Player
 from services.game_service import GameService
 
-router = APIRouter(prefix="/rooms", tags=["rooms"])
+router = APIRouter(prefix="/api/v1/rooms", tags=["rooms"])
 
 class CreateRoomResp(BaseModel):
     room_id: str
