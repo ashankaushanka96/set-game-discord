@@ -3,26 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useStore } from '../../store';
 import { connectWS, send } from '../../ws';
 import { Table } from '../';
-import { useWakeLock } from '../../hooks/useWakeLock';
 
 export default function GameRoom() {
   const { roomId, playerId } = useParams();
   const navigate = useNavigate();
   const { state, me, setMe, setRoom, setWS, applyServer } = useStore();
-  const { isLocked, isSupported, error, toggle, request } = useWakeLock();
-  const [autoEnableAttempted, setAutoEnableAttempted] = useState(false);
   
-  // Auto-enable wake lock when entering game room
-  useEffect(() => {
-    if (state && state.room_id === roomId && state.phase !== 'lobby') {
-      // Small delay to ensure the component is fully mounted
-      const timer = setTimeout(() => {
-        void request();
-        setAutoEnableAttempted(true);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [state, roomId, request]);
   
   // Set up global WebSocket update function for reconnection
   useEffect(() => {
