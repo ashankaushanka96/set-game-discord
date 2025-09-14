@@ -5,9 +5,9 @@
     state: directory
     mode: '0755'
 
-- name: Create application logs directory
-  file:
-    path: "{{ component_path }}/logs"
-    state: directory
-    mode: '0755'
+# - name: Create application logs directory
+#   file:
+#     path: "{{ component_path }}/logs"
+#     state: directory
+#     mode: '0755'
 
