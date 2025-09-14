@@ -367,7 +367,19 @@ export default function Table() {
             {handoffFor.eligible.map(pid => (
               <button key={pid} className="text-xs md:text-sm bg-emerald-700/70 hover:bg-emerald-700 px-2 md:px-3 py-1 rounded"
                 onClick={() => doHandoff(pid)}>
-                {players[pid]?.avatar} {players[pid]?.name}
+                <div className="flex items-center gap-2">
+                  {typeof players[pid]?.avatar === "string" && players[pid].avatar.startsWith("http") ? (
+                    <img 
+                      src={players[pid].avatar} 
+                      alt={players[pid]?.name || 'Player'} 
+                      className="h-5 w-5 rounded-full border border-white/30" 
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <span>{players[pid]?.avatar}</span>
+                  )}
+                  <span>{players[pid]?.name}</span>
+                </div>
               </button>
             ))}
           </div>

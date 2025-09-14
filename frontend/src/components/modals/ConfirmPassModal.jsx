@@ -28,7 +28,19 @@ export default function ConfirmPassModal({
         {isNoCase ? (
           <div className="space-y-3">
             <div className="text-sm opacity-80">
-              {target?.avatar} <strong>{target?.name}</strong>, you were asked for:
+              <div className="flex items-center gap-2">
+                {typeof target?.avatar === "string" && target.avatar.startsWith("http") ? (
+                  <img 
+                    src={target.avatar} 
+                    alt={target?.name || 'Player'} 
+                    className="h-5 w-5 rounded-full border border-white/30" 
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <span>{target?.avatar}</span>
+                )}
+                <strong>{target?.name}</strong>
+              </div>, you were asked for:
             </div>
             <div className="flex items-center gap-2">
               <Card suit={suit} rank={askedRank} size="sm" />
@@ -41,7 +53,19 @@ export default function ConfirmPassModal({
         ) : (
           <div>
             <div className="text-sm opacity-80 mb-2">
-              {target?.avatar} <strong>{target?.name}</strong>, confirm passing these card(s) to {asker?.name}:
+              <div className="flex items-center gap-2">
+                {typeof target?.avatar === "string" && target.avatar.startsWith("http") ? (
+                  <img 
+                    src={target.avatar} 
+                    alt={target?.name || 'Player'} 
+                    className="h-5 w-5 rounded-full border border-white/30" 
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <span>{target?.avatar}</span>
+                )}
+                <strong>{target?.name}</strong>
+              </div>, confirm passing these card(s) to {asker?.name}:
             </div>
             <div className="flex flex-wrap gap-2">
               {cards.map((c, i) => (

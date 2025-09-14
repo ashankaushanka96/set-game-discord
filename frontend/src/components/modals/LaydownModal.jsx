@@ -341,7 +341,19 @@ export default function LaydownModal({ onClose }) {
                   <div key={tm.id} className={`rounded-xl p-3 ${
                     assigned.size > 0 ? "bg-emerald-500/20 border-2 border-emerald-500" : "bg-zinc-850/40 border-2 border-transparent"
                   }`}>
-                    <div className="mb-2 text-sm">{tm.avatar} {tm.name}</div>
+                    <div className="mb-2 text-sm flex items-center gap-2">
+                      {typeof tm.avatar === "string" && tm.avatar.startsWith("http") ? (
+                        <img 
+                          src={tm.avatar} 
+                          alt={tm.name || 'Player'} 
+                          className="h-5 w-5 rounded-full border border-white/30" 
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <span>{tm.avatar}</span>
+                      )}
+                      <span>{tm.name}</span>
+                    </div>
                     {available.length ? (
                       <div className="flex flex-wrap gap-2">
                         {available.map((r) => {

@@ -26,9 +26,18 @@ export default function Seat({ seatIndex, player, highlight, selectable, onSelec
       >
         {/* Avatar Background */}
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-4xl sm:text-5xl md:text-6xl opacity-60 select-none">
-            {player?.avatar || '🔥'}
-          </div>
+          {typeof player?.avatar === "string" && player.avatar.startsWith("http") ? (
+            <img 
+              src={player.avatar} 
+              alt={player.name || 'Player'} 
+              className="h-16 w-16 sm:h-20 sm:w-20 md:h-24 md:w-24 rounded-full opacity-60 select-none object-cover border-2 border-white/20" 
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className="text-4xl sm:text-5xl md:text-6xl opacity-60 select-none">
+              {player?.avatar || '🔥'}
+            </div>
+          )}
         </div>
         
         {/* Content Overlay */}

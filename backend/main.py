@@ -3,9 +3,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
-from routes import rooms_router, websocket_router
+from routes import rooms_router, websocket_router, discord_exchange_router
 from services.websocket_service import WebSocketService
 from config import setup_logging
+from dotenv import load_dotenv
+
+# Load .env file into environment
+load_dotenv()
 
 # Setup logging
 setup_logging()
@@ -31,3 +35,4 @@ app.add_middleware(
 # Include routers
 app.include_router(rooms_router)
 app.include_router(websocket_router)
+app.include_router(discord_exchange_router)

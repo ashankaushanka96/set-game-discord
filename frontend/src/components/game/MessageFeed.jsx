@@ -53,7 +53,16 @@ export default function MessageFeed() {
                     <div className="flex-1 min-w-0">
                       {m.avatar && (
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm">{m.avatar}</span>
+                          {typeof m.avatar === "string" && m.avatar.startsWith("http") ? (
+                            <img 
+                              src={m.avatar} 
+                              alt={m.name || 'Player'} 
+                              className="h-4 w-4 rounded-full border border-white/30" 
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            <span className="text-sm">{m.avatar}</span>
+                          )}
                           <span className="text-xs text-white/70 font-medium">{m.name}</span>
                         </div>
                       )}
