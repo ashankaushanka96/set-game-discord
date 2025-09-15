@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useStore } from "../../store";
 import { connectWS, send } from "../../ws";
 import { apiCreateRoom, apiJoinRoom } from "../../api";
-import { AvatarSelector } from "../";
+// Avatar selection removed; we always use Discord profile
 import { Toast } from "../ui";
 import { generateUUID } from "../../utils/uuid";
 import { DiscordSDK }  from "@discord/embedded-app-sdk";
@@ -19,50 +19,45 @@ export default function Lobby() {
   const [usingDiscordProfile, setUsingDiscordProfile] = useState(false);
   const authRanRef = useRef(false);
   const [profileLoaded, setProfileLoaded] = useState(false);
+  const [canBrowserOAuth, setCanBrowserOAuth] = useState(false);
 
-  // Load saved profile data from localStorage
-  const getSavedProfile = () => {
-    try {
-      const saved = localStorage.getItem("player_profile");
-      if (saved) {
-        const profile = JSON.parse(saved);
-        return {
-          name: profile.name || `Player ${Math.random().toString(16).slice(2, 6)}`,
-          avatar: profile.avatar || "🔥",
-        };
-      }
-    } catch (error) {
-      console.error("Failed to load saved profile:", error);
-    }
-    return {
-      name: `Player ${Math.random().toString(16).slice(2, 6)}`,
-      avatar: "🔥",
-    };
-  };
-
-  const [name, setName] = useState(me?.name || getSavedProfile().name);
-  const [avatar, setAvatar] = useState(me?.avatar || getSavedProfile().avatar);
+  // We always use Discord for profile; start empty until loaded
+  const [name, setName] = useState("");
+  const [avatar, setAvatar] = useState("");
   const [roomInput, setRoomInput] = useState(roomId || "");
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  // Save profile data to localStorage
-  const saveProfile = (nameValue, avatarValue) => {
-    try {
-      localStorage.setItem(
-        "player_profile",
-        JSON.stringify({ name: nameValue, avatar: avatarValue })
-      );
-    } catch (error) {
-      console.error("Failed to save profile:", error);
-    }
-  };
-
   // ensure per-tab identity
   useEffect(() => {
+    try { localStorage.removeItem('player_profile'); } catch {}
     setMe({ id: me?.id || generateUUID(), name, avatar });
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // If not embedded in Discord and no OAuth code, auto-redirect to Discord authorize
+  useEffect(() => {
+    try {
+      const ref = (document.referrer || '').toLowerCase();
+      const ao = window.location.ancestorOrigins;
+      const ancestors = ao && ao.length ? Array.from(ao).join(' ').toLowerCase() : '';
+      const combined = `${ref} ${ancestors}`;
+      const isEmbedded = combined.includes('discord.com') || combined.includes('ptb.discord.com') || combined.includes('canary.discord.com');
+      if (isEmbedded) return; // handled by SDK flow below
+
+      const url = new URL(window.location.href);
+      const hasCode = url.searchParams.get('code');
+      if (!hasCode) {
+        const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
+        if (!clientId) return;
+        const redirectUri = encodeURIComponent(`${window.location.origin}${window.location.pathname}?from=discord`);
+        const authUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&response_type=code&scope=identify&redirect_uri=${redirectUri}`;
+        window.location.href = authUrl;
+      }
+    } catch (_) {
+      // ignore
+    }
   }, []);
 
   // Initialize Discord SDK and get user info via OAuth
@@ -97,34 +92,8 @@ export default function Lobby() {
         await discordSdk.ready();
         console.debug("[Discord] SDK ready");
         
-        // Test: Try to get user data immediately without OAuth
-        console.debug("[Discord] Testing immediate user data retrieval...");
-        try {
-          // Check if we can get user data directly
-          const testUser = await discordSdk.commands.getUser({ id: "826307641058918441" });
-          console.debug("[Discord] Got test user data:", testUser);
-          
-          if (testUser) {
-            const displayName = testUser.global_name || testUser.username || "Discord User";
-            const avatarUrl = discordAvatarUrl(testUser.id, testUser.avatar, 128);
-            
-            console.debug("[Discord] Setting profile from test user:", { displayName, avatarUrl });
-            setUsingDiscordProfile(true);
-            setName(displayName);
-            setAvatar(avatarUrl);
-            saveProfile(displayName, avatarUrl);
-            
-            // Update store
-            const cur = useStore.getState().me || {};
-            const updatedMe = { ...cur, name: displayName, avatar: avatarUrl };
-            setMe(updatedMe);
-            
-            setProfileLoaded(true);
-            return;
-          }
-        } catch (testError) {
-          console.debug("[Discord] Test user retrieval failed:", testError);
-        }
+        // Removed: ad-hoc test user fetch. We only update the UI
+        // when we have authenticated, real Discord user data.
 
 
         // Check if we're in Discord environment
@@ -136,16 +105,14 @@ export default function Lobby() {
         const validDiscordPlatforms = ['web', 'desktop', 'canary', 'ptb'];
         if (!validDiscordPlatforms.includes(discordSdk.platform)) {
           console.warn("[Discord] Not running in Discord environment, platform:", discordSdk.platform);
+          // We are on a normal browser tab, allow standard OAuth as a fallback
+          setCanBrowserOAuth(true);
           setProfileLoaded(true);
           return;
         }
         
-        // Test: Set a test value to see if state updates work
-        console.debug("[Discord] Testing state update with test values...");
-        setUsingDiscordProfile(true);
-        setName("Discord Test User");
-        setAvatar("🎮");
-        console.debug("[Discord] Test values set, checking if UI updates...");
+        // Skip setting any temporary values; wait for real Discord data
+        console.debug("[Discord] Skipping temporary test values; awaiting real Discord profile...");
         
         console.debug("[Discord] Running in Discord environment:", discordSdk.platform);
         
@@ -154,11 +121,8 @@ export default function Lobby() {
         await new Promise(resolve => setTimeout(resolve, 2000));
         console.debug("[Discord] Continuing with Discord auth after delay...");
         
-        // Test: Update to a different test value to see if state updates work
-        console.debug("[Discord] Testing state update with different test values...");
-        setName("Discord Auth Test");
-        setAvatar("🎯");
-        console.debug("[Discord] Updated test values set");
+        // No-op: don't override with placeholder values
+        console.debug("[Discord] Continuing with Discord auth without placeholder overrides...");
 
         // Try different approaches to get user data
         let user = null;
@@ -229,56 +193,37 @@ export default function Lobby() {
             const { access_token } = await tokenRes.json();
             console.debug("[Discord] Token exchange successful");
 
-            // Authenticate with Discord SDK
-            await discordSdk.commands.authenticate({ access_token });
-            console.debug("[Discord] SDK authentication successful");
-
-            // Debug: Check what properties are available on the SDK after authentication
-            console.debug("[Discord] SDK properties after auth:", {
-              userId: discordSdk.userId,
-              user: discordSdk.user,
-              platform: discordSdk.platform,
-              guildId: discordSdk.guildId,
-              channelId: discordSdk.channelId,
-              allProperties: Object.keys(discordSdk)
+            // Fetch the current user directly with the token and update UI immediately
+            console.debug("[Discord] Fetching /users/@me with access token...");
+            const meRes = await fetch('https://discord.com/api/users/@me', {
+              headers: { Authorization: `Bearer ${access_token}` },
             });
+            if (!meRes.ok) {
+              const t = await meRes.text();
+              throw new Error(`users/@me failed: ${t}`);
+            }
+            const meUser = await meRes.json();
+            const displayName = meUser.global_name || meUser.username || '';
+            const avatarUrl = discordAvatarUrl(meUser.id, meUser.avatar, 128);
+            setUsingDiscordProfile(Boolean(avatarUrl));
+            setName(displayName);
+            setAvatar(avatarUrl);
+            const cur = useStore.getState().me || {};
+            const updatedMe = { ...cur, name: displayName, avatar: avatarUrl };
+            setMe(updatedMe);
+            console.debug('[Discord] Updated profile from REST:', updatedMe);
+            setProfileLoaded(true);
 
-            // Try to get user ID from various possible locations
-            let currentUserId = discordSdk.userId || discordSdk.user?.id || discordSdk.instanceId;
-            console.debug("[Discord] Current user ID after auth:", currentUserId);
-            
-            if (currentUserId) {
-              console.debug("[Discord] Attempting getUser with ID:", currentUserId);
-              try {
-                user = await discordSdk.commands.getUser({ id: currentUserId });
-                console.debug("[Discord] Got user from SDK after auth:", user);
-              } catch (getUserError) {
-                console.debug("[Discord] getUser with instance ID failed:", getUserError);
-                // Fall through to direct API call
-                currentUserId = null; // Force fallback
-              }
+            // Also authenticate the SDK (optional, for other features)
+            try {
+              await discordSdk.commands.authenticate({ access_token });
+              console.debug('[Discord] SDK authenticate succeeded');
+            } catch (authErr) {
+              console.warn('[Discord] SDK authenticate failed (non-fatal):', authErr);
             }
-            
-            if (!user) {
-              // Try to get user info directly from the access token
-              console.debug("[Discord] No user ID found, trying to get user info from access token...");
-              console.debug("[Discord] Making API call to https://discord.com/api/users/@me");
-              const userRes = await fetch("https://discord.com/api/users/@me", {
-                headers: { Authorization: `Bearer ${access_token}` },
-              });
-              
-              console.debug("[Discord] API response status:", userRes.status);
-              if (userRes.ok) {
-                user = await userRes.json();
-                console.debug("[Discord] Got user from Discord API:", user);
-                console.debug("[Discord] User username:", user.username);
-                console.debug("[Discord] User global_name:", user.global_name);
-              } else {
-                const errorText = await userRes.text();
-                console.error("[Discord] API call failed:", errorText);
-                throw new Error("Still no user ID available after OAuth and API call failed");
-              }
-            }
+
+            // Done; skip the rest of the older code path
+            return;
           } catch (error3) {
             console.error("[Discord] OAuth flow also failed:", error3);
             throw error3;
@@ -312,10 +257,10 @@ export default function Lobby() {
 
         console.debug("[Discord] About to update state with:", { displayName, avatarUrl });
         
-        setUsingDiscordProfile(true);
+        // Only mark as using Discord profile if we have a URL/avatar
+        setUsingDiscordProfile(Boolean(avatarUrl));
         setName(displayName);
         setAvatar(avatarUrl);
-        saveProfile(displayName, avatarUrl);
         
         console.debug("[Discord] Profile state updated:", { 
           usingDiscordProfile: true, 
@@ -355,12 +300,66 @@ export default function Lobby() {
         setProfileLoaded(true);
       } catch (e) {
         console.error("[Discord] Discord auth failed:", e);
+        setUsingDiscordProfile(false);
         setProfileLoaded(true);
       }
     })();
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Browser (non-embedded) OAuth fallback
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get('code');
+    const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID || "";
+    if (!clientId) return;
+    if (!code) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        // Exchange code with backend
+        const redirectUriRaw = window.location.origin + window.location.pathname + '?from=discord';
+        const tokenRes = await fetch(`/api/v1/discord/exchange`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, redirect_uri: redirectUriRaw }),
+        });
+        if (!tokenRes.ok) {
+          console.error('[Discord] Browser OAuth: token exchange failed', await tokenRes.text());
+          return;
+        }
+        const { access_token } = await tokenRes.json();
+        // Fetch user
+        const userRes = await fetch('https://discord.com/api/users/@me', {
+          headers: { Authorization: `Bearer ${access_token}` },
+        });
+        if (!userRes.ok) {
+          console.error('[Discord] Browser OAuth: user fetch failed', await userRes.text());
+          return;
+        }
+        const user = await userRes.json();
+        if (cancelled) return;
+
+        const displayName = user.global_name || user.username || name;
+        const avatarUrl = discordAvatarUrl(user.id, user.avatar, 128);
+        setUsingDiscordProfile(Boolean(avatarUrl));
+        setName(displayName);
+        setAvatar(avatarUrl);
+        setProfileLoaded(true);
+
+        // Clean the URL
+        url.searchParams.delete('code');
+        url.searchParams.delete('from');
+        window.history.replaceState({}, '', url.toString());
+      } catch (err) {
+        console.error('[Discord] Browser OAuth failed', err);
+      }
+    })();
+    return () => { cancelled = true };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -381,11 +380,8 @@ export default function Lobby() {
 
   useEffect(() => {
     console.debug("[State] Name/avatar changed:", { name, avatar, usingDiscordProfile });
-    setMe({ ...useStore.getState().me, name, avatar });
-    // Only save to localStorage if not using Discord profile (to avoid overriding Discord data)
-    if (!usingDiscordProfile) {
-      saveProfile(name, avatar);
-    }
+        setMe({ ...useStore.getState().me, name, avatar });
+    // No local persistence: always use Discord values
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name, avatar, usingDiscordProfile]);
 
@@ -563,7 +559,7 @@ export default function Lobby() {
           <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-6 border border-zinc-700/50 relative overflow-visible">
             <h2 className="font-semibold mb-4 text-lg flex items-center gap-2">
               <span className="text-emerald-400">👤</span>
-              {!profileLoaded ? "Loading Discord Profile..." : usingDiscordProfile ? "Discord Profile" : "Create Profile (per tab)"}
+              {!profileLoaded ? "Loading Discord Profile..." : "Discord Profile"}
             </h2>
             <div className="space-y-4">
               <div>
@@ -571,9 +567,8 @@ export default function Lobby() {
                 <input
                   className="w-full bg-zinc-800 border border-zinc-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Enter your name"
-                  readOnly={usingDiscordProfile}
+                  readOnly
+                  placeholder="Discord name"
                 />
               </div>
               {!profileLoaded ? (
@@ -581,16 +576,18 @@ export default function Lobby() {
                   <div className="h-10 w-10 rounded-full border border-zinc-600 bg-zinc-700 animate-pulse"></div>
                   <div className="text-sm text-zinc-400">Loading Discord avatar...</div>
                 </div>
-              ) : !usingDiscordProfile ? (
-                <AvatarSelector selectedAvatar={avatar} onAvatarSelect={setAvatar} />
               ) : (
                 <div className="flex items-center gap-3">
-                  <img
-                    src={avatar}
-                    alt="Discord avatar"
-                    className="h-10 w-10 rounded-full border border-zinc-600"
-                    referrerPolicy="no-referrer"
-                  />
+                  {typeof avatar === "string" && avatar.startsWith("http") ? (
+                    <img
+                      src={avatar}
+                      alt="Discord avatar"
+                      className="h-10 w-10 rounded-full border border-zinc-600"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <span className="text-2xl">{avatar || "🙂"}</span>
+                  )}
                   <div className="text-sm text-zinc-400">Avatar from Discord</div>
                 </div>
               )}

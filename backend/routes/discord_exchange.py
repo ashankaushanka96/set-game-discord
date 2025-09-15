@@ -10,6 +10,7 @@ DISCORD_TOKEN_URL = "https://discord.com/api/oauth2/token"
 
 class ExchangeBody(BaseModel):
     code: str
+    redirect_uri: str | None = None
 
 @router.post("/discord/exchange")
 async def discord_exchange(body: ExchangeBody):
@@ -26,7 +27,9 @@ async def discord_exchange(body: ExchangeBody):
         "client_secret": client_secret,
         "grant_type": "authorization_code",
         "code": body.code,
-        "redirect_uri": "https://discord.com",
+        # For embedded apps, Discord requires a value but ignores it.
+        # For standard browser OAuth, this must match the authorize redirect_uri.
+        "redirect_uri": body.redirect_uri or "https://discord.com",
     }
 
     async with httpx.AsyncClient(timeout=15) as client:
