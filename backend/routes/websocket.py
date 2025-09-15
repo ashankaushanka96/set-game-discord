@@ -9,6 +9,72 @@ from services.websocket_service import WebSocketService
 
 router = APIRouter(prefix="/api/v1")
 
+async def cleanup_room_immediately(room_id: str):
+    """Immediately clean up a room when the last WebSocket connection is removed."""
+    try:
+        logger.info(f"Starting immediate cleanup of room {room_id}")
+        
+        # Remove from GameService
+        if room_id in GameService.rooms:
+            del GameService.rooms[room_id]
+            logger.info(f"Removed room {room_id} from GameService")
+        else:
+            logger.debug(f"Room {room_id} not found in GameService")
+        
+        # Remove from WebSocketService connections (should already be empty)
+        if room_id in WebSocketService.connections:
+            del WebSocketService.connections[room_id]
+            logger.info(f"Removed room {room_id} from WebSocketService connections")
+        else:
+            logger.debug(f"Room {room_id} not found in WebSocketService connections")
+        
+        logger.info(f"Successfully completed immediate cleanup of room {room_id}")
+        
+    except Exception as e:
+        logger.error(f"Error during immediate room cleanup for {room_id}: {e}")
+
+async def check_and_cleanup_empty_room(room_id: str):
+    """Check if a room has no connected players and clean it up if so."""
+    try:
+        # Check if there are any WebSocket connections for this room
+        has_connections = (
+            room_id in WebSocketService.connections and 
+            len(WebSocketService.connections[room_id]) > 0
+        )
+        
+        if not has_connections:
+            # No WebSocket connections, check if room exists in GameService
+            if room_id in GameService.rooms:
+                game = GameService.rooms[room_id]
+                
+                # Check if there are any connected players in the game state
+                connected_players = [
+                    player for player in game.state.players.values() 
+                    if player.connected
+                ]
+                
+                if not connected_players:
+                    # No connected players, clean up the room
+                    logger.info(f"Cleaning up empty room {room_id} - no connected players")
+                    
+                    # Remove from GameService
+                    del GameService.rooms[room_id]
+                    
+                    # Remove from WebSocketService connections (should already be empty)
+                    if room_id in WebSocketService.connections:
+                        del WebSocketService.connections[room_id]
+                    
+                    logger.info(f"Successfully cleaned up room {room_id}")
+                else:
+                    logger.debug(f"Room {room_id} still has {len(connected_players)} connected players, not cleaning up")
+            else:
+                logger.debug(f"Room {room_id} not found in GameService, nothing to clean up")
+        else:
+            logger.debug(f"Room {room_id} still has WebSocket connections, not cleaning up")
+            
+    except Exception as e:
+        logger.error(f"Error during room cleanup for {room_id}: {e}")
+
 @router.websocket("/ws/{room_id}/{player_id}")
 async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
     logger.info(f"WebSocket connection attempt: room={room_id}, player={player_id}")
@@ -275,6 +341,16 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
             if room_id in WebSocketService.connections and player_id in WebSocketService.connections[room_id]:
                 del WebSocketService.connections[room_id][player_id]
                 logger.debug(f"Removed player {player_id} from connections in room {room_id}")
+                
+                # Check if this was the last WebSocket connection
+                remaining_connections = len(WebSocketService.connections.get(room_id, {}))
+                logger.info(f"Room {room_id} now has {remaining_connections} WebSocket connections")
+                
+                if remaining_connections == 0:
+                    # Last player disconnected, clean up the room immediately
+                    logger.info(f"Last player disconnected from room {room_id}, cleaning up room")
+                    await cleanup_room_immediately(room_id)
+                    return  # Exit early since room is being cleaned up
             
             # Notify other players about disconnection
             await WebSocketService.broadcast(room_id, "player_disconnected", {
@@ -282,5 +358,6 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                 "player_name": player_name,
                 "state": game.state.model_dump()
             })
+            
         except Exception as e:
             logger.error(f"Error handling WebSocket disconnect for player {player_id}: {e}")

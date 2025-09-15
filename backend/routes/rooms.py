@@ -19,7 +19,26 @@ class JoinReq(BaseModel):
 
 @router.get("/health")
 def health_check():
-    return {"status": "ok", "message": "Backend is running"}
+    from services.game_service import GameService
+    stats = GameService.get_room_stats()
+    return {
+        "status": "ok", 
+        "message": "Backend is running",
+        "room_stats": stats
+    }
+
+@router.post("/cleanup")
+def cleanup_rooms():
+    """Manually trigger room cleanup and return statistics."""
+    from services.game_service import GameService
+    cleaned_count = GameService.cleanup_empty_rooms()
+    stats = GameService.get_room_stats()
+    return {
+        "status": "ok",
+        "message": f"Cleaned up {cleaned_count} empty rooms",
+        "cleaned_count": cleaned_count,
+        "room_stats": stats
+    }
 
 @router.post("/", response_model=CreateRoomResp)
 def create_room():
