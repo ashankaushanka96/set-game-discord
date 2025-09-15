@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useStore } from '../../store';
 import { Card, CardBack } from '../cards';
 
@@ -7,7 +7,9 @@ const DealingAnimation = () => {
   const [phase, setPhase] = useState('idle'); // 'idle', 'dealing', 'complete'
   const [flyingCards, setFlyingCards] = useState([]);
   const [handCards, setHandCards] = useState({}); // Track cards appearing in hands
+  const [cardPositions, setCardPositions] = useState({}); // Track current positions of flying cards
   const seatRefs = useRef({});
+  const animationRefs = useRef({});
 
   // Get seat positions from the actual table
   useEffect(() => {
@@ -25,7 +27,11 @@ const DealingAnimation = () => {
 
     updateSeatPositions();
     window.addEventListener('resize', updateSeatPositions);
-    return () => window.removeEventListener('resize', updateSeatPositions);
+    window.addEventListener('scroll', updateSeatPositions);
+    return () => {
+      window.removeEventListener('resize', updateSeatPositions);
+      window.removeEventListener('scroll', updateSeatPositions);
+    };
   }, []);
 
   // Get dealer position for shuffle animation
@@ -38,6 +44,38 @@ const DealingAnimation = () => {
     }
     return { x: '50%', y: '50%' };
   };
+
+  // Animate card from start to target position
+  const animateCard = useCallback((cardKey, fromPos, targetPos, duration = 800) => {
+    const startTime = performance.now();
+    
+    const animate = (currentTime) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // Easing function (ease-out)
+      const easeOut = 1 - Math.pow(1 - progress, 3);
+      
+      // Calculate current position
+      const currentX = fromPos.x + (targetPos.x - fromPos.x) * easeOut;
+      const currentY = fromPos.y + (targetPos.y - fromPos.y) * easeOut;
+      
+      // Update position
+      setCardPositions(prev => ({
+        ...prev,
+        [cardKey]: { x: currentX, y: currentY }
+      }));
+      
+      if (progress < 1) {
+        animationRefs.current[cardKey] = requestAnimationFrame(animate);
+      } else {
+        // Animation complete
+        delete animationRefs.current[cardKey];
+      }
+    };
+    
+    animationRefs.current[cardKey] = requestAnimationFrame(animate);
+  }, []);
 
   useEffect(() => {
     if (!dealingAnimation) {
@@ -124,15 +162,31 @@ const DealingAnimation = () => {
       // Process each card in sequence
       dealSequence.forEach((cardData, index) => {
         setTimeout(() => {
+          const cardKey = `${cardData.id}-${Date.now()}`;
+          
           // Add flying card
           setFlyingCards(prev => [...prev, {
             ...cardData,
-            key: `${cardData.id}-${Date.now()}`
+            key: cardKey
           }]);
+
+          // Start animation
+          const seatPos = seatRefs.current[cardData.seat];
+          const fromSeat = cardData.fromSeat !== undefined ? cardData.fromSeat : dealingAnimation.dealerSeat;
+          const fromPos = seatRefs.current[fromSeat];
+          
+          if (seatPos && fromPos) {
+            animateCard(cardKey, fromPos, seatPos, 800);
+          }
 
           // Remove flying card after animation and add to hand
           setTimeout(() => {
-            setFlyingCards(prev => prev.filter(c => c.key !== cardData.key));
+            setFlyingCards(prev => prev.filter(c => c.key !== cardKey));
+            setCardPositions(prev => {
+              const newPositions = { ...prev };
+              delete newPositions[cardKey];
+              return newPositions;
+            });
             
             // Add card to player's hand
             setHandCards(prev => ({
@@ -165,7 +219,11 @@ const DealingAnimation = () => {
     }, 200); // Small delay to ensure seat positions are updated
 
     return () => {
-      // Cleanup handled by individual timeouts
+      // Cleanup animations
+      Object.values(animationRefs.current).forEach(animationId => {
+        cancelAnimationFrame(animationId);
+      });
+      animationRefs.current = {};
     };
   }, [dealingAnimation]);
 
@@ -188,18 +246,17 @@ const DealingAnimation = () => {
         const isMyCard = card.playerId === me?.id;
         const showRealCard = isMyCard && card.card;
 
+        // Get current position from state, fallback to fromPos
+        const currentPos = cardPositions[card.key] || fromPos;
+
         return (
           <div
             key={card.key}
-            className="absolute"
+            className="fixed"
             style={{
-              left: `${fromPos.x}px`,
-              top: `${fromPos.y}px`,
+              left: `${currentPos.x}px`,
+              top: `${currentPos.y}px`,
               transform: 'translate(-50%, -50%)',
-              animation: `dealCardToSeat${card.seat} 0.8s ease-out forwards`,
-              animationFillMode: 'forwards',
-              '--target-x': `${seatPos.x}px`,
-              '--target-y': `${seatPos.y}px`,
             }}
           >
             {showRealCard ? (
