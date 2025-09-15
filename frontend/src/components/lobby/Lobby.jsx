@@ -23,6 +23,7 @@ export default function Lobby() {
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [isDiscordEmbedded, setIsDiscordEmbedded] = useState(false);
   const [canBrowserOAuth, setCanBrowserOAuth] = useState(false);
+  const [redirectingToGame, setRedirectingToGame] = useState(false);
 
 
   const fetchUserWithToken = async (accessToken) => {
@@ -47,9 +48,10 @@ export default function Lobby() {
       setName(displayName);
       setAvatar(avatarUrl);
       const cur = useStore.getState().me || {};
-      const updatedMe = { ...cur, name: displayName, avatar: avatarUrl };
+      // Use Discord user ID as player ID for consistent reconnection
+      const updatedMe = { ...cur, id: meUser.id, name: displayName, avatar: avatarUrl };
       setMe(updatedMe);
-      console.debug('[Discord] Updated profile from stored token:', updatedMe);
+      console.debug('[Discord] Updated profile from stored token with Discord ID:', updatedMe);
       return true;
     } catch (error) {
       console.error("[Discord] Failed to fetch user with stored token:", error);
@@ -63,10 +65,13 @@ export default function Lobby() {
   const [avatar, setAvatar] = useState("");
   const [error, setError] = useState("");
 
-  // ensure per-tab identity
+  // ensure per-tab identity - use Discord user ID if available
   useEffect(() => {
     try { localStorage.removeItem('player_profile'); } catch {}
-    setMe({ id: me?.id || generateUUID(), name, avatar });
+    // Use Discord user ID as player ID for consistent reconnection
+    const playerId = me?.id || generateUUID();
+    setMe({ id: playerId, name, avatar });
+    console.debug("[Lobby] Player ID set:", playerId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -294,9 +299,10 @@ export default function Lobby() {
             setName(displayName);
             setAvatar(avatarUrl);
             const cur = useStore.getState().me || {};
-            const updatedMe = { ...cur, name: displayName, avatar: avatarUrl };
+            // Use Discord user ID as player ID for consistent reconnection
+            const updatedMe = { ...cur, id: meUser.id, name: displayName, avatar: avatarUrl };
             setMe(updatedMe);
-            console.debug('[Discord] Updated profile from REST:', updatedMe);
+            console.debug('[Discord] Updated profile from REST with Discord ID:', updatedMe);
             setProfileLoaded(true);
 
             // Also authenticate the SDK (optional, for other features)
@@ -384,9 +390,10 @@ export default function Lobby() {
         
         // Update store immediately
         const cur = useStore.getState().me || {};
-        const updatedMe = { ...cur, name: displayName, avatar: avatarUrl };
+        // Use Discord user ID as player ID for consistent reconnection
+        const updatedMe = { ...cur, id: meUser.id, name: displayName, avatar: avatarUrl };
         setMe(updatedMe);
-        console.debug("[Discord] Store updated with:", updatedMe);
+        console.debug("[Discord] Store updated with Discord ID:", updatedMe);
 
         // If already in a room, upsert profile on server and optionally via WS
         try {
@@ -517,7 +524,9 @@ export default function Lobby() {
 
   useEffect(() => {
     console.debug("[State] Name/avatar changed:", { name, avatar, usingDiscordProfile });
-        setMe({ ...useStore.getState().me, name, avatar });
+    const currentMe = useStore.getState().me;
+    // Preserve the Discord user ID when updating name/avatar
+    setMe({ ...currentMe, name, avatar });
     // No local persistence: always use Discord values
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name, avatar, usingDiscordProfile]);
@@ -710,6 +719,45 @@ export default function Lobby() {
   console.debug("[Lobby] Lobby locked:", state?.lobby_locked);
   console.debug("[Lobby] Phase:", state?.phase);
 
+  // Check if current player has a seat in an active game and redirect them
+  useEffect(() => {
+    if (profileLoaded && state && me && roomId) {
+      const currentPlayer = state.players[me.id];
+      const hasSeat = currentPlayer && currentPlayer.seat !== null && currentPlayer.seat !== undefined;
+      const gameActive = state.phase === "ready" || state.phase === "playing";
+      
+      console.debug("[Lobby] Reconnection check:", {
+        profileLoaded,
+        hasState: !!state,
+        hasMe: !!me,
+        hasRoomId: !!roomId,
+        meId: me?.id,
+        currentPlayer: currentPlayer,
+        hasSeat,
+        gameActive,
+        playerSeat: currentPlayer?.seat,
+        phase: state.phase,
+        allPlayers: Object.keys(state.players || {}),
+        seats: state.seats
+      });
+      
+      if (hasSeat && gameActive) {
+        console.debug("[Lobby] Player has seat in active game, redirecting to game room");
+        setRedirectingToGame(true);
+        // Add a delay to ensure WebSocket is connected and state is synced
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('navigate-to-game', {
+            detail: { roomId: state.room_id, playerId: me.id }
+          }));
+        }, 500); // Increased delay to ensure sync
+      } else if (gameActive && !hasSeat) {
+        console.debug("[Lobby] Game is active but player has no seat - showing lobby locked");
+      } else if (!gameActive) {
+        console.debug("[Lobby] Game is not active - showing normal lobby");
+      }
+    }
+  }, [profileLoaded, state, me, roomId]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 p-8">
       <div className="max-w-6xl mx-auto">
@@ -729,6 +777,42 @@ export default function Lobby() {
           </div>
         )}
 
+        {/* Loading Profile Screen */}
+        {!profileLoaded && (
+          <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-8 border border-zinc-700/50 text-center">
+            <div className="max-w-md mx-auto">
+              <div className="text-6xl mb-4 animate-pulse">🔄</div>
+              <h2 className="text-2xl font-bold text-blue-400 mb-4">Loading Discord Profile</h2>
+              <p className="text-zinc-300 mb-6">
+                Please wait while we load your Discord profile information...
+              </p>
+              <div className="bg-blue-600/20 border border-blue-500/40 px-4 py-3 rounded-lg">
+                <p className="text-sm text-blue-200">
+                  This may take a few seconds
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Redirecting to Game Screen */}
+        {redirectingToGame && (
+          <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-8 border border-zinc-700/50 text-center">
+            <div className="max-w-md mx-auto">
+              <div className="text-6xl mb-4 animate-bounce">🎮</div>
+              <h2 className="text-2xl font-bold text-green-400 mb-4">Rejoining Game</h2>
+              <p className="text-zinc-300 mb-6">
+                You have a seat in an active game. Redirecting you back to your game...
+              </p>
+              <div className="bg-green-600/20 border border-green-500/40 px-4 py-3 rounded-lg">
+                <p className="text-sm text-green-200">
+                  Please wait while we reconnect you to your game seat
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Lobby Locked Message */}
         {state?.lobby_locked && (
           <div className="mb-6 text-sm bg-amber-600/20 border border-amber-500/40 px-4 py-3 rounded-lg backdrop-blur-sm">
@@ -740,7 +824,7 @@ export default function Lobby() {
         )}
 
         {/* Show lobby locked screen when game is in progress */}
-        {(state?.lobby_locked || state?.phase !== "lobby") ? (
+        {profileLoaded && !redirectingToGame && (state?.lobby_locked === true || (state?.phase && state?.phase !== "lobby")) ? (
           <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-8 border border-zinc-700/50 text-center">
             <div className="max-w-md mx-auto">
               <div className="text-6xl mb-4">🔒</div>
@@ -760,7 +844,7 @@ export default function Lobby() {
               </div>
             </div>
           </div>
-        ) : (
+        ) : profileLoaded && !redirectingToGame ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 relative">
             {/* Profile */}
             <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-6 border border-zinc-700/50 relative overflow-visible">
@@ -926,10 +1010,10 @@ export default function Lobby() {
             </button>
           </div>
         </div>
-        )}
+        ) : null}
 
-        {/* Player list - only show when lobby is not locked */}
-        {!(state?.lobby_locked || state?.phase !== "lobby") && (
+        {/* Player list - only show when lobby is not locked and profile is loaded */}
+        {profileLoaded && !redirectingToGame && !(state?.lobby_locked === true || (state?.phase && state?.phase !== "lobby")) && (
         <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-6 border border-zinc-700/50">
           <h2 className="font-semibold mb-4 text-lg flex items-center gap-2">
             <span className="text-green-400">🎮</span>

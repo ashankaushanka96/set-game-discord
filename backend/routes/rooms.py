@@ -64,14 +64,28 @@ def http_join_room(room_id: str, body: JoinReq):
     
     game = GameService.get_or_create_room(room_id)
     
+    # Check if this is a reconnection (player already exists in game state)
+    is_reconnection = body.id in game.state.players
+    logger.info(f"Join request for player {body.id} in room {room_id}: is_reconnection={is_reconnection}, lobby_locked={game.state.lobby_locked}, phase={game.state.phase}")
+    
     # Check if lobby is locked (game in progress)
-    if game.state.lobby_locked:
+    if game.state.lobby_locked and not is_reconnection:
         raise HTTPException(status_code=403, detail="Lobby is locked - game in progress")
     
-    # Check if room is full
-    if len(game.state.players) >= 6:
+    # Check if room is full (only for new players, not reconnections)
+    if not is_reconnection and len(game.state.players) >= 6:
         raise HTTPException(status_code=403, detail="Room is full (6/6 players)")
     
-    game.state.players[body.id] = Player(**body.model_dump())
-    logger.info(f"Player {body.id} successfully joined room {room_id}. Total players: {len(game.state.players)}")
+    if is_reconnection:
+        # Update existing player info (reconnection)
+        existing_player = game.state.players[body.id]
+        existing_player.name = body.name
+        existing_player.avatar = body.avatar
+        existing_player.connected = True  # Mark as connected
+        logger.info(f"Player {body.id} reconnected to room {room_id} (existing player)")
+    else:
+        # Add new player
+        game.state.players[body.id] = Player(**body.model_dump())
+        logger.info(f"Player {body.id} successfully joined room {room_id}. Total players: {len(game.state.players)}")
+    
     return game.state.model_dump()
