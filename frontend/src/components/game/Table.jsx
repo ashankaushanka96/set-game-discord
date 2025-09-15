@@ -76,25 +76,27 @@ export default function Table() {
   const [seatVersion, setSeatVersion] = useState(0);
   const lastSeatEl = useRef({});
 
+
   if (!state) return null;
 
   const players = state.players || {};
   const seats = state.seats || {};
   const my = players[me.id];
 
-  const AREA_W = 900, AREA_H = 640, TABLE_SIZE = 420, RADIUS = 280;
-  const mySeatIndex = typeof my?.seat === 'number' ? my.seat : 0;
-  const seatPositions = useMemo(() => {
-    // Use percentage-based positioning for responsive design
-    const pos = {};
-    for (let i = 0; i < 6; i++) {
-      const angle = (90 + (i - mySeatIndex) * 60) * (Math.PI / 180);
-      const x = 50 + (RADIUS / AREA_W) * 100 * Math.cos(angle);
-      const y = 50 + (RADIUS / AREA_H) * 100 * Math.sin(angle);
-      pos[i] = { left: `${x}%`, top: `${y}%`, transform: 'translate(-50%, -50%)' };
-    }
-    return pos;
-  }, [mySeatIndex]);
+   const mySeatIndex = typeof my?.seat === 'number' ? my.seat : 0;
+   const seatPositions = useMemo(() => {
+     // Use percentage-based positioning for responsive design
+     const pos = {};
+     // Use a smaller radius for better viewport fit
+     const radiusPercent = 35; // 35% of container
+     for (let i = 0; i < 6; i++) {
+       const angle = (90 + (i - mySeatIndex) * 60) * (Math.PI / 180);
+       const x = 50 + radiusPercent * Math.cos(angle);
+       const y = 50 + radiusPercent * Math.sin(angle);
+       pos[i] = { left: `${x}%`, top: `${y}%`, transform: 'translate(-50%, -50%)' };
+     }
+     return pos;
+   }, [mySeatIndex]);
 
   const eligibleSets = useMemo(() => {
     if (!my) return [];
@@ -309,7 +311,7 @@ export default function Table() {
   };
 
   return (
-    <div className="p-3 md:p-6 relative min-h-screen flex flex-col" onClick={handleTableClick}>
+    <div className="h-screen w-screen overflow-hidden flex flex-col" onClick={handleTableClick}>
       <Celebration tableCenterRef={tableCenterRef} />
       <DealingAnimation />
       
@@ -387,11 +389,12 @@ export default function Table() {
       )}
 
 
-      <MessageBubbles seatEls={seatEls} seatVersion={seatVersion} hideLaydownBubbles={layOpen} />
-      <div className="mt-16" />
-
-      {/* left panel (Team A) - table - right panel (Team B) */}
-      <div className="relative w-full flex items-start justify-center gap-6">
+       <MessageBubbles seatEls={seatEls} seatVersion={seatVersion} hideLaydownBubbles={layOpen} />
+       
+       {/* Main game area - takes up most of the viewport */}
+       <div className="flex-1 flex items-center justify-center p-2 md:p-4">
+         {/* left panel (Team A) - table - right panel (Team B) */}
+         <div className="relative w-full max-w-7xl flex items-center justify-center gap-2 lg:gap-4">
         <div className="hidden xl:block w-[260px]">
           <div className="sticky top-32 space-y-2">
             <div className="text-sm font-semibold text-blue-300 mb-1">Team A — Collected</div>
@@ -402,16 +405,16 @@ export default function Table() {
           </div>
         </div>
 
-        <div className="relative w-full max-w-[95vw] md:w-[900px] h-[400px] md:h-[640px] mx-auto">
-          <div className="relative w-full h-full bg-zinc-900/30 rounded-3xl card-shadow">
-            <div ref={tableCenterRef} className="absolute rounded-full border-4 border-zinc-700 bg-zinc-800/40 flex items-center justify-center"
-                 style={{ 
-                   width: 'min(420px, 70vw)', 
-                   height: 'min(420px, 70vw)', 
-                   left: '50%', 
-                   top: '50%', 
-                   transform: 'translate(-50%, -50%)' 
-                 }}>
+         <div className="relative w-full max-w-[90vw] h-[min(60vh,500px)] lg:h-[min(70vh,600px)]">
+           <div className="relative w-full h-full bg-zinc-900/30 rounded-3xl card-shadow">
+             <div ref={tableCenterRef} className="absolute rounded-full border-4 border-zinc-700 bg-zinc-800/40 flex items-center justify-center"
+                  style={{ 
+                    width: 'min(60%, 400px)', 
+                    height: 'min(60%, 400px)', 
+                    left: '50%', 
+                    top: '50%', 
+                    transform: 'translate(-50%, -50%)' 
+                  }}>
               {/* Shuffle & Deal button - show for current dealer when game is ready, ended, or when no cards are dealt */}
               {me?.id === state.current_dealer && (state.phase === 'ready' || state.phase === 'ended' || !state.deck_count || state.deck_count === 0 || !my?.hand?.length) && (
                 <button 
@@ -554,10 +557,13 @@ export default function Table() {
             ))}
           </div>
         </div>
-      </div>
+         </div>
+       </div>
 
-      {/* Scoreboard - positioned between table and player hand */}
-      <div className="mt-4 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-6 text-xs sm:text-sm">
+       {/* Bottom section - Scoreboard, Player Hand, and Controls */}
+       <div className="flex-shrink-0 p-2 md:p-4 space-y-2 md:space-y-4">
+         {/* Scoreboard */}
+         <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-6 text-xs sm:text-sm">
         <div className="px-2 sm:px-3 py-1 rounded-full bg-zinc-900/70">
           <span className="inline-flex items-center gap-1 sm:gap-2 text-blue-300">
             <span className="inline-block h-2 w-2 rounded-full bg-blue-400" />
@@ -582,27 +588,30 @@ export default function Table() {
         </div>
       </div>
 
-      <div className="mt-6 flex flex-col items-center">
-        <PlayerHand 
-          cards={my?.hand || []} 
-          selectedCards={selectedCardsToPass}
-          onCardSelect={handleHandCardClick}
-          selectable={true}
-        />
-        
-        {/* Clear Selection Button - only show when cards are selected */}
-        {selectedCardsToPass.length > 0 && (
-          <div className="mt-3">
-            <button 
-              className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
-              onClick={() => setSelectedCardsToPass([])}
-            >
-              Clear Selection ({selectedCardsToPass.length})
-            </button>
-          </div>
-        )}
-      </div>
-      <div className="mt-4 flex items-center justify-center gap-3">
+         {/* Player Hand */}
+         <div className="flex flex-col items-center">
+           <PlayerHand 
+             cards={my?.hand || []} 
+             selectedCards={selectedCardsToPass}
+             onCardSelect={handleHandCardClick}
+             selectable={true}
+           />
+           
+           {/* Clear Selection Button - only show when cards are selected */}
+           {selectedCardsToPass.length > 0 && (
+             <div className="mt-2">
+               <button 
+                 className="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-sm font-medium transition-colors duration-200"
+                 onClick={() => setSelectedCardsToPass([])}
+               >
+                 Clear Selection ({selectedCardsToPass.length})
+               </button>
+             </div>
+           )}
+         </div>
+
+         {/* Game Controls */}
+         <div className="flex items-center justify-center gap-3">
         {/* Game action buttons - only show when game is playing */}
         {state.phase === 'playing' && (
           <>
@@ -618,10 +627,11 @@ export default function Table() {
               Sets
             </button>
           </>
-        )}
-      </div>
+         )}
+         </div>
 
-      <MessageBox />
+         <MessageBox />
+       </div>
 
       {layOpen && <LaydownModal onClose={() => setLayOpen(false)} />}
 
