@@ -612,21 +612,11 @@ export default function Table() {
 
          {/* Game Controls */}
          <div className="flex items-center justify-center gap-3">
-         {/* Mobile: View completed sets button */}
-         <button 
-           className="md:hidden bg-blue-600 hover:bg-blue-500 px-3 py-2 rounded text-sm transition-colors" 
-           onClick={() => setCompletedSetsOpen(true)}
-         >
-           Sets
-         </button>
-         
          {/* Debug: Show current phase */}
          <div className="text-xs text-gray-400 ml-4">
            Phase: {state.phase}
          </div>
          </div>
-
-         <MessageBox />
        </div>
 
       {layOpen && <LaydownModal onClose={() => setLayOpen(false)} />}
@@ -671,6 +661,17 @@ export default function Table() {
         onClose={() => {}}
         votingData={backToLobbyVoting}
       />
+
+       {/* Sets Button - Fixed in bottom left corner (mobile only) */}
+       <div className="fixed bottom-4 left-4 z-50 md:hidden">
+         <button
+           onClick={() => setCompletedSetsOpen(true)}
+           className="px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 bg-blue-600 hover:bg-blue-500 text-white shadow-lg border border-blue-500"
+           title="View completed sets"
+         >
+           Sets
+         </button>
+       </div>
 
        {/* Laydown Button - Fixed in bottom right corner */}
        {(state.phase === 'playing' || state.phase === 'ready') && (
