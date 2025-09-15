@@ -118,23 +118,6 @@ export default function GameRoom() {
     <div className="relative">
       <Table />
       
-      {/* Testing Button - Floating in bottom right */}
-      <div className="fixed bottom-4 right-4 z-50">
-        <button
-          onClick={() => {
-            console.debug("[Testing] Current game state:", state);
-            console.debug("[Testing] Current player:", me);
-            console.debug("[Testing] Room ID:", roomId);
-            console.debug("[Testing] Player ID:", playerId);
-            console.debug("[Testing] Players count:", Object.keys(state?.players || {}).length);
-            console.debug("[Testing] Phase:", state?.phase);
-          }}
-          className="px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 bg-purple-600 hover:bg-purple-700 text-white shadow-lg border border-gray-500"
-          title="Testing button - check console for debug info"
-        >
-          🧪 Test
-        </button>
-      </div>
       
     </div>
   );

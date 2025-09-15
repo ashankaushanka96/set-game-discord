@@ -612,22 +612,18 @@ export default function Table() {
 
          {/* Game Controls */}
          <div className="flex items-center justify-center gap-3">
-        {/* Game action buttons - only show when game is playing */}
-        {state.phase === 'playing' && (
-          <>
-            <button className="bg-emerald-600 px-3 md:px-4 py-2 rounded text-sm md:text-base" onClick={()=>setLayOpen(true)}>
-              <span className="hidden sm:inline">Laydown</span>
-              <span className="sm:hidden">Lay</span>
-            </button>
-            {/* Mobile: View completed sets button */}
-            <button 
-              className="md:hidden bg-blue-600 px-3 py-2 rounded text-sm" 
-              onClick={() => setCompletedSetsOpen(true)}
-            >
-              Sets
-            </button>
-          </>
-         )}
+         {/* Mobile: View completed sets button */}
+         <button 
+           className="md:hidden bg-blue-600 hover:bg-blue-500 px-3 py-2 rounded text-sm transition-colors" 
+           onClick={() => setCompletedSetsOpen(true)}
+         >
+           Sets
+         </button>
+         
+         {/* Debug: Show current phase */}
+         <div className="text-xs text-gray-400 ml-4">
+           Phase: {state.phase}
+         </div>
          </div>
 
          <MessageBox />
@@ -676,8 +672,22 @@ export default function Table() {
         votingData={backToLobbyVoting}
       />
 
-      {/* Toast Notifications */}
-      <Toast />
-    </div>
-  );
-}
+       {/* Laydown Button - Fixed in bottom right corner */}
+       {(state.phase === 'playing' || state.phase === 'ready') && (
+         <div className="fixed bottom-4 right-4 z-50">
+           <button
+             onClick={() => setLayOpen(true)}
+             className="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg border border-emerald-500"
+             title="Laydown cards"
+           >
+             <span className="hidden sm:inline">Laydown</span>
+             <span className="sm:hidden">Lay</span>
+           </button>
+         </div>
+       )}
+
+       {/* Toast Notifications */}
+       <Toast />
+     </div>
+   );
+ }
