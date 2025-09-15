@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useStore } from "../../store";
 import { Card, FannedCards } from "../cards";
 
@@ -18,6 +18,7 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
   const players = state?.players || {};
 
   const [pos, setPos] = useState({}); // id -> {x,y,place:"above"|"below"}
+  const styleInjected = useRef(false);
 
   // recompute positions on seatVersion or messages change or window resize/scroll
   useEffect(() => {
@@ -74,6 +75,12 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
 
   return (
     <>
+      {/* One-time keyframes for auto-fade on non-sticky bubbles */}
+      {!styleInjected.current && (
+        <style>{`
+          @keyframes bubbleFadeOut { to { opacity: 0; } }
+        `}</style>
+      )}
       {items.map((m) => {
         const asker = players[m.player_id];
         const target = players[m.target_id];
@@ -222,6 +229,9 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
               top: xy.y,
               transform: translate,
               whiteSpace: "nowrap",
+              // Fallback auto-hide on mobile if timers are throttled
+              animation: m.sticky === false ? 'bubbleFadeOut 0.6s ease forwards' : undefined,
+              animationDelay: m.sticky === false ? '5s' : undefined,
             }}
           >
             <div className="relative">

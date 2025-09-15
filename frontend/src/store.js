@@ -33,6 +33,8 @@ export const useStore = create((set, get) => ({
 
   // seat bubbles
   messages: [],
+  // internal cleaner timer id
+  _messagesCleaner: null,
 
   // emoji animations
   emojiAnimations: [],
@@ -63,11 +65,28 @@ export const useStore = create((set, get) => ({
     });
     // auto-remove only if not sticky
     if (!m.sticky) {
+      // set explicit expiry ts so a background cleaner can purge on mobile
+      const expireAt = Date.now() + 5000;
+      set((state) => ({
+        messages: (state.messages || []).map((x) => (x.id === withId.id ? { ...x, expire_ts: expireAt, sticky: false } : x)),
+      }));
       setTimeout(() => {
         set((state) => ({
           messages: (state.messages || []).filter((x) => x.id !== withId.id),
         }));
-      }, 4000);
+      }, 5000);
+      // Start or ensure a lightweight cleaner interval (1s) to remove expired messages
+      const cleaner = get()._messagesCleaner;
+      if (!cleaner) {
+        const id = setInterval(() => {
+          const { messages } = get();
+          if (!messages || messages.length === 0) return;
+          const now = Date.now();
+          const next = messages.filter((x) => !(x.sticky === false && x.expire_ts && now >= x.expire_ts));
+          if (next.length !== messages.length) set({ messages: next });
+        }, 1000);
+        set({ _messagesCleaner: id });
+      }
     }
     return withId.id;
   },

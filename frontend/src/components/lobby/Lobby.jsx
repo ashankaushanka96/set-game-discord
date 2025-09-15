@@ -7,6 +7,7 @@ import { apiJoinRoom } from "../../api";
 import { Toast } from "../ui";
 import { generateUUID } from "../../utils/uuid";
 import { DiscordSDK }  from "@discord/embedded-app-sdk";
+import { readyDiscordSDK } from "../../utils/discordSdkSingleton";
 import { discordAvatarUrl } from "../../utils/discord";
 import { getStoredDiscordToken, storeDiscordToken, clearStoredDiscordToken, fetchDiscordUser } from "../../utils/discordAuth";
 import { isMobileDevice, getMobileInfo } from "../../utils/mobileDetection";
@@ -24,6 +25,8 @@ export default function Lobby() {
   const [isDiscordEmbedded, setIsDiscordEmbedded] = useState(false);
   const [canBrowserOAuth, setCanBrowserOAuth] = useState(false);
   const [redirectingToGame, setRedirectingToGame] = useState(false);
+  const autoJoinGuardRef = useRef(false);
+  const isDiscordUA = /Discord/i.test(navigator.userAgent || "");
 
 
   const fetchUserWithToken = async (accessToken) => {
@@ -83,7 +86,7 @@ export default function Lobby() {
       const ancestors = ao && ao.length ? Array.from(ao).join(' ').toLowerCase() : '';
       const combined = `${ref} ${ancestors}`;
       const isEmbedded = combined.includes('discord.com') || combined.includes('ptb.discord.com') || combined.includes('canary.discord.com');
-      if (isEmbedded) return; // handled by SDK flow below
+      if (isEmbedded || isDiscordUA) return; // handled by SDK flow below
 
       const url = new URL(window.location.href);
       const hasCode = url.searchParams.get('code');
@@ -147,11 +150,8 @@ export default function Lobby() {
         }
 
         console.debug("[Discord] Initializing Discord SDK with clientId:", clientId);
-        const discordSdk = new DiscordSDK(clientId);
-        
-        // Wait for Discord SDK to be ready
-        console.debug("[Discord] Waiting for SDK to be ready...");
-        await discordSdk.ready();
+        const discordSdk = await readyDiscordSDK(clientId);
+        if (!discordSdk) throw new Error("Discord SDK not available");
         console.debug("[Discord] SDK ready");
         // Determine embed state
         try {
@@ -211,7 +211,7 @@ export default function Lobby() {
         let user = null;
         
         // First, let's see what methods are available
-        console.debug("[Discord] Available commands:", Object.keys(discordSdk.commands));
+        try { console.debug("[Discord] Available commands:", Object.keys(discordSdk.commands)); } catch {}
         console.debug("[Discord] Starting user data retrieval...");
         const mobileInfo3 = getMobileInfo();
         console.debug("[Discord] Mobile detection info:", mobileInfo3);
@@ -306,12 +306,7 @@ export default function Lobby() {
             setProfileLoaded(true);
 
             // Also authenticate the SDK (optional, for other features)
-            try {
-              await discordSdk.commands.authenticate({ access_token });
-              console.debug('[Discord] SDK authenticate succeeded');
-            } catch (authErr) {
-              console.warn('[Discord] SDK authenticate failed (non-fatal):', authErr);
-            }
+            try { await discordSdk.commands.authenticate({ access_token }); } catch {}
 
             // Auto-join Discord channel as room when embedded
             try {
@@ -533,6 +528,7 @@ export default function Lobby() {
 
   // Auto-join room when profile is loaded and we have a Discord channel ID
   useEffect(() => {
+    if (autoJoinGuardRef.current) return;
     if (profileLoaded && name && !roomId && isDiscordEmbedded) {
       console.debug("[Discord] Profile loaded, attempting auto-join with stored Discord channel ID...");
       // Try to get channel ID from Discord SDK if available
@@ -540,8 +536,7 @@ export default function Lobby() {
         try {
           const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
           if (clientId) {
-            const discordSdk = new DiscordSDK(clientId);
-            await discordSdk.ready();
+            const discordSdk = await readyDiscordSDK(clientId);
             const channelId = discordSdk.channelId;
             if (channelId) {
               const rid = String(channelId);
@@ -552,6 +547,7 @@ export default function Lobby() {
               setWS(ws);
               setTimeout(() => send(ws, 'sync', {}), 150);
               console.debug('[Discord] Successfully fallback auto-joined room:', rid);
+              autoJoinGuardRef.current = true;
             }
           }
         } catch (e) {
@@ -576,8 +572,7 @@ export default function Lobby() {
           return;
         }
 
-        const discordSdk = new DiscordSDK(clientId);
-        await discordSdk.ready();
+        const discordSdk = await readyDiscordSDK(clientId);
         
         console.debug("[Discord] Direct auto-join - SDK ready, checking channel ID...");
         console.debug("[Discord] Direct auto-join - Channel ID:", discordSdk.channelId);
@@ -585,7 +580,7 @@ export default function Lobby() {
         console.debug("[Discord] Direct auto-join - Guild ID:", discordSdk.guildId);
         
         const channelId = discordSdk.channelId;
-        if (channelId && !roomId) {
+        if (!autoJoinGuardRef.current && channelId && !roomId) {
           const rid = String(channelId);
           console.debug('[Discord] Direct auto-join with channel ID:', rid);
           
@@ -599,6 +594,7 @@ export default function Lobby() {
             setWS(ws);
             setTimeout(() => send(ws, 'sync', {}), 150);
             console.debug('[Discord] Successfully direct auto-joined room:', rid);
+            autoJoinGuardRef.current = true;
             return; // Success, no need to retry
           } else {
             console.debug('[Discord] Direct auto-join - No profile available yet, will retry later');
