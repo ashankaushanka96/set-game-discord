@@ -19,6 +19,7 @@ export default function Lobby() {
   const [usingDiscordProfile, setUsingDiscordProfile] = useState(false);
   const authRanRef = useRef(false);
   const [profileLoaded, setProfileLoaded] = useState(false);
+  const [isDiscordEmbedded, setIsDiscordEmbedded] = useState(false);
   const [canBrowserOAuth, setCanBrowserOAuth] = useState(false);
 
   // We always use Discord for profile; start empty until loaded
@@ -91,6 +92,15 @@ export default function Lobby() {
         console.debug("[Discord] Waiting for SDK to be ready...");
         await discordSdk.ready();
         console.debug("[Discord] SDK ready");
+        // Determine embed state
+        try {
+          const ref = (document.referrer || '').toLowerCase();
+          const ao = window.location.ancestorOrigins;
+          const ancestors = ao && ao.length ? Array.from(ao).join(' ').toLowerCase() : '';
+          const combined = `${ref} ${ancestors}`;
+          const embedded = combined.includes('discord.com') || combined.includes('ptb.discord.com') || combined.includes('canary.discord.com');
+          setIsDiscordEmbedded(embedded || Boolean(discordSdk.channelId));
+        } catch (_) {}
         
         // Removed: ad-hoc test user fetch. We only update the UI
         // when we have authenticated, real Discord user data.
@@ -222,6 +232,22 @@ export default function Lobby() {
               console.warn('[Discord] SDK authenticate failed (non-fatal):', authErr);
             }
 
+            // Auto-join Discord channel as room when embedded
+            try {
+              const channelId = discordSdk.channelId;
+              if (channelId) {
+                const rid = String(channelId);
+                setRoom(rid);
+                setRoomInput(rid);
+                await httpJoinRoom(rid);
+                const ws = connectWS(rid, useStore.getState().me.id, applyServer);
+                setWS(ws);
+                setTimeout(() => send(ws, 'sync', {}), 150);
+              }
+            } catch (joinErr) {
+              console.warn('[Discord] Auto-join channel as room failed:', joinErr);
+            }
+
             // Done; skip the rest of the older code path
             return;
           } catch (error3) {
@@ -298,6 +324,21 @@ export default function Lobby() {
         }
 
         setProfileLoaded(true);
+
+        // Also auto-join if we have a channel id in SDK
+        try {
+          if (discordSdk.channelId) {
+            const rid = String(discordSdk.channelId);
+            setRoom(rid);
+            setRoomInput(rid);
+            await httpJoinRoom(rid);
+            const ws = connectWS(rid, useStore.getState().me.id, applyServer);
+            setWS(ws);
+            setTimeout(() => send(ws, 'sync', {}), 150);
+          }
+        } catch (e) {
+          console.warn('[Discord] Post-auth auto-join failed:', e);
+        }
       } catch (e) {
         console.error("[Discord] Discord auth failed:", e);
         setUsingDiscordProfile(false);
@@ -594,7 +635,8 @@ export default function Lobby() {
             </div>
           </div>
 
-          {/* Room controls */}
+          {/* Room controls (hidden in Discord embedded mode) */}
+          {!isDiscordEmbedded && (
           <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-6 border border-zinc-700/50">
             <h2 className="font-semibold mb-4 text-lg flex items-center gap-2">
               <span className="text-blue-400">🏠</span>
@@ -660,6 +702,7 @@ export default function Lobby() {
               </div>
             </div>
           </div>
+          )}
 
           {/* Teams */}
           <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-6 border border-zinc-700/50">
