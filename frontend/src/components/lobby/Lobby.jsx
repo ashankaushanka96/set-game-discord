@@ -17,7 +17,7 @@ const API_BASE = import.meta.env.VITE_API_BASE ?? ""; // set in .env for prod; l
 export default function Lobby() {
   console.debug("[Lobby] Component loaded");
   const navigate = useNavigate();
-  const { me, setMe, setWS, setRoom, roomId, state, applyServer } = useStore();
+  const { me, setMe, setWS, setRoom, roomId, state, applyServer, speakingUsers } = useStore();
 
   const [usingDiscordProfile, setUsingDiscordProfile] = useState(false);
   const authRanRef = useRef(false);
@@ -1065,11 +1065,16 @@ export default function Lobby() {
                 <div className="space-y-2 min-h-[100px]">
                   {players.filter((p) => p.team === "A").map((p) => (
                     <div key={p.id} className="bg-blue-600/20 border border-blue-500/30 rounded-lg px-3 py-2 text-sm flex items-center gap-2">
-                      {typeof p.avatar === "string" && p.avatar.startsWith("http") ? (
-                        <img src={p.avatar} alt="" className="h-6 w-6 rounded-full border border-blue-500/30" referrerPolicy="no-referrer" />
-                      ) : (
-                        <span className="text-lg">{p.avatar}</span>
-                      )}
+                      <div className="relative">
+                        {typeof p.avatar === "string" && p.avatar.startsWith("http") ? (
+                          <img src={p.avatar} alt="" className="h-6 w-6 rounded-full border border-blue-500/30" referrerPolicy="no-referrer" />
+                        ) : (
+                          <span className="text-lg">{p.avatar}</span>
+                        )}
+                        {speakingUsers?.[p.id] && (
+                          <span className="pointer-events-none absolute -inset-0.5 rounded-full ring-2 ring-green-400 shadow-[0_0_6px_rgba(34,197,94,0.5)]" />
+                        )}
+                      </div>
                       <span>{p.name}</span>
                     </div>
                   ))}
@@ -1102,11 +1107,16 @@ export default function Lobby() {
                 <div className="space-y-2 min-h-[100px]">
                   {players.filter((p) => p.team === "B").map((p) => (
                     <div key={p.id} className="bg-rose-600/20 border border-rose-500/30 rounded-lg px-3 py-2 text-sm flex items-center gap-2">
-                      {typeof p.avatar === "string" && p.avatar.startsWith("http") ? (
-                        <img src={p.avatar} alt="" className="h-6 w-6 rounded-full border border-rose-500/30" referrerPolicy="no-referrer" />
-                      ) : (
-                        <span className="text-lg">{p.avatar}</span>
-                      )}
+                      <div className="relative">
+                        {typeof p.avatar === "string" && p.avatar.startsWith("http") ? (
+                          <img src={p.avatar} alt="" className="h-6 w-6 rounded-full border border-rose-500/30" referrerPolicy="no-referrer" />
+                        ) : (
+                          <span className="text-lg">{p.avatar}</span>
+                        )}
+                        {speakingUsers?.[p.id] && (
+                          <span className="pointer-events-none absolute -inset-0.5 rounded-full ring-2 ring-green-400 shadow-[0_0_6px_rgba(34,197,94,0.5)]" />
+                        )}
+                      </div>
                       <span>{p.name}</span>
                     </div>
                   ))}
@@ -1185,11 +1195,16 @@ export default function Lobby() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             {players.map((p) => (
               <div key={p.id} className="px-4 py-3 bg-zinc-800/50 border border-zinc-600/50 rounded-lg flex flex-col items-center gap-2">
-                {typeof p.avatar === "string" && p.avatar.startsWith("http") ? (
-                  <img src={p.avatar} alt="" className="h-10 w-10 rounded-full border border-zinc-600/50" referrerPolicy="no-referrer" />
-                ) : (
-                  <span className="text-2xl">{p.avatar}</span>
-                )}
+                <div className="relative">
+                  {typeof p.avatar === "string" && p.avatar.startsWith("http") ? (
+                    <img src={p.avatar} alt="" className="h-10 w-10 rounded-full border border-zinc-600/50" referrerPolicy="no-referrer" />
+                  ) : (
+                    <span className="text-2xl">{p.avatar}</span>
+                  )}
+                  {speakingUsers?.[p.id] && (
+                    <span className="pointer-events-none absolute -inset-1 rounded-full ring-2 ring-green-400 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
+                  )}
+                </div>
                 <span className="text-sm font-medium text-center">{p.name}</span>
                 {p.team ? (
                   <span className={`text-xs px-2 py-1 rounded-full ${p.team === "A" ? "bg-blue-600/30 text-blue-300" : "bg-rose-600/30 text-rose-300"}`}>
