@@ -302,6 +302,24 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                     **{k: v for k, v in p.items() if k not in ["type", "player_id", "variant"]}
                 })
 
+            elif t == "chat_message":
+                # Forward chat message to all players
+                await WebSocketService.broadcast(room_id, "bubble_message", {
+                    "player_id": p["player_id"],
+                    "variant": "chat",
+                    "text": p["text"]
+                })
+
+            elif t == "emoji_throw":
+                # Forward emoji throw animation to all players
+                await WebSocketService.broadcast(room_id, "emoji_animation", {
+                    "from_player_id": p["from_player_id"],
+                    "to_player_id": p["to_player_id"],
+                    "emoji": p["emoji"],
+                    "emoji_name": p["emoji_name"],
+                    "category": p["category"]
+                })
+
             elif t == "clear_bubble_messages":
                 # Clear bubble messages for a player
                 await WebSocketService.broadcast(room_id, "clear_bubble_messages", {

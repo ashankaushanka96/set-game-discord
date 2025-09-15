@@ -34,6 +34,9 @@ export const useStore = create((set, get) => ({
   // seat bubbles
   messages: [],
 
+  // emoji animations
+  emojiAnimations: [],
+
   // single game feed (bottom box)
   gameMessage: null,
   gameMessageTimer: null,
@@ -72,6 +75,21 @@ export const useStore = create((set, get) => ({
     set((state) => ({
       messages: (state.messages || []).filter((m) => m.tag !== tag),
     }));
+  },
+  addEmojiAnimation: (animation) => {
+    const withId = { ...animation, id: mid() };
+    set((state) => {
+      const existing = state.emojiAnimations || [];
+      const next = [...existing, withId];
+      return { emojiAnimations: next };
+    });
+    // Auto-remove after animation completes
+    setTimeout(() => {
+      set((state) => ({
+        emojiAnimations: (state.emojiAnimations || []).filter((a) => a.id !== withId.id),
+      }));
+    }, 2000);
+    return withId.id;
   },
 
   // --- bottom message box ---
@@ -485,19 +503,50 @@ export const useStore = create((set, get) => ({
     // BUBBLE MESSAGE
     if (msg.type === "bubble_message") {
       const { player_id, variant, ...data } = msg.payload;
-      get().addMessage({
-        player_id,
-        variant,
-        ...data,
-        sticky: true, // Laydown messages should be sticky
-        tag: `laydown-${player_id}` // Tag for clearing
-      });
+      
+      if (variant === "chat") {
+        // Chat messages are temporary and auto-expire
+        const timestamp = Date.now();
+        get().addMessage({
+          player_id,
+          variant,
+          ...data,
+          sticky: false,
+          tag: `chat-${player_id}-${timestamp}` // Unique tag for each chat message
+        });
+        
+        // Auto-remove chat messages after 5 seconds
+        setTimeout(() => {
+          get().removeMessageByTag(`chat-${player_id}-${timestamp}`);
+        }, 5000);
+      } else {
+        // Other messages (laydown, etc.) are sticky
+        get().addMessage({
+          player_id,
+          variant,
+          ...data,
+          sticky: true,
+          tag: `laydown-${player_id}` // Tag for clearing
+        });
+      }
     }
 
     // CLEAR BUBBLE MESSAGES
     if (msg.type === "clear_bubble_messages") {
       const { player_id } = msg.payload;
       get().removeMessageByTag(`laydown-${player_id}`);
+    }
+
+    // EMOJI ANIMATION
+    if (msg.type === "emoji_animation") {
+      const { from_player_id, to_player_id, emoji, emoji_name, category } = msg.payload;
+      get().addEmojiAnimation({
+        from_player_id,
+        to_player_id,
+        emoji,
+        emoji_name,
+        category
+      });
     }
 
     // PLAYER DISCONNECTED

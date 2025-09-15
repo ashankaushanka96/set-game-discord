@@ -8,6 +8,8 @@ import {
   DealingAnimation, 
   MessageBubbles 
 } from '../';
+import ChatBubble from './ChatBubble';
+import EmojiAnimation from './EmojiAnimation';
 import { 
   LaydownModal, 
   GameOverModal, 
@@ -390,6 +392,8 @@ export default function Table() {
 
 
        <MessageBubbles seatEls={seatEls} seatVersion={seatVersion} hideLaydownBubbles={layOpen} />
+       <ChatBubble />
+       <EmojiAnimation />
        
        {/* Main game area - takes up most of the viewport */}
        <div className="flex-1 flex items-center justify-center p-2 md:p-4">
@@ -436,7 +440,7 @@ export default function Table() {
               const isLaydownPlayer = p && pendingLay && p.id === pendingLay.who_id;
               
               return (
-                <div key={`seatwrap-${i}-${pid || 'empty'}`} className="absolute" style={seatPositions[i]} ref={p ? setSeatRef(p.id) : undefined}>
+                <div key={`seatwrap-${i}-${pid || 'empty'}`} className="absolute" style={seatPositions[i]} ref={p ? setSeatRef(p.id) : undefined} data-seat={i} data-player-id={p?.id}>
                   <div className={[
                       'rounded-full',
                       selectable ? 'ring-2 ring-yellow-300/80' : '',

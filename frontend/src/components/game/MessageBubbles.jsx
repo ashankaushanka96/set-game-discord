@@ -55,11 +55,11 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
   const items = useMemo(() => {
     const allMessages = messages || [];
     // Filter out messages from the current player (they don't need to see their own bubble messages)
-    // EXCEPT for laydown-related messages where the player needs to see their own selections
+    // EXCEPT for laydown-related messages and chat messages where the player needs to see their own messages
     let filtered = allMessages.filter(m => {
       if (m.player_id !== me?.id) return true; // Show other players' messages
-      // Show current player's own laydown-related messages
-      return m.variant && m.variant.startsWith('laydown_');
+      // Show current player's own laydown-related messages and chat messages
+      return (m.variant && m.variant.startsWith('laydown_')) || m.variant === 'chat';
     });
     
     // If hideLaydownBubbles is true, filter out all laydown-related bubbles
@@ -162,6 +162,23 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
               />
             </div>
           );
+        } else if (m.variant === "chat") {
+          // Check if it's an emoji (single character or short emoji)
+          const isEmoji = m.text && m.text.length <= 4 && /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/u.test(m.text);
+          
+          if (isEmoji) {
+            content = (
+              <div className="text-2xl text-center">
+                {m.text}
+              </div>
+            );
+          } else {
+            content = (
+              <div className="text-sm">
+                {m.text}
+              </div>
+            );
+          }
         } else {
           content = (
             <div className="text-sm">
@@ -179,6 +196,7 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
           m.variant === "laydown_set" ? "bg-indigo-600/90 border-indigo-500" :
           m.variant === "laydown_cards" ? "bg-blue-600/90 border-blue-500" :
           m.variant === "laydown_teammate" ? "bg-cyan-600/90 border-cyan-500" :
+          m.variant === "chat" ? "bg-yellow-600/90 border-yellow-500" :
           "bg-zinc-700/90 border-zinc-600";
 
         // Tail color
@@ -190,6 +208,7 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
           m.variant === "laydown_set" ? "rgb(79 70 229 / 0.9)" :
           m.variant === "laydown_cards" ? "rgb(37 99 235 / 0.9)" :
           m.variant === "laydown_teammate" ? "rgb(8 145 178 / 0.9)" :
+          m.variant === "chat" ? "rgb(234 179 8 / 0.9)" :
           "rgb(63 63 70 / 0.9)";
 
         const translate = xy.place === "above" ? "translate(-50%,-100%)" : "translate(-50%,0)";
