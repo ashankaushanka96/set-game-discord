@@ -24,14 +24,6 @@ export default function Lobby() {
   const [isDiscordEmbedded, setIsDiscordEmbedded] = useState(false);
   const [canBrowserOAuth, setCanBrowserOAuth] = useState(false);
 
-  const handleDiscordLogout = () => {
-    clearStoredDiscordToken();
-    // Also clear profile data
-    setName("");
-    setAvatar("");
-    setUsingDiscordProfile(false);
-    setMe({ ...useStore.getState().me, name: "", avatar: "" });
-  };
 
   const fetchUserWithToken = async (accessToken) => {
     try {
@@ -730,15 +722,6 @@ export default function Lobby() {
                   )}
                   <div className="text-sm text-zinc-400">Avatar from Discord</div>
                 </div>
-              )}
-              {profileLoaded && name && (
-                <button
-                  className="mt-3 px-3 py-1 text-xs bg-zinc-700 hover:bg-zinc-600 text-zinc-300 rounded transition-colors"
-                  onClick={handleDiscordLogout}
-                  title="Clear Discord authentication"
-                >
-                  Logout Discord
-                </button>
               )}
             </div>
           </div>
