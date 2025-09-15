@@ -66,6 +66,17 @@ class Game:
                 p.team = team
                 p.seat = s
                 return s
+        
+        # If no preferred seats available, try any available seat
+        for s in range(6):
+            if self.state.seats[s] is None:
+                self.state.seats[s] = player_id
+                p = self.state.players[player_id]
+                p.team = team
+                p.seat = s
+                logger.info(f"Assigned player {player_id} to non-preferred seat {s} for team {team}")
+                return s
+        
         return None
 
     def remove_from_seat(self, player_id: str) -> bool:
