@@ -8,6 +8,8 @@ import { Toast } from "../ui";
 import { generateUUID } from "../../utils/uuid";
 import { DiscordSDK }  from "@discord/embedded-app-sdk";
 import { discordAvatarUrl } from "../../utils/discord";
+import { getStoredDiscordToken, storeDiscordToken, clearStoredDiscordToken, fetchDiscordUser } from "../../utils/discordAuth";
+import { isMobileDevice, getMobileInfo } from "../../utils/mobileDetection";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? ""; // set in .env for prod; leave empty for Vite proxy in dev
 
@@ -21,6 +23,48 @@ export default function Lobby() {
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [isDiscordEmbedded, setIsDiscordEmbedded] = useState(false);
   const [canBrowserOAuth, setCanBrowserOAuth] = useState(false);
+
+  const handleDiscordLogout = () => {
+    clearStoredDiscordToken();
+    // Also clear profile data
+    setName("");
+    setAvatar("");
+    setUsingDiscordProfile(false);
+    setMe({ ...useStore.getState().me, name: "", avatar: "" });
+  };
+
+  const fetchUserWithToken = async (accessToken) => {
+    try {
+      console.debug("[Discord] Fetching user data with stored token...");
+      const result = await fetchDiscordUser(accessToken);
+      
+      if (result.error) {
+        if (result.error === 'TOKEN_EXPIRED') {
+          console.debug("[Discord] Token expired, clearing stored token");
+          clearStoredDiscordToken();
+          return false;
+        }
+        throw new Error(result.error);
+      }
+      
+      const meUser = result;
+      const displayName = meUser.global_name || meUser.username || '';
+      const avatarUrl = discordAvatarUrl(meUser.id, meUser.avatar, 128);
+      
+      setUsingDiscordProfile(Boolean(avatarUrl));
+      setName(displayName);
+      setAvatar(avatarUrl);
+      const cur = useStore.getState().me || {};
+      const updatedMe = { ...cur, name: displayName, avatar: avatarUrl };
+      setMe(updatedMe);
+      console.debug('[Discord] Updated profile from stored token:', updatedMe);
+      return true;
+    } catch (error) {
+      console.error("[Discord] Failed to fetch user with stored token:", error);
+      clearStoredDiscordToken();
+      return false;
+    }
+  };
 
   // We always use Discord for profile; start empty until loaded
   const [name, setName] = useState("");
@@ -52,8 +96,18 @@ export default function Lobby() {
       if (!hasCode) {
         const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
         if (!clientId) return;
+        
+        // Detect mobile device for better OAuth handling
+        const mobileInfo = getMobileInfo();
+        console.debug("[Discord] Browser OAuth - Mobile info:", mobileInfo);
+        
         const redirectUri = encodeURIComponent(`${window.location.origin}${window.location.pathname}?from=discord`);
         const authUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&response_type=code&scope=identify&redirect_uri=${redirectUri}`;
+        
+        if (mobileInfo.isMobile) {
+          console.debug("[Discord] Mobile browser OAuth redirect to:", authUrl);
+        }
+        
         window.location.href = authUrl;
       }
     } catch (_) {
@@ -76,6 +130,19 @@ export default function Lobby() {
         }
         authRanRef.current = true;
         console.debug("[Discord] Starting Discord auth flow...");
+
+        // First, check if we have a valid stored token
+        const storedToken = getStoredDiscordToken();
+        if (storedToken) {
+          console.debug("[Discord] Found stored token, attempting to use it...");
+          const success = await fetchUserWithToken(storedToken.access_token);
+          if (success) {
+            console.debug("[Discord] Successfully loaded profile from stored token");
+            setProfileLoaded(true);
+            return;
+          }
+          console.debug("[Discord] Stored token failed, proceeding with fresh auth...");
+        }
 
         const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID || "1416307116918181931";
         console.debug("[Discord] Client ID:", clientId);
@@ -112,13 +179,25 @@ export default function Lobby() {
         console.debug("[Discord] Channel ID:", discordSdk.channelId);
 
         // Check if we're actually in Discord (any Discord platform is valid)
-        const validDiscordPlatforms = ['web', 'desktop', 'canary', 'ptb'];
+        // Include mobile platforms: iOS, Android, and other potential mobile identifiers
+        const validDiscordPlatforms = ['web', 'desktop', 'canary', 'ptb', 'ios', 'android', 'mobile'];
+        console.debug("[Discord] Platform validation - Current platform:", discordSdk.platform);
+        console.debug("[Discord] Valid platforms:", validDiscordPlatforms);
+        
+        // Detect if we're on a mobile device
+        const mobileInfo2 = getMobileInfo();
+        console.debug("[Discord] Mobile device info:", mobileInfo2);
+        
         if (!validDiscordPlatforms.includes(discordSdk.platform)) {
           console.warn("[Discord] Not running in Discord environment, platform:", discordSdk.platform);
-          // We are on a normal browser tab, allow standard OAuth as a fallback
-          setCanBrowserOAuth(true);
-          setProfileLoaded(true);
-          return;
+          if (mobileInfo2.isMobile) {
+            console.warn("[Discord] Mobile device detected with unknown platform. This might be a mobile Discord app.");
+            console.warn("[Discord] Proceeding with authentication flow...");
+          } else {
+            console.warn("[Discord] This might be a mobile platform not yet recognized. Proceeding with auth anyway...");
+          }
+          // Don't return early - try to proceed with authentication even on unknown platforms
+          // This handles cases where Discord adds new platform identifiers
         }
         
         // Skip setting any temporary values; wait for real Discord data
@@ -140,6 +219,8 @@ export default function Lobby() {
         // First, let's see what methods are available
         console.debug("[Discord] Available commands:", Object.keys(discordSdk.commands));
         console.debug("[Discord] Starting user data retrieval...");
+        const mobileInfo3 = getMobileInfo();
+        console.debug("[Discord] Mobile detection info:", mobileInfo3);
         
         // Let's try a simple test first - just try to get any user data
         console.debug("[Discord] Testing Discord SDK functionality...");
@@ -149,7 +230,9 @@ export default function Lobby() {
             userId: discordSdk.userId,
             user: discordSdk.user,
             instanceId: discordSdk.instanceId,
-            platform: discordSdk.platform
+            platform: discordSdk.platform,
+            channelId: discordSdk.channelId,
+            guildId: discordSdk.guildId
           });
           
           // Try to get user ID from the SDK instance
@@ -203,6 +286,9 @@ export default function Lobby() {
             const { access_token } = await tokenRes.json();
             console.debug("[Discord] Token exchange successful");
 
+            // Store the token for future use
+            storeDiscordToken(access_token);
+
             // Fetch the current user directly with the token and update UI immediately
             console.debug("[Discord] Fetching /users/@me with access token...");
             const meRes = await fetch('https://discord.com/api/users/@me', {
@@ -252,6 +338,15 @@ export default function Lobby() {
             return;
           } catch (error3) {
             console.error("[Discord] OAuth flow also failed:", error3);
+            
+            // If we're on mobile and Discord SDK OAuth failed, try browser OAuth as fallback
+            if (mobileInfo2.isMobile) {
+              console.warn("[Discord] Mobile Discord SDK OAuth failed, attempting browser OAuth fallback...");
+              setCanBrowserOAuth(true);
+              setProfileLoaded(true);
+              return;
+            }
+            
             throw error3;
           }
         }
@@ -374,6 +469,10 @@ export default function Lobby() {
           return;
         }
         const { access_token } = await tokenRes.json();
+        
+        // Store the token for future use
+        storeDiscordToken(access_token);
+        
         // Fetch user
         const userRes = await fetch('https://discord.com/api/users/@me', {
           headers: { Authorization: `Bearer ${access_token}` },
@@ -631,6 +730,15 @@ export default function Lobby() {
                   )}
                   <div className="text-sm text-zinc-400">Avatar from Discord</div>
                 </div>
+              )}
+              {profileLoaded && name && (
+                <button
+                  className="mt-3 px-3 py-1 text-xs bg-zinc-700 hover:bg-zinc-600 text-zinc-300 rounded transition-colors"
+                  onClick={handleDiscordLogout}
+                  title="Clear Discord authentication"
+                >
+                  Logout Discord
+                </button>
               )}
             </div>
           </div>
