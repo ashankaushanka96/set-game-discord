@@ -405,7 +405,7 @@ export default function Table() {
           </div>
         </div>
 
-         <div className="relative w-full max-w-[90vw] h-[min(60vh,500px)] lg:h-[min(70vh,600px)]">
+         <div className="relative flex-1 max-w-[90vw] h-[min(60vh,500px)] lg:h-[min(70vh,600px)] flex items-center justify-center">
            <div className="relative w-full h-full bg-zinc-900/30 rounded-3xl card-shadow">
              <div ref={tableCenterRef} className="absolute rounded-full border-4 border-zinc-700 bg-zinc-800/40 flex items-center justify-center"
                   style={{ 
