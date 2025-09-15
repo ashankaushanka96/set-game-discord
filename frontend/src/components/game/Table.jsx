@@ -396,7 +396,7 @@ export default function Table() {
          {/* left panel (Team A) - table - right panel (Team B) */}
          <div className="relative w-full max-w-7xl flex items-center justify-center gap-2 lg:gap-4">
         <div className="hidden xl:block w-[260px]">
-          <div className="sticky top-32 space-y-2">
+          <div className="sticky top-4 space-y-2">
             <div className="text-sm font-semibold text-blue-300 mb-1">Team A — Collected</div>
             {setsA.length === 0 && <div className="text-xs opacity-60">No sets yet.</div>}
             {setsA.map((ts, idx)=>(
@@ -549,7 +549,7 @@ export default function Table() {
         </div>
 
         <div className="hidden xl:block w-[260px]">
-          <div className="sticky top-32 space-y-2">
+          <div className="sticky top-4 space-y-2">
             <div className="text-sm font-semibold text-rose-300 mb-1">Team B — Collected</div>
             {((state.table_sets||[]).filter(s=>s.owner_team==='B').length) === 0 && <div className="text-xs opacity-60">No sets yet.</div>}
             {(state.table_sets||[]).filter(s=>s.owner_team==='B').map((ts, idx)=>(
