@@ -66,14 +66,10 @@ def http_join_room(room_id: str, body: JoinReq):
     
     # Check if this is a reconnection (player already exists in game state)
     is_reconnection = body.id in game.state.players
-    logger.info(f"Join request for player {body.id} in room {room_id}: is_reconnection={is_reconnection}, lobby_locked={game.state.lobby_locked}, phase={game.state.phase}")
+    logger.info(f"Join request for player {body.id} in room {room_id}: is_reconnection={is_reconnection}, lobby_locked={game.state.lobby_locked}, phase={game.state.phase}, player_count={len(game.state.players)}")
     
-    # Check if lobby is locked (game in progress)
-    if game.state.lobby_locked and not is_reconnection:
-        raise HTTPException(status_code=403, detail="Lobby is locked - game in progress")
-    
-    # Check if room is full (only for new players, not reconnections)
-    if not is_reconnection and len(game.state.players) >= 6:
+    # Check if room is full (only for new players, not reconnections, and only if lobby is not locked)
+    if not is_reconnection and not game.state.lobby_locked and len(game.state.players) >= 6:
         raise HTTPException(status_code=403, detail="Room is full (6/6 players)")
     
     if is_reconnection:
@@ -84,8 +80,24 @@ def http_join_room(room_id: str, body: JoinReq):
         existing_player.connected = True  # Mark as connected
         logger.info(f"Player {body.id} reconnected to room {room_id} (existing player)")
     else:
-        # Add new player
-        game.state.players[body.id] = Player(**body.model_dump())
-        logger.info(f"Player {body.id} successfully joined room {room_id}. Total players: {len(game.state.players)}")
+        # Add new player (even if lobby is locked, so they can see the UI)
+        if game.state.lobby_locked:
+            # Add as spectator (no seat, no team) when lobby is locked
+            spectator_player = Player(
+                id=body.id,
+                name=body.name,
+                avatar=body.avatar,
+                team=None,  # No team for spectators
+                seat=None,  # No seat for spectators
+                hand=[],    # No hand for spectators
+                connected=True
+            )
+            game.state.players[body.id] = spectator_player
+            logger.info(f"Player {body.id} joined locked room {room_id} as spectator (will see lobby locked screen)")
+        else:
+            # Add as normal player when lobby is not locked
+            game.state.players[body.id] = Player(**body.model_dump())
+            logger.info(f"Player {body.id} successfully joined room {room_id}. Total players: {len(game.state.players)}")
     
+    logger.info(f"Returning game state for room {room_id} to player {body.id}")
     return game.state.model_dump()

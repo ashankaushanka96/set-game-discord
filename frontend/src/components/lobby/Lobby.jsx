@@ -718,6 +718,8 @@ export default function Lobby() {
   console.debug("[Lobby] Players:", players);
   console.debug("[Lobby] Lobby locked:", state?.lobby_locked);
   console.debug("[Lobby] Phase:", state?.phase);
+  console.debug("[Lobby] Current player seat:", me ? state?.players[me.id]?.seat : "No me");
+  console.debug("[Lobby] Has seat in active game:", me && state?.players[me.id]?.seat !== null && state?.players[me.id]?.seat !== undefined && (state?.phase === "ready" || state?.phase === "playing"));
 
   // Check if current player has a seat in an active game and redirect them
   useEffect(() => {
@@ -736,9 +738,11 @@ export default function Lobby() {
         hasSeat,
         gameActive,
         playerSeat: currentPlayer?.seat,
+        playerTeam: currentPlayer?.team,
         phase: state.phase,
         allPlayers: Object.keys(state.players || {}),
-        seats: state.seats
+        seats: state.seats,
+        lobbyLocked: state?.lobby_locked
       });
       
       if (hasSeat && gameActive) {
@@ -752,6 +756,12 @@ export default function Lobby() {
         }, 500); // Increased delay to ensure sync
       } else if (gameActive && !hasSeat) {
         console.debug("[Lobby] Game is active but player has no seat - showing lobby locked");
+        console.debug("[Lobby] Player details:", {
+          id: currentPlayer?.id,
+          seat: currentPlayer?.seat,
+          team: currentPlayer?.team,
+          connected: currentPlayer?.connected
+        });
       } else if (!gameActive) {
         console.debug("[Lobby] Game is not active - showing normal lobby");
       }
@@ -823,8 +833,8 @@ export default function Lobby() {
           </div>
         )}
 
-        {/* Show lobby locked screen when game is in progress */}
-        {profileLoaded && !redirectingToGame && (state?.lobby_locked === true || (state?.phase && state?.phase !== "lobby")) ? (
+        {/* Show lobby locked screen when game is in progress and player has no seat */}
+        {profileLoaded && !redirectingToGame && (state?.lobby_locked === true || (state?.phase && state?.phase !== "lobby")) && !(me && state?.players[me.id]?.seat !== null && state?.players[me.id]?.seat !== undefined) ? (
           <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-8 border border-zinc-700/50 text-center">
             <div className="max-w-md mx-auto">
               <div className="text-6xl mb-4">🔒</div>
@@ -844,7 +854,7 @@ export default function Lobby() {
               </div>
             </div>
           </div>
-        ) : profileLoaded && !redirectingToGame ? (
+        ) : profileLoaded && !redirectingToGame && !(me && state?.players[me.id]?.seat !== null && state?.players[me.id]?.seat !== undefined && (state?.phase === "ready" || state?.phase === "playing")) ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 relative">
             {/* Profile */}
             <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-6 border border-zinc-700/50 relative overflow-visible">
@@ -1013,7 +1023,7 @@ export default function Lobby() {
         ) : null}
 
         {/* Player list - only show when lobby is not locked and profile is loaded */}
-        {profileLoaded && !redirectingToGame && !(state?.lobby_locked === true || (state?.phase && state?.phase !== "lobby")) && (
+        {profileLoaded && !redirectingToGame && !(state?.lobby_locked === true || (state?.phase && state?.phase !== "lobby")) && !(me && state?.players[me.id]?.seat !== null && state?.players[me.id]?.seat !== undefined && (state?.phase === "ready" || state?.phase === "playing")) && (
         <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-6 border border-zinc-700/50">
           <h2 className="font-semibold mb-4 text-lg flex items-center gap-2">
             <span className="text-green-400">🎮</span>

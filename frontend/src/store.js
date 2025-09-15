@@ -115,12 +115,20 @@ export const useStore = create((set, get) => ({
         const roomId = msg.payload.room_id;
         const me = get().me;
         
-        // Only navigate if we're not already in the game room
+        // Only navigate if we're not already in the game room AND player has a seat
         if (me && roomId && !currentPath.includes(`/room/${roomId}/${me.id}`)) {
-          // Dispatch navigation event to avoid WebSocket disconnection
-          window.dispatchEvent(new CustomEvent('navigate-to-game', {
-            detail: { roomId, playerId: me.id }
-          }));
+          const currentPlayer = msg.payload.players?.[me.id];
+          const hasSeat = currentPlayer && currentPlayer.seat !== null && currentPlayer.seat !== undefined;
+          
+          if (hasSeat) {
+            console.debug("[Store] Auto-navigating to game room - player has seat:", currentPlayer.seat);
+            // Dispatch navigation event to avoid WebSocket disconnection
+            window.dispatchEvent(new CustomEvent('navigate-to-game', {
+              detail: { roomId, playerId: me.id }
+            }));
+          } else {
+            console.debug("[Store] Not auto-navigating - player has no seat (spectator)");
+          }
         }
       }
     }
