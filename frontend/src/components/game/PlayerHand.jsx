@@ -167,7 +167,7 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
         
         <div 
           ref={el => scrollRefs.current.desktop = el}
-          className="flex items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent pb-2"
+          className="flex items-center justify-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent pb-2"
           onScroll={handleScroll('desktop')}
         >
           {/* LOWER */}
@@ -239,7 +239,7 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
               
               <div 
                 ref={el => scrollRefs.current.mobileLower = el}
-                className="flex items-center gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent pb-1"
+                className="flex items-center justify-center gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent pb-1"
                 onScroll={handleScroll('mobileLower')}
               >
                 {lowerItems.map((it) =>
@@ -288,7 +288,7 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
               
               <div 
                 ref={el => scrollRefs.current.mobileUpper = el}
-                className="flex items-center gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent pb-1"
+                className="flex items-center justify-center gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent pb-1"
                 onScroll={handleScroll('mobileUpper')}
               >
                 {upperItems.map((it) =>
