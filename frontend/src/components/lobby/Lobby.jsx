@@ -659,11 +659,21 @@ export default function Lobby() {
       const aiNames = ["Bot Alpha", "Bot Beta", "Bot Gamma", "Bot Delta", "Bot Epsilon", "Bot Zeta"];
       const aiAvatars = ["🤖", "👾", "🎮", "🎯", "⚡", "🔥"];
       
+      // Calculate team distribution for AI players
+      let teamACount = connectedPlayers.filter(p => p.team === "A").length;
+      let teamBCount = connectedPlayers.filter(p => p.team === "B").length;
+      
       for (let i = 0; i < aiPlayersNeeded; i++) {
         const aiId = `ai_${Date.now()}_${i}`;
         const aiName = aiNames[i] || `Bot ${i + 1}`;
         const aiAvatar = aiAvatars[i] || "🤖";
-        const aiTeam = i % 2 === 0 ? "A" : "B"; // Alternate teams
+        
+        // Assign teams to balance the teams (prefer smaller team)
+        const aiTeam = teamACount <= teamBCount ? "A" : "B";
+        
+        // Update counts for next iteration
+        if (aiTeam === "A") teamACount++;
+        else teamBCount++;
         
         aiPlayers.push({
           id: aiId,
