@@ -63,7 +63,7 @@ function SetChip({ suit, set_type, owner, expandable=false, cards=[] }) {
 
 export default function Table() {
   const navigate = useNavigate();
-  const { state, me, ws, handoffFor, gameResult, abortVoting, dealingAnimation, pendingLay, votingResult, closeVotingResult, backToLobbyVoting } = useStore();
+  const { state, me, ws, handoffFor, gameResult, abortVoting, dealingAnimation, pendingLay, votingResult, closeVotingResult, backToLobbyVoting, speakingUsers } = useStore();
   const [layOpen, setLayOpen] = useState(false);
   const [selectedSet, setSelectedSet] = useState({ suit: null, setType: null });
   const [requestAbortOpen, setRequestAbortOpen] = useState(false);
@@ -438,17 +438,21 @@ export default function Table() {
               const ringClass = p?.team === 'A' ? TEAM_RING.A : p?.team === 'B' ? TEAM_RING.B : TEAM_RING.unknown;
               const isMe = p && p.id === me.id;
               const isLaydownPlayer = p && pendingLay && p.id === pendingLay.who_id;
+              const isSpeaking = p && speakingUsers && speakingUsers[p.id];
               
               return (
                 <div key={`seatwrap-${i}-${pid || 'empty'}`} className="absolute" style={seatPositions[i]} ref={p ? setSeatRef(p.id) : undefined} data-seat={i} data-player-id={p?.id}>
                   <div className={[
-                      'rounded-full',
+                      'rounded-full relative',
                       selectable ? 'ring-2 ring-yellow-300/80' : '',
                       ringClass,
                       isMe ? 'ring-4 ring-cyan-400 shadow-[0_0_0_6px_rgba(34,211,238,0.25)]' : 'ring-2',
                       isLaydownPlayer ? 'ring-4 ring-amber-400 shadow-[0_0_0_8px_rgba(251,191,36,0.4)] animate-pulse' : '',
                     ].join(' ')}
                   >
+                    {isSpeaking && (
+                      <div className="pointer-events-none absolute -inset-1 rounded-full ring-4 ring-green-400 shadow-[0_0_14px_rgba(34,197,94,0.6)] z-10" />
+                    )}
                     <Seat
                       seatIndex={i}
                       player={p}
@@ -458,6 +462,7 @@ export default function Table() {
                       team={p?.team}
                       isMe={isMe}
                       isLaydownPlayer={isLaydownPlayer}
+                      isSpeaking={!!isSpeaking}
                     />
                   </div>
                   {p && p.id !== my.id && !dealingAnimation && (

@@ -6,7 +6,7 @@ import { apiJoinRoom } from "../../api";
 // Avatar selection removed; we always use Discord profile
 import { Toast } from "../ui";
 import { generateUUID } from "../../utils/uuid";
-import { DiscordSDK }  from "@discord/embedded-app-sdk";
+import { DiscordSDK, Events }  from "@discord/embedded-app-sdk";
 import { readyDiscordSDK } from "../../utils/discordSdkSingleton";
 import { discordAvatarUrl } from "../../utils/discord";
 import { getStoredDiscordToken, storeDiscordToken, clearStoredDiscordToken, fetchDiscordUser } from "../../utils/discordAuth";
@@ -27,6 +27,93 @@ export default function Lobby() {
   const [redirectingToGame, setRedirectingToGame] = useState(false);
   const autoJoinGuardRef = useRef(false);
   const isDiscordUA = /Discord/i.test(navigator.userAgent || "");
+
+  // Ensure we have voice scope and subscribe to speaking events once profile is loaded
+  useEffect(() => {
+    if (!profileLoaded) return;
+    let cancelled = false;
+
+    const ensureVoiceSubscriptions = async () => {
+      try {
+        const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID || "1416307116918181931";
+        const discordSdk = await readyDiscordSDK(clientId);
+        if (!discordSdk) return;
+
+        // Authenticate SDK with any stored token first
+        try {
+          const t = getStoredDiscordToken();
+          if (t?.access_token) {
+            await discordSdk.commands.authenticate({ access_token: t.access_token });
+          }
+        } catch {}
+
+        // Determine channel for subscription (needed on mobile)
+        let channelId = discordSdk.channelId;
+        try {
+          if (!channelId && discordSdk?.commands?.getChannel) {
+            const ch = await discordSdk.commands.getChannel();
+            channelId = ch?.id || channelId;
+          }
+        } catch {}
+        const subArgs = channelId ? [{ channel_id: channelId }] : [];
+
+        const startHandler = (e) => {
+          const uid = e?.user_id || e?.id || e?.user?.id;
+          if (uid) useStore.getState().startSpeaking(String(uid));
+        };
+        const stopHandler = (e) => {
+          const uid = e?.user_id || e?.id || e?.user?.id;
+          if (uid) useStore.getState().stopSpeaking(String(uid));
+        };
+
+        // Try to subscribe; if it fails (likely missing scope), upgrade token then retry
+        const trySubscribe = async () => {
+          await discordSdk.subscribe(Events.SPEAKING_START, startHandler, ...subArgs);
+          await discordSdk.subscribe(Events.SPEAKING_STOP, stopHandler, ...subArgs);
+          // Fallback path
+          try {
+            await discordSdk.subscribe('VOICE_STATE_UPDATE', (e)=>{ if (e && typeof e.speaking === 'boolean') (e.speaking?startHandler(e):stopHandler(e)); }, ...subArgs);
+          } catch {}
+        };
+
+        try {
+          await trySubscribe();
+          if (!cancelled) console.debug('[Discord] Speaking subscriptions active');
+          return;
+        } catch (subErr) {
+          console.debug('[Discord] Speaking subscribe failed, attempting re-auth with rpc.voice.read:', subErr);
+        }
+
+        // Re-authorize with rpc.voice.read and retry
+        try {
+          const { code } = await discordSdk.commands.authorize({
+            client_id: import.meta.env.VITE_DISCORD_CLIENT_ID,
+            response_type: 'code',
+            state: crypto.randomUUID(),
+            scope: ['identify', 'rpc.voice.read'],
+            prompt: 'consent',
+          });
+          const tokenRes = await fetch(`/api/v1/discord/exchange`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code })
+          });
+          if (tokenRes.ok) {
+            const { access_token } = await tokenRes.json();
+            storeDiscordToken(access_token);
+            await discordSdk.commands.authenticate({ access_token });
+            await trySubscribe();
+            if (!cancelled) console.debug('[Discord] Speaking subscriptions active after re-auth');
+          } else {
+            console.warn('[Discord] Voice re-auth token exchange failed');
+          }
+        } catch (e) {
+          console.debug('[Discord] Voice re-auth not available:', e);
+        }
+      } catch {}
+    };
+
+    ensureVoiceSubscriptions();
+    return () => { cancelled = true; };
+  }, [profileLoaded]);
 
 
   const fetchUserWithToken = async (accessToken) => {
@@ -99,7 +186,8 @@ export default function Lobby() {
         console.debug("[Discord] Browser OAuth - Mobile info:", mobileInfo);
         
         const redirectUri = encodeURIComponent(`${window.location.origin}${window.location.pathname}?from=discord`);
-        const authUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&response_type=code&scope=identify&redirect_uri=${redirectUri}`;
+        const scopes = encodeURIComponent('identify rpc.voice.read');
+        const authUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&response_type=code&scope=${scopes}&redirect_uri=${redirectUri}`;
         
         if (mobileInfo.isMobile) {
           console.debug("[Discord] Mobile browser OAuth redirect to:", authUrl);
@@ -212,6 +300,43 @@ export default function Lobby() {
         
         // First, let's see what methods are available
         try { console.debug("[Discord] Available commands:", Object.keys(discordSdk.commands)); } catch {}
+
+        // If we have a stored token, authenticate the SDK so voice events are permitted
+        try {
+          const t = getStoredDiscordToken();
+          if (t?.access_token) {
+            await discordSdk.commands.authenticate({ access_token: t.access_token });
+            console.debug('[Discord] SDK authenticated with stored token');
+          }
+        } catch (e) { console.debug('[Discord] SDK authenticate with stored token failed (non-fatal):', e); }
+
+        // Subscribe to speaking events when available
+        try {
+          const startHandler = (e) => {
+            const uid = e?.user_id || e?.id || e?.user?.id;
+            if (uid) useStore.getState().startSpeaking(String(uid));
+          };
+          const stopHandler = (e) => {
+            const uid = e?.user_id || e?.id || e?.user?.id;
+            if (uid) useStore.getState().stopSpeaking(String(uid));
+          };
+          if (typeof discordSdk.subscribe === 'function') {
+            let channelId = discordSdk.channelId;
+            try {
+              if (!channelId && discordSdk?.commands?.getChannel) {
+                const ch = await discordSdk.commands.getChannel();
+                channelId = ch?.id || channelId;
+              }
+            } catch (_) {}
+            const subArgs = channelId ? [{ channel_id: channelId }] : [];
+            try { await discordSdk.subscribe(Events.SPEAKING_START, startHandler, ...subArgs); } catch {}
+            try { await discordSdk.subscribe(Events.SPEAKING_STOP, stopHandler, ...subArgs); } catch {}
+            // Some platforms may emit VOICE_STATE_UPDATE with speaking boolean
+            try { await discordSdk.subscribe('VOICE_STATE_UPDATE', (e)=>{ if (e && typeof e.speaking === 'boolean') (e.speaking?startHandler(e):stopHandler(e)); }, ...subArgs); } catch {}
+          }
+        } catch (e) {
+          console.debug('[Discord] Speaking subscriptions unavailable:', e);
+        }
         console.debug("[Discord] Starting user data retrieval...");
         const mobileInfo3 = getMobileInfo();
         console.debug("[Discord] Mobile detection info:", mobileInfo3);
@@ -251,7 +376,7 @@ export default function Lobby() {
             console.debug("[Discord] OAuth parameters:", {
               client_id: clientId,
               response_type: "code",
-              scope: ["identify"],
+              scope: ["identify", "rpc.voice.read"],
               prompt: "consent"
             });
             
@@ -259,7 +384,7 @@ export default function Lobby() {
               client_id: clientId,
               response_type: "code",
               state: crypto.randomUUID(),
-              scope: ["identify"],
+              scope: ["identify", "rpc.voice.read"],
               prompt: "consent",
             });
             console.debug("[Discord] OAuth authorization successful, got code:", code);
@@ -306,7 +431,29 @@ export default function Lobby() {
             setProfileLoaded(true);
 
             // Also authenticate the SDK (optional, for other features)
-            try { await discordSdk.commands.authenticate({ access_token }); } catch {}
+            try { await discordSdk.commands.authenticate({ access_token }); console.debug('[Discord] SDK authenticate succeeded'); } catch {}
+
+            // After authenticate, (re)subscribe to speaking events with channel context
+            try {
+              let channelId2 = discordSdk.channelId;
+              try {
+                if (!channelId2 && discordSdk?.commands?.getChannel) {
+                  const ch2 = await discordSdk.commands.getChannel();
+                  channelId2 = ch2?.id || channelId2;
+                }
+              } catch (_) {}
+              const subArgs2 = channelId2 ? [{ channel_id: channelId2 }] : [];
+              const startHandler2 = (e) => {
+                const uid = e?.user_id || e?.id || e?.user?.id;
+                if (uid) useStore.getState().startSpeaking(String(uid));
+              };
+              const stopHandler2 = (e) => {
+                const uid = e?.user_id || e?.id || e?.user?.id;
+                if (uid) useStore.getState().stopSpeaking(String(uid));
+              };
+              try { await discordSdk.subscribe(Events.SPEAKING_START, startHandler2, ...subArgs2); } catch {}
+              try { await discordSdk.subscribe(Events.SPEAKING_STOP, stopHandler2, ...subArgs2); } catch {}
+            } catch (e) { console.debug('[Discord] Speaking subscribe post-auth failed (non-fatal):', e); }
 
             // Auto-join Discord channel as room when embedded
             try {

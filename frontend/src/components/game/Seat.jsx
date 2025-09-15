@@ -1,4 +1,4 @@
-export default function Seat({ seatIndex, player, highlight, selectable, onSelect, team, isMe, isLaydownPlayer }) {
+export default function Seat({ seatIndex, player, highlight, selectable, onSelect, team, isMe, isLaydownPlayer, isSpeaking }) {
     const handleClick = () => {
       if (selectable && player) onSelect?.(player);
     };

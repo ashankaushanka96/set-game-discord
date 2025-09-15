@@ -36,6 +36,10 @@ export const useStore = create((set, get) => ({
   // internal cleaner timer id
   _messagesCleaner: null,
 
+  // speaking users (by Discord user id)
+  speakingUsers: {},
+  _speakingTimers: {},
+
   // emoji animations
   emojiAnimations: [],
 
@@ -109,6 +113,42 @@ export const useStore = create((set, get) => ({
       }));
     }, 2000);
     return withId.id;
+  },
+
+  // speaking helpers
+  startSpeaking: (userId, ttlMs = 2000) => {
+    if (!userId) return;
+    const id = String(userId);
+    set((state) => ({ speakingUsers: { ...state.speakingUsers, [id]: true } }));
+    // auto-clear if no stop event arrives
+    try {
+      const timers = { ...(get()._speakingTimers || {}) };
+      if (timers[id]) clearTimeout(timers[id]);
+      timers[id] = setTimeout(() => {
+        const s = get();
+        const next = { ...(s.speakingUsers || {}) };
+        delete next[id];
+        set({ speakingUsers: next });
+      }, ttlMs);
+      set({ _speakingTimers: timers });
+    } catch {}
+  },
+  stopSpeaking: (userId) => {
+    if (!userId) return;
+    const id = String(userId);
+    set((state) => {
+      const next = { ...(state.speakingUsers || {}) };
+      delete next[id];
+      return { speakingUsers: next };
+    });
+    try {
+      const timers = { ...(get()._speakingTimers || {}) };
+      if (timers[id]) {
+        clearTimeout(timers[id]);
+        delete timers[id];
+        set({ _speakingTimers: timers });
+      }
+    } catch {}
   },
 
   // --- bottom message box ---
