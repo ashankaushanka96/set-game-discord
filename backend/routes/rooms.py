@@ -37,6 +37,12 @@ def get_state(room_id: str):
 @router.post("/{room_id}/players")
 def http_join_room(room_id: str, body: JoinReq):
     logger.info(f"Player {body.id} ({body.name}) joining room {room_id}")
+    
+    # Check if this looks like a Discord channel ID (long numeric string)
+    is_discord_channel = room_id.isdigit() and len(room_id) > 10
+    if is_discord_channel:
+        logger.info(f"Auto-creating room from Discord channel ID: {room_id}")
+    
     game = GameService.get_or_create_room(room_id)
     
     # Check if lobby is locked (game in progress)
@@ -48,4 +54,5 @@ def http_join_room(room_id: str, body: JoinReq):
         raise HTTPException(status_code=403, detail="Room is full (6/6 players)")
     
     game.state.players[body.id] = Player(**body.model_dump())
+    logger.info(f"Player {body.id} successfully joined room {room_id}. Total players: {len(game.state.players)}")
     return game.state.model_dump()

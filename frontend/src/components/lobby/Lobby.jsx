@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useStore } from "../../store";
 import { connectWS, send } from "../../ws";
-import { apiCreateRoom, apiJoinRoom } from "../../api";
+import { apiJoinRoom } from "../../api";
 // Avatar selection removed; we always use Discord profile
 import { Toast } from "../ui";
 import { generateUUID } from "../../utils/uuid";
@@ -61,9 +61,7 @@ export default function Lobby() {
   // We always use Discord for profile; start empty until loaded
   const [name, setName] = useState("");
   const [avatar, setAvatar] = useState("");
-  const [roomInput, setRoomInput] = useState(roomId || "");
   const [copied, setCopied] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   // ensure per-tab identity
@@ -315,15 +313,19 @@ export default function Lobby() {
               const channelId = discordSdk.channelId;
               if (channelId) {
                 const rid = String(channelId);
+                console.debug('[Discord] Auto-joining channel as room:', rid);
                 setRoom(rid);
-                setRoomInput(rid);
                 await httpJoinRoom(rid);
                 const ws = connectWS(rid, useStore.getState().me.id, applyServer);
                 setWS(ws);
                 setTimeout(() => send(ws, 'sync', {}), 150);
+                console.debug('[Discord] Successfully auto-joined room:', rid);
+              } else {
+                console.debug('[Discord] No channel ID available for auto-join');
               }
             } catch (joinErr) {
-              console.warn('[Discord] Auto-join channel as room failed:', joinErr);
+              console.error('[Discord] Auto-join channel as room failed:', joinErr);
+              setError(`Failed to auto-join room: ${joinErr.message}`);
             }
 
             // Done; skip the rest of the older code path
@@ -416,15 +418,19 @@ export default function Lobby() {
         try {
           if (discordSdk.channelId) {
             const rid = String(discordSdk.channelId);
+            console.debug('[Discord] Post-auth auto-joining channel as room:', rid);
             setRoom(rid);
-            setRoomInput(rid);
             await httpJoinRoom(rid);
             const ws = connectWS(rid, useStore.getState().me.id, applyServer);
             setWS(ws);
             setTimeout(() => send(ws, 'sync', {}), 150);
+            console.debug('[Discord] Successfully post-auth auto-joined room:', rid);
+          } else {
+            console.debug('[Discord] No channel ID available for post-auth auto-join');
           }
         } catch (e) {
-          console.warn('[Discord] Post-auth auto-join failed:', e);
+          console.error('[Discord] Post-auth auto-join failed:', e);
+          setError(`Failed to auto-join room: ${e.message}`);
         }
       } catch (e) {
         console.error("[Discord] Discord auth failed:", e);
@@ -517,6 +523,108 @@ export default function Lobby() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name, avatar, usingDiscordProfile]);
 
+  // Auto-join room when profile is loaded and we have a Discord channel ID
+  useEffect(() => {
+    if (profileLoaded && name && !roomId && isDiscordEmbedded) {
+      console.debug("[Discord] Profile loaded, attempting auto-join with stored Discord channel ID...");
+      // Try to get channel ID from Discord SDK if available
+      const tryAutoJoin = async () => {
+        try {
+          const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
+          if (clientId) {
+            const discordSdk = new DiscordSDK(clientId);
+            await discordSdk.ready();
+            const channelId = discordSdk.channelId;
+            if (channelId) {
+              const rid = String(channelId);
+              console.debug('[Discord] Fallback auto-join with channel ID:', rid);
+              setRoom(rid);
+              await httpJoinRoom(rid);
+              const ws = connectWS(rid, useStore.getState().me.id, applyServer);
+              setWS(ws);
+              setTimeout(() => send(ws, 'sync', {}), 150);
+              console.debug('[Discord] Successfully fallback auto-joined room:', rid);
+            }
+          }
+        } catch (e) {
+          console.warn('[Discord] Fallback auto-join failed:', e);
+        }
+      };
+      tryAutoJoin();
+    }
+  }, [profileLoaded, name, roomId, isDiscordEmbedded]);
+
+  // Direct auto-join attempt when component mounts (for debugging)
+  useEffect(() => {
+    let retryCount = 0;
+    const maxRetries = 5;
+    
+    const attemptDirectAutoJoin = async () => {
+      try {
+        console.debug(`[Discord] Direct auto-join attempt #${retryCount + 1} on component mount...`);
+        const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
+        if (!clientId) {
+          console.debug("[Discord] No client ID available for direct auto-join");
+          return;
+        }
+
+        const discordSdk = new DiscordSDK(clientId);
+        await discordSdk.ready();
+        
+        console.debug("[Discord] Direct auto-join - SDK ready, checking channel ID...");
+        console.debug("[Discord] Direct auto-join - Channel ID:", discordSdk.channelId);
+        console.debug("[Discord] Direct auto-join - Platform:", discordSdk.platform);
+        console.debug("[Discord] Direct auto-join - Guild ID:", discordSdk.guildId);
+        
+        const channelId = discordSdk.channelId;
+        if (channelId && !roomId) {
+          const rid = String(channelId);
+          console.debug('[Discord] Direct auto-join with channel ID:', rid);
+          
+          // Check if we have profile data
+          const currentMe = useStore.getState().me;
+          if (currentMe && currentMe.name) {
+            console.debug('[Discord] Direct auto-join - Profile available:', currentMe);
+            setRoom(rid);
+            await httpJoinRoom(rid);
+            const ws = connectWS(rid, currentMe.id, applyServer);
+            setWS(ws);
+            setTimeout(() => send(ws, 'sync', {}), 150);
+            console.debug('[Discord] Successfully direct auto-joined room:', rid);
+            return; // Success, no need to retry
+          } else {
+            console.debug('[Discord] Direct auto-join - No profile available yet, will retry later');
+          }
+        } else if (!channelId) {
+          console.debug('[Discord] Direct auto-join - No channel ID available');
+        } else if (roomId) {
+          console.debug('[Discord] Direct auto-join - Already in room:', roomId);
+          return; // Already in room, no need to retry
+        }
+        
+        // If we get here and haven't succeeded, retry if we haven't exceeded max retries
+        retryCount++;
+        if (retryCount < maxRetries) {
+          console.debug(`[Discord] Direct auto-join retry #${retryCount + 1} in 2 seconds...`);
+          setTimeout(attemptDirectAutoJoin, 2000);
+        } else {
+          console.warn('[Discord] Direct auto-join failed after maximum retries');
+        }
+      } catch (e) {
+        console.error('[Discord] Direct auto-join failed:', e);
+        retryCount++;
+        if (retryCount < maxRetries) {
+          console.debug(`[Discord] Direct auto-join retry #${retryCount + 1} in 2 seconds after error...`);
+          setTimeout(attemptDirectAutoJoin, 2000);
+        }
+      }
+    };
+
+    // Try direct auto-join after a short delay to ensure everything is initialized
+    const timer = setTimeout(attemptDirectAutoJoin, 1000);
+    return () => clearTimeout(timer);
+  }, []); // Run once on mount
+
   async function httpJoinRoom(rid) {
     const player = {
       id: useStore.getState().me.id,
@@ -525,52 +633,6 @@ export default function Lobby() {
     };
     return await apiJoinRoom(rid, player);
   }
-
-  const createRoom = async () => {
-    setError("");
-    setBusy(true);
-    try {
-      const data = await apiCreateRoom(); // {room_id}
-      const rid = data.room_id;
-      setRoomInput(rid);
-      setRoom(rid);
-
-      // Ensure latest profile is what server stores
-      await httpJoinRoom(rid);
-
-      const ws = connectWS(rid, useStore.getState().me.id, applyServer);
-      setWS(ws);
-      setTimeout(() => send(ws, "sync", {}), 150);
-    } catch (e) {
-      setError(e.message || "Failed to create room");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const joinRoom = async () => {
-    const rid = roomInput.trim();
-    if (!rid) {
-      setError("Enter a Room ID or create one.");
-      return;
-    }
-    setError("");
-    setBusy(true);
-    try {
-      setRoom(rid);
-
-      // Ensure latest profile is what server stores
-      await httpJoinRoom(rid);
-
-      const ws = connectWS(rid, useStore.getState().me.id, applyServer);
-      setWS(ws);
-      setTimeout(() => send(ws, "sync", {}), 150);
-    } catch (e) {
-      setError(e.message || "Failed to join room");
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const startGame = () => {
     const allPlayers = Object.values(state?.players || {});
@@ -616,17 +678,16 @@ export default function Lobby() {
 
   const copyRoomId = async () => {
     try {
-      const roomIdToCopy = roomId || roomInput;
-      if (!roomIdToCopy) {
+      if (!roomId) {
         setError("No room ID to copy");
         return;
       }
 
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(roomIdToCopy);
+        await navigator.clipboard.writeText(roomId);
       } else {
         const textArea = document.createElement("textarea");
-        textArea.value = roomIdToCopy;
+        textArea.value = roomId;
         textArea.style.position = "fixed";
         textArea.style.left = "-999999px";
         textArea.style.top = "-999999px";
@@ -726,8 +787,7 @@ export default function Lobby() {
             </div>
           </div>
 
-          {/* Room controls (hidden in Discord embedded mode) */}
-          {!isDiscordEmbedded && (
+          {/* Room info (auto-joined via Discord channel) */}
           <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-6 border border-zinc-700/50">
             <h2 className="font-semibold mb-4 text-lg flex items-center gap-2">
               <span className="text-blue-400">🏠</span>
@@ -735,65 +795,97 @@ export default function Lobby() {
             </h2>
 
             <div className="space-y-4">
-              <button
-                className="w-full bg-emerald-600 hover:bg-emerald-500 px-4 py-3 rounded-lg disabled:opacity-50 transition-colors font-medium"
-                onClick={createRoom}
-                disabled={busy || !profileLoaded}
-                title={!profileLoaded ? "Loading Discord profile..." : "Create a new room"}
-              >
-                {busy ? "Creating..." : "Create Room"}
-              </button>
-
-              <div>
-                <label className="block text-sm mb-2 text-zinc-300">Room ID</label>
-                <div className="flex gap-2">
-                  <input
-                    className="flex-1 bg-zinc-800 border border-zinc-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    value={roomInput}
-                    onChange={(e) => setRoomInput(e.target.value)}
-                    placeholder="e.g., 04fa97"
-                  />
+              {roomId ? (
+                <div>
+                  <label className="block text-sm mb-2 text-zinc-300">Current Room</label>
+                  <div className="flex gap-2">
+                    <input
+                      className="flex-1 bg-zinc-800 border border-zinc-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      value={roomId}
+                      readOnly
+                      placeholder="Auto-joined room"
+                    />
+                    <button
+                      className={`px-3 py-2 rounded-lg transition-colors ${
+                        copied ? "bg-emerald-600 text-white" : "bg-zinc-700 hover:bg-zinc-600 text-zinc-300"
+                      }`}
+                      onClick={copyRoomId}
+                      title="Copy Room ID"
+                    >
+                      {copied ? "✓" : "📋"}
+                    </button>
+                  </div>
+                  {copied && <div className="text-xs mt-1 text-emerald-400">Copied!</div>}
+                  <div className="text-xs mt-2 text-zinc-400">
+                    Auto-joined via Discord channel
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <div className="text-zinc-400 mb-2">No room connected</div>
+                  <div className="text-xs text-zinc-500 mb-3">
+                    Join a Discord channel to automatically connect to a room
+                  </div>
                   <button
-                    className={`px-3 py-2 rounded-lg transition-colors ${
-                      copied ? "bg-emerald-600 text-white" : "bg-zinc-700 hover:bg-zinc-600 text-zinc-300"
-                    }`}
-                    onClick={copyRoomId}
-                    title="Copy Room ID"
-                    disabled={!roomId && !roomInput}
+                    className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
+                    onClick={async () => {
+                      try {
+                        console.debug("[Debug] Manual auto-join button clicked");
+                        const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
+                        if (!clientId) {
+                          setError("No Discord client ID configured");
+                          return;
+                        }
+                        const discordSdk = new DiscordSDK(clientId);
+                        await discordSdk.ready();
+                        const channelId = discordSdk.channelId;
+                        console.debug("[Debug] Manual auto-join - Channel ID:", channelId);
+                        if (channelId) {
+                          const rid = String(channelId);
+                          const currentMe = useStore.getState().me;
+                          if (currentMe && currentMe.name) {
+                            setRoom(rid);
+                            await httpJoinRoom(rid);
+                            const ws = connectWS(rid, currentMe.id, applyServer);
+                            setWS(ws);
+                            setTimeout(() => send(ws, 'sync', {}), 150);
+                            console.debug("[Debug] Manual auto-join successful");
+                          } else {
+                            setError("No profile data available for manual join");
+                          }
+                        } else {
+                          setError("No Discord channel ID available");
+                        }
+                      } catch (e) {
+                        console.error("[Debug] Manual auto-join failed:", e);
+                        setError(`Manual join failed: ${e.message}`);
+                      }
+                    }}
                   >
-                    {copied ? "✓" : "📋"}
+                    Debug: Force Auto-Join
                   </button>
                 </div>
-                {copied && <div className="text-xs mt-1 text-emerald-400">Copied!</div>}
-              </div>
+              )}
 
-              <div className="flex gap-2">
-                <button
-                  className="flex-1 bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-lg disabled:opacity-50 transition-colors"
-                  onClick={joinRoom}
-                  disabled={busy || state?.lobby_locked || !profileLoaded}
-                >
-                  {busy ? "Joining..." : state?.lobby_locked ? "Lobby Locked" : !profileLoaded ? "Loading profile..." : "Join"}
-                </button>
-                <button
-                  className={`flex-1 px-4 py-2 rounded-lg transition-colors ${
-                    players.length >= 6 && players.filter((p) => p.team).length >= 6
-                      ? "bg-amber-600 hover:bg-amber-500"
-                      : "bg-zinc-600 cursor-not-allowed"
-                  }`}
-                  onClick={startGame}
-                  disabled={players.length < 6 || players.filter((p) => p.team).length < 6}
-                >
-                  {players.length < 6
-                    ? `Start (${players.length}/6 connected players)`
-                    : players.filter((p) => p.team).length < 6
-                    ? `Start (${players.filter((p) => p.team).length}/6 teams)`
-                    : "Start Game"}
-                </button>
-              </div>
+              <button
+                className={`w-full px-4 py-2 rounded-lg transition-colors ${
+                  players.length >= 6 && players.filter((p) => p.team).length >= 6
+                    ? "bg-amber-600 hover:bg-amber-500"
+                    : "bg-zinc-600 cursor-not-allowed"
+                }`}
+                onClick={startGame}
+                disabled={players.length < 6 || players.filter((p) => p.team).length < 6 || !roomId}
+              >
+                {!roomId 
+                  ? "No Room Connected"
+                  : players.length < 6
+                  ? `Start (${players.length}/6 connected players)`
+                  : players.filter((p) => p.team).length < 6
+                  ? `Start (${players.filter((p) => p.team).length}/6 teams)`
+                  : "Start Game"}
+              </button>
             </div>
           </div>
-          )}
 
           {/* Teams */}
           <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-6 border border-zinc-700/50">
