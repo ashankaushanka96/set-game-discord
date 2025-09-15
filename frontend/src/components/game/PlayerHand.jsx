@@ -92,18 +92,17 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
         Your Hand
       </div>
 
-      {/* Desktop: One single line, centered; no wrap; constrained to viewport */}
-      {/* Mobile: Up to 2 rows with wrapping */}
-      <div className="max-w-[95vw]">
-        <div className="hidden md:inline-flex items-center justify-center whitespace-nowrap gap-2">
+      {/* Desktop: One single row, horizontally scrollable */}
+      <div className="hidden md:block w-full">
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent pb-2">
           {/* LOWER */}
           {lowerItems.map((it) =>
             it.__sep ? (
-              <span key={it.__sep} className="inline-block w-4" />
+              <span key={it.__sep} className="inline-block w-4 flex-shrink-0" />
             ) : (
               <span 
                 key={it.__key} 
-                className={`inline-block ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''}`}
+                className={`inline-block flex-shrink-0 ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''}`}
                 onClick={() => handleCardClick(it)}
               >
                 <Card suit={it.suit} rank={it.rank} />
@@ -113,17 +112,17 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
 
           {/* Divider between lower and upper (only if both exist) */}
           {lowerItems.length > 0 && upperItems.length > 0 && (
-            <span className="inline-block mx-4 h-10 w-px bg-white/20 align-middle" />
+            <span className="inline-block mx-4 h-10 w-px bg-white/20 align-middle flex-shrink-0" />
           )}
 
           {/* UPPER */}
           {upperItems.map((it) =>
             it.__sep ? (
-              <span key={it.__sep} className="inline-block w-4" />
+              <span key={it.__sep} className="inline-block w-4 flex-shrink-0" />
             ) : (
               <span 
                 key={it.__key} 
-                className={`inline-block ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''}`}
+                className={`inline-block flex-shrink-0 ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''}`}
                 onClick={() => handleCardClick(it)}
               >
                 <Card suit={it.suit} rank={it.rank} />
@@ -131,19 +130,21 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
             )
           )}
         </div>
+      </div>
 
-        {/* Mobile: Flexible layout with up to 2 rows */}
-        <div className="md:hidden flex flex-col items-center gap-2">
-          {/* LOWER */}
+      {/* Mobile: Two rows, horizontally scrollable */}
+      <div className="md:hidden w-full">
+        <div className="flex flex-col gap-2">
+          {/* LOWER ROW */}
           {lowerItems.length > 0 && (
-            <div className="flex flex-wrap items-center justify-center gap-1 max-w-[90vw]">
+            <div className="flex items-center gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent pb-1">
               {lowerItems.map((it) =>
                 it.__sep ? (
-                  <span key={it.__sep} className="inline-block w-2" />
+                  <span key={it.__sep} className="inline-block w-2 flex-shrink-0" />
                 ) : (
                   <span 
                     key={it.__key} 
-                    className={`inline-block ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''}`}
+                    className={`inline-block flex-shrink-0 ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''}`}
                     onClick={() => handleCardClick(it)}
                   >
                     <Card suit={it.suit} rank={it.rank} />
@@ -153,21 +154,16 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
             </div>
           )}
 
-          {/* Divider between lower and upper (only if both exist) */}
-          {lowerItems.length > 0 && upperItems.length > 0 && (
-            <div className="w-16 h-px bg-white/20" />
-          )}
-
-          {/* UPPER */}
+          {/* UPPER ROW */}
           {upperItems.length > 0 && (
-            <div className="flex flex-wrap items-center justify-center gap-1 max-w-[90vw]">
+            <div className="flex items-center gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent pb-1">
               {upperItems.map((it) =>
                 it.__sep ? (
-                  <span key={it.__sep} className="inline-block w-2" />
+                  <span key={it.__sep} className="inline-block w-2 flex-shrink-0" />
                 ) : (
                   <span 
                     key={it.__key} 
-                    className={`inline-block ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''}`}
+                    className={`inline-block flex-shrink-0 ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''}`}
                     onClick={() => handleCardClick(it)}
                   >
                     <Card suit={it.suit} rank={it.rank} />
