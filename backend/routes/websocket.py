@@ -84,6 +84,12 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
     
     # Check if this is a reconnection
     was_disconnected = player_id in game.state.players and not game.state.players[player_id].connected
+    # Also check if player has a seat (indicates they were in an active game)
+    has_seat = player_id in game.state.players and game.state.players[player_id].seat is not None
+    is_reconnection = was_disconnected or (has_seat and game.state.phase in ["ready", "playing"])
+    
+    connected_status = game.state.players[player_id].connected if player_id in game.state.players else 'N/A'
+    logger.info(f"WebSocket connection for {player_id}: was_disconnected={was_disconnected}, has_seat={has_seat}, is_reconnection={is_reconnection}, player_exists={player_id in game.state.players}, connected={connected_status}")
     
     # Clean up any disconnected players' seats in lobby phase
     if game.state.phase == "lobby":
@@ -100,6 +106,19 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
     if player_id in game.state.players:
         game.state.players[player_id].connected = True
         logger.info(f"Player {player_id} connected to room {room_id} (reconnection: {was_disconnected})")
+        
+        # If this was a reconnection, notify other players
+        if is_reconnection:
+            player_name = game.state.players[player_id].name
+            logger.info(f"Sending player_reconnected message for {player_id} ({player_name})")
+            await WebSocketService.broadcast(room_id, "player_reconnected", {
+                "player_id": player_id,
+                "player_name": player_name,
+                "state": game.state.model_dump()
+            })
+            logger.info(f"Successfully notified other players that {player_id} ({player_name}) reconnected")
+        else:
+            logger.info(f"Not sending reconnection notification for {player_id} - is_reconnection={is_reconnection}")
     else:
         logger.warning(f"Unknown player {player_id} connected to room {room_id}")
     

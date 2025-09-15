@@ -521,31 +521,17 @@ export const useStore = create((set, get) => ({
 
     // PLAYER RECONNECTED
     if (msg.type === "player_reconnected") {
+      console.debug("[Store] Received player_reconnected message:", msg.payload);
       const s = msg.payload.state;
-      set({ state: s, phase: s.phase });
-      const players = s.players || {};
-      const playerName = players[msg.payload.player_id]?.name || msg.payload.player_name || "Unknown";
+      set({ state: s });
+      const playerName = msg.payload.player_name || "Unknown";
+      
+      console.debug("[Store] Showing reconnection notification for:", playerName);
       get().setGameMessage("PLAYER RECONNECTED", [
         `${playerName} has reconnected`,
         "Welcome back!"
       ]);
-      
-      // Show toast notification
-      get().showToast("reconnect", "Player Reconnected", `${playerName} has reconnected`);
-      
-      // If the reconnected player is the current user and game has started, navigate to game room
-      const me = get().me;
-      if (me && msg.payload.player_id === me.id && (s.phase === "ready" || s.phase === "playing")) {
-        const currentPath = window.location.pathname;
-        const roomId = s.room_id;
-        
-        if (roomId && !currentPath.includes(`/room/${roomId}/${me.id}`)) {
-          // Dispatch navigation event to avoid WebSocket disconnection
-          window.dispatchEvent(new CustomEvent('navigate-to-game', {
-            detail: { roomId, playerId: me.id }
-          }));
-        }
-      }
+      get().showToast("success", "Player Reconnected", `${playerName} has reconnected`);
     }
 
     // GAME STARTED - trigger navigation for all players
