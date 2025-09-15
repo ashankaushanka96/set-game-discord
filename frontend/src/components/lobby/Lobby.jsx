@@ -61,7 +61,6 @@ export default function Lobby() {
   // We always use Discord for profile; start empty until loaded
   const [name, setName] = useState("");
   const [avatar, setAvatar] = useState("");
-  const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
 
   // ensure per-tab identity
@@ -676,39 +675,6 @@ export default function Lobby() {
     send(useStore.getState().ws, "start", {});
   };
 
-  const copyRoomId = async () => {
-    try {
-      if (!roomId) {
-        setError("No room ID to copy");
-        return;
-      }
-
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(roomId);
-      } else {
-        const textArea = document.createElement("textarea");
-        textArea.value = roomId;
-        textArea.style.position = "fixed";
-        textArea.style.left = "-999999px";
-        textArea.style.top = "-999999px";
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        try {
-          document.execCommand("copy");
-        } catch (err) {
-          throw new Error("Copy command failed");
-        }
-        document.body.removeChild(textArea);
-      }
-
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1200);
-    } catch (error) {
-      console.error("Failed to copy room ID:", error);
-      setError("Failed to copy room ID - try selecting and copying manually");
-    }
-  };
 
   const players = useMemo(() => {
     const allPlayers = Object.values(state?.players || {});
@@ -747,7 +713,7 @@ export default function Lobby() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 relative">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 relative">
           {/* Profile */}
           <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-6 border border-zinc-700/50 relative overflow-visible">
             <h2 className="font-semibold mb-4 text-lg flex items-center gap-2">
@@ -787,105 +753,6 @@ export default function Lobby() {
             </div>
           </div>
 
-          {/* Room info (auto-joined via Discord channel) */}
-          <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-6 border border-zinc-700/50">
-            <h2 className="font-semibold mb-4 text-lg flex items-center gap-2">
-              <span className="text-blue-400">🏠</span>
-              Room
-            </h2>
-
-            <div className="space-y-4">
-              {roomId ? (
-                <div>
-                  <label className="block text-sm mb-2 text-zinc-300">Current Room</label>
-                  <div className="flex gap-2">
-                    <input
-                      className="flex-1 bg-zinc-800 border border-zinc-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                      value={roomId}
-                      readOnly
-                      placeholder="Auto-joined room"
-                    />
-                    <button
-                      className={`px-3 py-2 rounded-lg transition-colors ${
-                        copied ? "bg-emerald-600 text-white" : "bg-zinc-700 hover:bg-zinc-600 text-zinc-300"
-                      }`}
-                      onClick={copyRoomId}
-                      title="Copy Room ID"
-                    >
-                      {copied ? "✓" : "📋"}
-                    </button>
-                  </div>
-                  {copied && <div className="text-xs mt-1 text-emerald-400">Copied!</div>}
-                  <div className="text-xs mt-2 text-zinc-400">
-                    Auto-joined via Discord channel
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-4">
-                  <div className="text-zinc-400 mb-2">No room connected</div>
-                  <div className="text-xs text-zinc-500 mb-3">
-                    Join a Discord channel to automatically connect to a room
-                  </div>
-                  <button
-                    className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
-                    onClick={async () => {
-                      try {
-                        console.debug("[Debug] Manual auto-join button clicked");
-                        const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
-                        if (!clientId) {
-                          setError("No Discord client ID configured");
-                          return;
-                        }
-                        const discordSdk = new DiscordSDK(clientId);
-                        await discordSdk.ready();
-                        const channelId = discordSdk.channelId;
-                        console.debug("[Debug] Manual auto-join - Channel ID:", channelId);
-                        if (channelId) {
-                          const rid = String(channelId);
-                          const currentMe = useStore.getState().me;
-                          if (currentMe && currentMe.name) {
-                            setRoom(rid);
-                            await httpJoinRoom(rid);
-                            const ws = connectWS(rid, currentMe.id, applyServer);
-                            setWS(ws);
-                            setTimeout(() => send(ws, 'sync', {}), 150);
-                            console.debug("[Debug] Manual auto-join successful");
-                          } else {
-                            setError("No profile data available for manual join");
-                          }
-                        } else {
-                          setError("No Discord channel ID available");
-                        }
-                      } catch (e) {
-                        console.error("[Debug] Manual auto-join failed:", e);
-                        setError(`Manual join failed: ${e.message}`);
-                      }
-                    }}
-                  >
-                    Debug: Force Auto-Join
-                  </button>
-                </div>
-              )}
-
-              <button
-                className={`w-full px-4 py-2 rounded-lg transition-colors ${
-                  players.length >= 6 && players.filter((p) => p.team).length >= 6
-                    ? "bg-amber-600 hover:bg-amber-500"
-                    : "bg-zinc-600 cursor-not-allowed"
-                }`}
-                onClick={startGame}
-                disabled={players.length < 6 || players.filter((p) => p.team).length < 6 || !roomId}
-              >
-                {!roomId 
-                  ? "No Room Connected"
-                  : players.length < 6
-                  ? `Start (${players.length}/6 connected players)`
-                  : players.filter((p) => p.team).length < 6
-                  ? `Start (${players.filter((p) => p.team).length}/6 teams)`
-                  : "Start Game"}
-              </button>
-            </div>
-          </div>
 
           {/* Teams */}
           <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-6 border border-zinc-700/50">
@@ -977,6 +844,24 @@ export default function Lobby() {
                 </div>
               </div>
             )}
+
+            <button
+              className={`w-full mt-4 px-4 py-3 rounded-lg transition-colors font-medium ${
+                players.length >= 6 && players.filter((p) => p.team).length >= 6
+                  ? "bg-amber-600 hover:bg-amber-500"
+                  : "bg-zinc-600 cursor-not-allowed"
+              }`}
+              onClick={startGame}
+              disabled={players.length < 6 || players.filter((p) => p.team).length < 6 || !roomId}
+            >
+              {!roomId 
+                ? "No Room Connected"
+                : players.length < 6
+                ? `Start (${players.length}/6 connected players)`
+                : players.filter((p) => p.team).length < 6
+                ? `Start (${players.filter((p) => p.team).length}/6 teams)`
+                : "Start Game"}
+            </button>
           </div>
         </div>
 
