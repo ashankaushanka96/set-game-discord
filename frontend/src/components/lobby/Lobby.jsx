@@ -636,37 +636,57 @@ export default function Lobby() {
   const startGame = () => {
     const allPlayers = Object.values(state?.players || {});
     const connectedPlayers = allPlayers.filter((p) => p.connected !== false);
-    const playersWithTeams = connectedPlayers.filter((p) => p.team);
     const meRef = useStore.getState().me;
 
+    console.debug(`[Start Game] Starting with ${connectedPlayers.length} real players`);
+
+    // If we have fewer than 6 players, add AI players to fill up the seats
     if (connectedPlayers.length < 6) {
-      setError("Need 6 connected players to start the game");
-      return;
+      const aiPlayersNeeded = 6 - connectedPlayers.length;
+      console.debug(`[Start Game] Adding ${aiPlayersNeeded} AI players`);
+      
+      // Generate AI players
+      const aiPlayers = [];
+      const aiNames = ["Bot Alpha", "Bot Beta", "Bot Gamma", "Bot Delta", "Bot Epsilon", "Bot Zeta"];
+      const aiAvatars = ["🤖", "👾", "🎮", "🎯", "⚡", "🔥"];
+      
+      for (let i = 0; i < aiPlayersNeeded; i++) {
+        const aiId = `ai_${Date.now()}_${i}`;
+        const aiName = aiNames[i] || `Bot ${i + 1}`;
+        const aiAvatar = aiAvatars[i] || "🤖";
+        const aiTeam = i % 2 === 0 ? "A" : "B"; // Alternate teams
+        
+        aiPlayers.push({
+          id: aiId,
+          name: aiName,
+          avatar: aiAvatar,
+          team: aiTeam,
+          connected: true,
+          isAI: true
+        });
+        
+        // Add AI player to the game
+        send(useStore.getState().ws, "add_ai_player", {
+          player_id: aiId,
+          name: aiName,
+          avatar: aiAvatar,
+          team: aiTeam
+        });
+      }
+      
+      console.debug(`[Start Game] Added AI players:`, aiPlayers);
     }
 
+    // Auto-assign team for current player if not assigned
     const mePlayer = connectedPlayers.find((p) => p.id === meRef.id);
     if (mePlayer && !mePlayer.team) {
+      // Auto-assign team A if no team selected
       send(useStore.getState().ws, "select_team", { player_id: meRef.id, team: "A" });
       setTimeout(() => {
-        const updatedAllPlayers = Object.values(state?.players || {});
-        const updatedConnectedPlayers = updatedAllPlayers.filter((p) => p.connected !== false);
-        const updatedPlayersWithTeams = updatedConnectedPlayers.filter((p) => p.team);
-
-        if (updatedPlayersWithTeams.length < 6) {
-          setError("All connected players must select a team before starting");
-          return;
-        }
-
         const playerData = useStore.getState().me;
         localStorage.setItem(`player_${playerData.id}`, JSON.stringify(playerData));
-
         send(useStore.getState().ws, "start", {});
-      }, 100);
-      return;
-    }
-
-    if (playersWithTeams.length < 6) {
-      setError("All players must select a team before starting");
+      }, 200); // Slightly longer delay to ensure AI players are added
       return;
     }
 
@@ -847,20 +867,34 @@ export default function Lobby() {
 
             <button
               className={`w-full mt-4 px-4 py-3 rounded-lg transition-colors font-medium ${
-                players.length >= 6 && players.filter((p) => p.team).length >= 6
-                  ? "bg-amber-600 hover:bg-amber-500"
-                  : "bg-zinc-600 cursor-not-allowed"
+                !roomId
+                  ? "bg-zinc-600 cursor-not-allowed"
+                  : "bg-amber-600 hover:bg-amber-500"
               }`}
               onClick={startGame}
-              disabled={players.length < 6 || players.filter((p) => p.team).length < 6 || !roomId}
+              disabled={!roomId}
             >
               {!roomId 
                 ? "No Room Connected"
                 : players.length < 6
-                ? `Start (${players.length}/6 connected players)`
-                : players.filter((p) => p.team).length < 6
-                ? `Start (${players.filter((p) => p.team).length}/6 teams)`
-                : "Start Game"}
+                ? `Start Game (${players.length} + ${6 - players.length} AI)`
+                : `Start Game (${players.length} players)`}
+            </button>
+
+            {/* Testing Button */}
+            <button
+              className="w-full mt-2 px-4 py-2 rounded-lg transition-colors font-medium bg-purple-600 hover:bg-purple-500 text-white"
+              onClick={() => {
+                console.debug("[Testing] Current state:", state);
+                console.debug("[Testing] Current player:", me);
+                console.debug("[Testing] Room ID:", roomId);
+                console.debug("[Testing] Players:", players);
+                console.debug("[Testing] Profile loaded:", profileLoaded);
+                console.debug("[Testing] Discord embedded:", isDiscordEmbedded);
+                console.debug("[Testing] WebSocket:", useStore.getState().ws);
+              }}
+            >
+              🧪 Debug Info
             </button>
           </div>
         </div>

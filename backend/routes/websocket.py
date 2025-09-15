@@ -70,6 +70,21 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                 game.assign_seat(p["player_id"], p["team"])
                 await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
 
+            elif t == "add_ai_player":
+                logger.info(f"Adding AI player {p['player_id']} ({p['name']}) to team {p['team']} in room {room_id}")
+                from models import Player
+                ai_player = Player(
+                    id=p["player_id"],
+                    name=p["name"],
+                    avatar=p["avatar"],
+                    team=p["team"],
+                    connected=True
+                )
+                game.state.players[p["player_id"]] = ai_player
+                game.assign_seat(p["player_id"], p["team"])
+                await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
+                logger.info(f"AI player {p['player_id']} added successfully. Total players: {len(game.state.players)}")
+
             elif t == "start":
                 logger.info(f"Game starting in room {room_id}")
                 game.start()
