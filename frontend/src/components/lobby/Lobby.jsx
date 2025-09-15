@@ -704,6 +704,12 @@ export default function Lobby() {
     return allPlayers;
   }, [state]);
 
+  // Debug logging
+  console.debug("[Lobby] State:", state);
+  console.debug("[Lobby] Players:", players);
+  console.debug("[Lobby] Lobby locked:", state?.lobby_locked);
+  console.debug("[Lobby] Phase:", state?.phase);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 p-8">
       <div className="max-w-6xl mx-auto">
@@ -733,13 +739,35 @@ export default function Lobby() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 relative">
-          {/* Profile */}
-          <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-6 border border-zinc-700/50 relative overflow-visible">
-            <h2 className="font-semibold mb-4 text-lg flex items-center gap-2">
-              <span className="text-emerald-400">👤</span>
-              {!profileLoaded ? "Loading Discord Profile..." : "Discord Profile"}
-            </h2>
+        {/* Show lobby locked screen when game is in progress */}
+        {(state?.lobby_locked || state?.phase !== "lobby") ? (
+          <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-8 border border-zinc-700/50 text-center">
+            <div className="max-w-md mx-auto">
+              <div className="text-6xl mb-4">🔒</div>
+              <h2 className="text-2xl font-bold text-amber-400 mb-4">
+                {state?.phase === "lobby" ? "Lobby Locked" : "Game In Progress"}
+              </h2>
+              <p className="text-zinc-300 mb-6">
+                {state?.phase === "lobby" 
+                  ? "A game is currently in progress in this room. New players cannot join until the current game ends."
+                  : "A game is currently being played in this room. New players cannot join until the current game ends."
+                }
+              </p>
+              <div className="bg-amber-600/20 border border-amber-500/40 px-4 py-3 rounded-lg">
+                <p className="text-sm text-amber-200">
+                  Please wait for the current game to finish, or join a different room.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 relative">
+            {/* Profile */}
+            <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-6 border border-zinc-700/50 relative overflow-visible">
+              <h2 className="font-semibold mb-4 text-lg flex items-center gap-2">
+                <span className="text-emerald-400">👤</span>
+                {!profileLoaded ? "Loading Discord Profile..." : "Discord Profile"}
+              </h2>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm mb-2 text-zinc-300">Name</label>
@@ -898,10 +926,10 @@ export default function Lobby() {
             </button>
           </div>
         </div>
+        )}
 
-
-
-        {/* Player list */}
+        {/* Player list - only show when lobby is not locked */}
+        {!(state?.lobby_locked || state?.phase !== "lobby") && (
         <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-6 border border-zinc-700/50">
           <h2 className="font-semibold mb-4 text-lg flex items-center gap-2">
             <span className="text-green-400">🎮</span>
@@ -933,6 +961,7 @@ export default function Lobby() {
             )}
           </div>
         </div>
+        )}
       </div>
 
       {/* Toast Notifications */}
