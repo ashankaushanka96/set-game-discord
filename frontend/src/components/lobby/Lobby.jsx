@@ -9,6 +9,7 @@ import { generateUUID } from "../../utils/uuid";
 import { DiscordSDK, Events }  from "@discord/embedded-app-sdk";
 import { readyDiscordSDK } from "../../utils/discordSdkSingleton";
 import { discordAvatarUrl } from "../../utils/discord";
+import { TEST_MODE_ENABLED } from "../../config";
 import { getStoredDiscordToken, storeDiscordToken, clearStoredDiscordToken, fetchDiscordUser } from "../../utils/discordAuth";
 import { isMobileDevice, getMobileInfo } from "../../utils/mobileDetection";
 
@@ -792,8 +793,8 @@ export default function Lobby() {
 
     console.debug(`[Start Game] Starting with ${connectedPlayers.length} real players`);
 
-    // If we have fewer than 6 players, add AI players to fill up the seats
-    if (connectedPlayers.length < 6) {
+    // Only allow AI fill in test mode
+    if (TEST_MODE_ENABLED && connectedPlayers.length < 6) {
       const aiPlayersNeeded = 6 - connectedPlayers.length;
       console.debug(`[Start Game] Adding ${aiPlayersNeeded} AI players`);
       
@@ -837,6 +838,12 @@ export default function Lobby() {
       }
       
       console.debug(`[Start Game] Added AI players:`, aiPlayers);
+    }
+
+    // In non-test mode, require exactly 6 connected players
+    if (!TEST_MODE_ENABLED && connectedPlayers.length !== 6) {
+      console.debug('[Start Game] Not allowed: need 6 real players when TEST_MODE is disabled');
+      return;
     }
 
     // Auto-assign team for current player if not assigned
@@ -922,13 +929,13 @@ export default function Lobby() {
   }, [profileLoaded, state, me, roomId]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 p-8">
+    <div className="h-screen overflow-hidden bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 p-4">
       <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-emerald-400 to-blue-400 bg-clip-text text-transparent mb-2">
+        <div className="text-center mb-4">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 to-blue-400 bg-clip-text text-transparent mb-1">
             Card Set Collection
           </h1>
-          <p className="text-zinc-400 text-lg">Lobby</p>
+          <p className="text-zinc-400">Lobby</p>
         </div>
 
         {error && (
@@ -1008,49 +1015,9 @@ export default function Lobby() {
             </div>
           </div>
         ) : profileLoaded && !redirectingToGame && !(me && state?.players[me.id]?.seat !== null && state?.players[me.id]?.seat !== undefined && (state?.phase === "ready" || state?.phase === "playing")) ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 relative">
-            {/* Profile */}
-            <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-6 border border-zinc-700/50 relative overflow-visible">
-              <h2 className="font-semibold mb-4 text-lg flex items-center gap-2">
-                <span className="text-emerald-400">👤</span>
-                {!profileLoaded ? "Loading Discord Profile..." : "Discord Profile"}
-              </h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm mb-2 text-zinc-300">Name</label>
-                <input
-                  className="w-full bg-zinc-800 border border-zinc-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                  value={name}
-                  readOnly
-                  placeholder="Discord name"
-                />
-              </div>
-              {!profileLoaded ? (
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full border border-zinc-600 bg-zinc-700 animate-pulse"></div>
-                  <div className="text-sm text-zinc-400">Loading Discord avatar...</div>
-                </div>
-              ) : (
-                <div className="flex items-center gap-3">
-                  {typeof avatar === "string" && avatar.startsWith("http") ? (
-                    <img
-                      src={avatar}
-                      alt="Discord avatar"
-                      className="h-10 w-10 rounded-full border border-zinc-600"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <span className="text-2xl">{avatar || "🙂"}</span>
-                  )}
-                  <div className="text-sm text-zinc-400">Avatar from Discord</div>
-                </div>
-              )}
-            </div>
-          </div>
-
-
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-0 relative">
           {/* Teams */}
-          <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-6 border border-zinc-700/50">
+          <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-4 border border-zinc-700/50">
             <h2 className="font-semibold mb-4 text-lg flex items-center gap-2">
               <span className="text-purple-400">👥</span>
               Teams
@@ -1152,78 +1119,57 @@ export default function Lobby() {
 
             <button
               className={`w-full mt-4 px-4 py-3 rounded-lg transition-colors font-medium ${
-                !roomId
+                (!roomId || (!TEST_MODE_ENABLED && players.filter((p)=>p.connected!==false).length !== 6))
                   ? "bg-zinc-600 cursor-not-allowed"
                   : "bg-amber-600 hover:bg-amber-500"
               }`}
               onClick={startGame}
-              disabled={!roomId}
+              disabled={!roomId || (!TEST_MODE_ENABLED && players.filter((p)=>p.connected!==false).length !== 6)}
             >
               {!roomId 
                 ? "No Room Connected"
-                : players.length < 6
-                ? `Start Game (${players.length} + ${6 - players.length} AI)`
-                : `Start Game (${players.length} players)`}
+                : TEST_MODE_ENABLED
+                  ? (players.filter((p)=>p.connected!==false).length < 6
+                      ? `Start Game (${players.filter((p)=>p.connected!==false).length} + ${6 - players.filter((p)=>p.connected!==false).length} AI)`
+                      : `Start Game (${players.length} players)`)
+                  : "Start Game"}
             </button>
-
-            {/* Testing Button */}
-            <button
-              className="w-full mt-2 px-4 py-2 rounded-lg transition-colors font-medium bg-purple-600 hover:bg-purple-500 text-white"
-              onClick={() => {
-                console.debug("[Testing] Current state:", state);
-                console.debug("[Testing] Current player:", me);
-                console.debug("[Testing] Room ID:", roomId);
-                console.debug("[Testing] Players:", players);
-                console.debug("[Testing] Profile loaded:", profileLoaded);
-                console.debug("[Testing] Discord embedded:", isDiscordEmbedded);
-                console.debug("[Testing] WebSocket:", useStore.getState().ws);
-              }}
-            >
-              🧪 Debug Info
-            </button>
+          </div>
+          {/* Players */}
+          <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-4 border border-zinc-700/50">
+            <h2 className="font-semibold mb-4 text-lg flex items-center gap-2">
+              <span className="text-green-400">🎮</span>
+              Players ({players.length}/6 connected)
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {players.map((p) => (
+                <div key={p.id} className="px-3 py-2 bg-zinc-800/50 border border-zinc-600/50 rounded-lg flex items-center gap-2">
+                  <div className="relative">
+                    {typeof p.avatar === "string" && p.avatar.startsWith("http") ? (
+                      <img src={p.avatar} alt="" className="h-8 w-8 rounded-full border border-zinc-600/50" referrerPolicy="no-referrer" />
+                    ) : (
+                      <span className="text-xl">{p.avatar}</span>
+                    )}
+                    {speakingUsers?.[p.id] && (
+                      <span className="pointer-events-none absolute -inset-0.5 rounded-full ring-2 ring-green-400 shadow-[0_0_6px_rgba(34,197,94,0.5)]" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate max-w-[9rem]">{p.name}</div>
+                    <div className="text-xs opacity-70">{p.team ? `Team ${p.team}` : 'No Team'}</div>
+                  </div>
+                </div>
+              ))}
+              {!players.length && (
+                <div className="col-span-full text-center py-8">
+                  <div className="text-4xl mb-2">🎯</div>
+                  <div className="text-zinc-400">No players yet. Create or join a room to appear here.</div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
         ) : null}
-
-        {/* Player list - only show when lobby is not locked and profile is loaded */}
-        {profileLoaded && !redirectingToGame && !(state?.lobby_locked === true || (state?.phase && state?.phase !== "lobby")) && !(me && state?.players[me.id]?.seat !== null && state?.players[me.id]?.seat !== undefined && (state?.phase === "ready" || state?.phase === "playing")) && (
-        <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-6 border border-zinc-700/50">
-          <h2 className="font-semibold mb-4 text-lg flex items-center gap-2">
-            <span className="text-green-400">🎮</span>
-            Players ({players.length}/6 connected)
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            {players.map((p) => (
-              <div key={p.id} className="px-4 py-3 bg-zinc-800/50 border border-zinc-600/50 rounded-lg flex flex-col items-center gap-2">
-                <div className="relative">
-                  {typeof p.avatar === "string" && p.avatar.startsWith("http") ? (
-                    <img src={p.avatar} alt="" className="h-10 w-10 rounded-full border border-zinc-600/50" referrerPolicy="no-referrer" />
-                  ) : (
-                    <span className="text-2xl">{p.avatar}</span>
-                  )}
-                  {speakingUsers?.[p.id] && (
-                    <span className="pointer-events-none absolute -inset-1 rounded-full ring-2 ring-green-400 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
-                  )}
-                </div>
-                <span className="text-sm font-medium text-center">{p.name}</span>
-                {p.team ? (
-                  <span className={`text-xs px-2 py-1 rounded-full ${p.team === "A" ? "bg-blue-600/30 text-blue-300" : "bg-rose-600/30 text-rose-300"}`}>
-                    Team {p.team}
-                  </span>
-                ) : (
-                  <span className="text-xs px-2 py-1 rounded-full bg-amber-600/30 text-amber-300">No Team</span>
-                )}
-              </div>
-            ))}
-            {!players.length && (
-              <div className="col-span-full text-center py-8">
-                <div className="text-4xl mb-2">🎯</div>
-                <div className="text-zinc-400">No players yet. Create or join a room to appear here.</div>
-              </div>
-            )}
-          </div>
-        </div>
-        )}
       </div>
 
       {/* Toast Notifications */}

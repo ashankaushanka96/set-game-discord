@@ -33,3 +33,7 @@ const { apiBase, wsBase } = resolveApiAndWs();
 
 export const API_BASE = apiBase;
 export const WS_BASE = wsBase;
+export const TEST_MODE_ENABLED = (() => {
+  const raw = (import.meta.env.VITE_TEST_MODE_ENABLE ?? import.meta.env.TEST_MODE_ENABLE ?? '').toString();
+  return /^(1|true|yes|on)$/i.test(raw);
+})();
