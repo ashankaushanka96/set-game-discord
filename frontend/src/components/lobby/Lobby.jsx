@@ -26,6 +26,7 @@ export default function Lobby() {
   const [isDiscordEmbedded, setIsDiscordEmbedded] = useState(false);
   const [canBrowserOAuth, setCanBrowserOAuth] = useState(false);
   const [redirectingToGame, setRedirectingToGame] = useState(false);
+  const [checkingReconnection, setCheckingReconnection] = useState(true);
   const autoJoinGuardRef = useRef(false);
   const isDiscordUA = /Discord/i.test(navigator.userAgent || "");
 
@@ -962,6 +963,7 @@ export default function Lobby() {
       if (hasSeat && gameActive) {
         console.debug("[Lobby] Player has seat in active game, redirecting to game room");
         setRedirectingToGame(true);
+        setCheckingReconnection(false);
         // Add a delay to ensure WebSocket is connected and state is synced
         setTimeout(() => {
           window.dispatchEvent(new CustomEvent('navigate-to-game', {
@@ -976,8 +978,10 @@ export default function Lobby() {
           team: currentPlayer?.team,
           connected: currentPlayer?.connected
         });
+        setCheckingReconnection(false);
       } else if (!gameActive) {
         console.debug("[Lobby] Game is not active - showing normal lobby");
+        setCheckingReconnection(false);
       }
     }
   }, [profileLoaded, state, me, roomId]);
@@ -1001,6 +1005,34 @@ export default function Lobby() {
               </p>
               <div className="bg-blue-600/20 border border-blue-500/40 px-4 py-3 rounded-lg">
                 <p className="text-sm text-blue-200">This may take a few seconds</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show loading screen while checking reconnection
+  if (checkingReconnection) {
+    return (
+      <div className="h-screen overflow-hidden bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 p-4">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-4">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 to-blue-400 bg-clip-text text-transparent mb-1">
+              Card Set Collection
+            </h1>
+            <p className="text-zinc-400">Checking game status...</p>
+          </div>
+          <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-8 border border-zinc-700/50 text-center">
+            <div className="max-w-md mx-auto">
+              <div className="text-6xl mb-4 animate-pulse">🔄</div>
+              <h2 className="text-2xl font-bold text-amber-400 mb-4">Reconnecting to Game</h2>
+              <p className="text-zinc-300 mb-6">
+                Checking if you have an active game session...
+              </p>
+              <div className="bg-amber-600/20 border border-amber-500/40 px-4 py-3 rounded-lg">
+                <p className="text-sm text-amber-200">Please wait while we check your game status</p>
               </div>
             </div>
           </div>
@@ -1075,7 +1107,7 @@ export default function Lobby() {
         )}
 
         {/* Show lobby locked screen when game is in progress and player has no seat */}
-        {profileLoaded && !redirectingToGame && (state?.lobby_locked === true || (state?.phase && state?.phase !== "lobby")) && !(me && state?.players?.[me.id] && typeof state.players[me.id].seat === 'number' && state.players[me.id].seat >= 0) ? (
+        {profileLoaded && !checkingReconnection && !redirectingToGame && (state?.lobby_locked === true || (state?.phase && state?.phase !== "lobby")) && !(me && state?.players?.[me.id] && typeof state.players[me.id].seat === 'number' && state.players[me.id].seat >= 0) ? (
           <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-8 border border-zinc-700/50 text-center">
             <div className="max-w-md mx-auto">
               <div className="text-6xl mb-4">🔒</div>
@@ -1095,7 +1127,7 @@ export default function Lobby() {
               </div>
             </div>
           </div>
-        ) : profileLoaded && !redirectingToGame && !(me && state?.players[me.id] && typeof state.players[me.id].seat === 'number' && state.players[me.id].seat >= 0 && (state?.phase === "ready" || state?.phase === "playing" || state?.phase === "ended")) ? (
+        ) : profileLoaded && !checkingReconnection && !redirectingToGame && !(me && state?.players[me.id] && typeof state.players[me.id].seat === 'number' && state.players[me.id].seat >= 0 && (state?.phase === "ready" || state?.phase === "playing" || state?.phase === "ended")) ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-0 relative">
           {/* Teams */}
           <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-4 border border-zinc-700/50">
