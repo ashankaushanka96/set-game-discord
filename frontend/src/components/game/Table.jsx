@@ -488,15 +488,7 @@ export default function Table() {
                     // Render fanned deck animation
                     <div className={`relative flex justify-center items-center ${anim.landed ? 'animate-pulse' : ''}`} style={{ 
                       width: `${Math.min(anim.cards.length * 20 + 60, 350)}px`,
-                      height: '80px',
-                      ...(anim.landed && {
-                        filter: 'drop-shadow(0 0 20px rgba(59, 130, 246, 1))',
-                        border: '4px solid rgba(59, 130, 246, 0.8)',
-                        borderRadius: '15px',
-                        padding: '15px',
-                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
-                        boxShadow: '0 0 30px rgba(59, 130, 246, 0.5)'
-                      })
+                      height: '80px'
                     }}>
                       {anim.cards.map((card, index) => {
                         const totalCards = anim.cards.length;
@@ -525,16 +517,7 @@ export default function Table() {
                     </div>
                   ) : anim.type === 'single_card' ? (
                     // Render single card animation with landing effects
-                    <div className={`relative flex justify-center items-center ${anim.landed ? 'animate-pulse' : ''}`} style={{
-                      ...(anim.landed && {
-                        filter: 'drop-shadow(0 0 20px rgba(59, 130, 246, 1))',
-                        border: '4px solid rgba(59, 130, 246, 0.8)',
-                        borderRadius: '15px',
-                        padding: '15px',
-                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
-                        boxShadow: '0 0 30px rgba(59, 130, 246, 0.5)'
-                      })
-                    }}>
+                    <div className={`relative flex justify-center items-center ${anim.landed ? 'animate-pulse' : ''}`}>
                       <Card suit={anim.suit} rank={anim.rank} size={anim.landed ? "sm" : "sm"} />
                     </div>
                   ) : (
