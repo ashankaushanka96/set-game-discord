@@ -933,13 +933,13 @@ export default function Lobby() {
   console.debug("[Lobby] Lobby locked:", state?.lobby_locked);
   console.debug("[Lobby] Phase:", state?.phase);
   console.debug("[Lobby] Current player seat:", me ? state?.players[me.id]?.seat : "No me");
-  console.debug("[Lobby] Has seat in active game:", me && state?.players[me.id]?.seat !== null && state?.players[me.id]?.seat !== undefined && (state?.phase === "ready" || state?.phase === "playing"));
+  console.debug("[Lobby] Has seat in active game:", me && state?.players[me.id] && typeof state.players[me.id].seat === 'number' && state.players[me.id].seat >= 0 && (state?.phase === "ready" || state?.phase === "playing"));
 
   // Check if current player has a seat in an active game and redirect them
   useEffect(() => {
     if (profileLoaded && state && me && roomId) {
       const currentPlayer = state.players[me.id];
-      const hasSeat = currentPlayer && currentPlayer.seat !== null && currentPlayer.seat !== undefined;
+      const hasSeat = currentPlayer && typeof currentPlayer.seat === 'number' && currentPlayer.seat >= 0;
       const gameActive = state.phase === "ready" || state.phase === "playing";
       
       console.debug("[Lobby] Reconnection check:", {
@@ -1075,7 +1075,7 @@ export default function Lobby() {
         )}
 
         {/* Show lobby locked screen when game is in progress and player has no seat */}
-        {profileLoaded && !redirectingToGame && (state?.lobby_locked === true || (state?.phase && state?.phase !== "lobby")) && !(me && state?.players[me.id]?.seat !== null && state?.players[me.id]?.seat !== undefined) ? (
+        {profileLoaded && !redirectingToGame && (state?.lobby_locked === true || (state?.phase && state?.phase !== "lobby")) && !(me && state?.players?.[me.id] && typeof state.players[me.id].seat === 'number' && state.players[me.id].seat >= 0) ? (
           <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-8 border border-zinc-700/50 text-center">
             <div className="max-w-md mx-auto">
               <div className="text-6xl mb-4">🔒</div>
@@ -1095,7 +1095,7 @@ export default function Lobby() {
               </div>
             </div>
           </div>
-        ) : profileLoaded && !redirectingToGame && !(me && state?.players[me.id]?.seat !== null && state?.players[me.id]?.seat !== undefined && (state?.phase === "ready" || state?.phase === "playing")) ? (
+        ) : profileLoaded && !redirectingToGame && !(me && state?.players[me.id] && typeof state.players[me.id].seat === 'number' && state.players[me.id].seat >= 0 && (state?.phase === "ready" || state?.phase === "playing")) ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-0 relative">
           {/* Teams */}
           <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-4 border border-zinc-700/50">

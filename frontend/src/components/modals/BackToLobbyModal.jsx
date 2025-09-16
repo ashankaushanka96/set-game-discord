@@ -7,7 +7,7 @@ export default function BackToLobbyModal({ open, onClose, votingData }) {
   if (!open || !votingData) return null;
 
   const { votes, message } = votingData;
-  const { yes = 0, no = 0, total = 0, required = 4 } = votes || {};
+  const { yes = 0, no = 0, total = 0, team_a_yes = 0, team_b_yes = 0 } = votes || {};
 
   const handleVote = (vote) => {
     if (ws && me) {
@@ -36,13 +36,23 @@ export default function BackToLobbyModal({ open, onClose, votingData }) {
         <div className="mb-6">
           <div className="bg-zinc-800 rounded-lg p-4 mb-4">
             <div className="flex justify-between items-center mb-2">
-              <span className="text-sm text-zinc-300">Votes Progress</span>
-              <span className="text-sm text-zinc-400">{yes}/{required} needed</span>
+              <span className="text-sm text-zinc-300">Team A Progress</span>
+              <span className="text-sm text-zinc-400">{team_a_yes}/1 needed</span>
+            </div>
+            <div className="w-full bg-zinc-700 rounded-full h-2 mb-2">
+              <div 
+                className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${Math.min((team_a_yes / 1) * 100, 100)}%` }}
+              />
+            </div>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm text-zinc-300">Team B Progress</span>
+              <span className="text-sm text-zinc-400">{team_b_yes}/1 needed</span>
             </div>
             <div className="w-full bg-zinc-700 rounded-full h-2">
               <div 
-                className="bg-emerald-500 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${Math.min((yes / required) * 100, 100)}%` }}
+                className="bg-red-500 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${Math.min((team_b_yes / 1) * 100, 100)}%` }}
               />
             </div>
             <div className="flex justify-between mt-2 text-xs text-zinc-400">

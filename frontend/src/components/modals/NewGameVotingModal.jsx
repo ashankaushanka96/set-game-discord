@@ -1,31 +1,33 @@
 import { useStore } from "../../store";
 import { send } from "../../ws";
 
-export default function NewGameVotingModal({ open, onClose, votingData }) {
-  const { state, me, ws } = useStore();
+export default function NewGameVotingModal({ open, onClose, votingData, gameState }) {
+  const { me, ws } = useStore();
   
   if (!open || !votingData) return null;
 
-  const players = state?.players || {};
-  const { votes_for_abort, votes_needed, abort_votes, requester_id } = votingData;
+  const players = gameState?.players || {};
+  const { votes_for_abort, team_a_yes, team_b_yes, abort_votes = {}, requester_id } = votingData;
+  
   
   const requester = players[requester_id];
   const myVote = abort_votes[me.id];
   const hasVoted = myVote !== undefined;
 
   const handleVote = (vote) => {
+    console.log('[NewGameVotingModal] Sending vote:', { voter_id: me.id, vote });
     send(ws, 'vote_abort', { voter_id: me.id, vote });
   };
 
   const getVoteStatus = (playerId) => {
-    const vote = abort_votes[playerId];
+    const vote = abort_votes?.[playerId];
     if (vote === true) return "✅ YES";
     if (vote === false) return "❌ NO";
     return "⏳ Pending";
   };
 
   const getVoteColor = (playerId) => {
-    const vote = abort_votes[playerId];
+    const vote = abort_votes?.[playerId];
     if (vote === true) return "text-green-400";
     if (vote === false) return "text-red-400";
     return "text-yellow-400";
@@ -50,13 +52,22 @@ export default function NewGameVotingModal({ open, onClose, votingData }) {
           </p>
 
           <div className="mb-4">
-            <div className="text-lg font-semibold text-white">
-              Votes: {votes_for_abort}/{votes_needed} needed
+            <div className="text-sm text-zinc-300 mb-2">
+              Team A: {team_a_yes || 0}/1 needed
             </div>
-            <div className="w-full bg-zinc-700 rounded-full h-2 mt-2">
+            <div className="w-full bg-zinc-700 rounded-full h-2 mb-2">
               <div 
-                className="bg-emerald-600 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${(votes_for_abort / votes_needed) * 100}%` }}
+                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${Math.min(((team_a_yes || 0) / 1) * 100, 100)}%` }}
+              ></div>
+            </div>
+            <div className="text-sm text-zinc-300 mb-2">
+              Team B: {team_b_yes || 0}/1 needed
+            </div>
+            <div className="w-full bg-zinc-700 rounded-full h-2">
+              <div 
+                className="bg-red-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${Math.min(((team_b_yes || 0) / 1) * 100, 100)}%` }}
               ></div>
             </div>
           </div>

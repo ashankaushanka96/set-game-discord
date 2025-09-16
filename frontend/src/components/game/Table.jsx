@@ -318,8 +318,7 @@ export default function Table() {
       <DealingAnimation />
       
       {/* Back to Lobby Button - Top Left */}
-      {(state.phase === 'playing' || state.phase === 'ready') && (
-        <div className="fixed top-2 left-2 md:top-3 md:left-3 z-40">
+      <div className="fixed top-2 left-2 md:top-3 md:left-3 z-40">
           <button 
             className="group bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg md:rounded-xl shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center gap-2"
             onClick={() => send(ws, 'request_back_to_lobby', { requester_id: me.id })}
@@ -333,10 +332,9 @@ export default function Table() {
             </span>
           </button>
         </div>
-      )}
 
       {/* New Game Button - Top Right */}
-      {(state.phase === 'playing' || state.phase === 'ready') && (
+      {state.phase === 'playing' && (
         <div className="fixed top-2 right-2 md:top-3 md:right-3 z-40">
           <button 
             className="group bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg md:rounded-xl shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center gap-2"
@@ -419,8 +417,8 @@ export default function Table() {
                     top: '50%', 
                     transform: 'translate(-50%, -50%)' 
                   }}>
-              {/* Shuffle & Deal button - show for current dealer when game is ready, ended, or when no cards are dealt */}
-              {me?.id === state.current_dealer && (state.phase === 'ready' || state.phase === 'ended' || !state.deck_count || state.deck_count === 0 || !my?.hand?.length) && (
+              {/* Shuffle & Deal button - show for current dealer when game is ready, ended, or when no cards are dealt, but NOT when game is actively playing */}
+              {me?.id === state.current_dealer && state.phase !== 'playing' && (state.phase === 'ready' || state.phase === 'ended' || !state.deck_count || state.deck_count === 0 || !my?.hand?.length) && (
                 <button 
                   className="bg-amber-600 hover:bg-amber-500 text-white px-6 py-3 rounded-lg font-semibold shadow-lg transition-colors"
                   onClick={() => send(ws, 'shuffle_deal', {})}
@@ -631,6 +629,7 @@ export default function Table() {
         open={!!abortVoting}
         onClose={() => {}}
         votingData={abortVoting}
+        gameState={state}
       />
 
       {/* Completed Sets Modal - Mobile only */}

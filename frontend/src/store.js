@@ -438,7 +438,7 @@ export const useStore = create((set, get) => ({
       const requesterName = players[msg.payload.requester_id]?.name || "Unknown";
       get().setGameMessage("ABORT REQUESTED", [
         `${requesterName} wants to abort the game`,
-        `Votes: ${msg.payload.votes_for_abort}/${msg.payload.votes_needed} needed`
+        `Team A: ${msg.payload.team_a_yes || 0}/1, Team B: ${msg.payload.team_b_yes || 0}/1 needed`
       ]);
     }
 
@@ -451,7 +451,7 @@ export const useStore = create((set, get) => ({
       const voteText = msg.payload.vote ? "YES" : "NO";
       get().setGameMessage("ABORT VOTE", [
         `${voterName} voted ${voteText}`,
-        `Votes: ${msg.payload.votes_for_abort}/${msg.payload.votes_needed} needed`
+        `Team A: ${msg.payload.team_a_yes || 0}/1, Team B: ${msg.payload.team_b_yes || 0}/1 needed`
       ]);
     }
 
@@ -476,7 +476,7 @@ export const useStore = create((set, get) => ({
     // VOTING FAILED
     if (msg.type === "voting_failed") {
       const s = msg.payload.state;
-      set({ state: s, abortVoting: null });
+      set({ state: s, abortVoting: null, backToLobbyVoting: null });
       
       // Determine the type of failure for the modal
       let modalType = 'failed';
@@ -514,7 +514,7 @@ export const useStore = create((set, get) => ({
       set({ state: s, backToLobbyVoting: msg.payload });
       get().setGameMessage("BACK TO LOBBY VOTE", [
         `Voting to return to lobby`,
-        `${msg.payload.votes?.yes || 0}/${msg.payload.votes?.required || 4} votes needed`
+        `Team A: ${msg.payload.votes?.team_a_yes || 0}/1, Team B: ${msg.payload.votes?.team_b_yes || 0}/1 needed`
       ]);
     }
 
@@ -522,9 +522,12 @@ export const useStore = create((set, get) => ({
     if (msg.type === "back_to_lobby_vote_cast") {
       const s = msg.payload.state;
       set({ state: s, backToLobbyVoting: msg.payload });
+      const players = s.players || {};
+      const voterName = players[msg.payload.voter_id]?.name || "Unknown";
+      const voteText = msg.payload.vote ? "YES" : "NO";
       get().setGameMessage("BACK TO LOBBY VOTE", [
-        `Vote cast: ${msg.payload.votes?.yes || 0}/${msg.payload.votes?.required || 4} votes`,
-        msg.payload.message
+        `${voterName} voted ${voteText}`,
+        `Team A: ${msg.payload.votes?.team_a_yes || 0}/1, Team B: ${msg.payload.votes?.team_b_yes || 0}/1 needed`
       ]);
     }
 
@@ -545,9 +548,9 @@ export const useStore = create((set, get) => ({
     if (msg.type === "back_to_lobby_failed") {
       const s = msg.payload.state;
       set({ state: s, backToLobbyVoting: null });
-      get().setGameMessage("BACK TO LOBBY FAILED", [
-        "Voting failed - not enough votes",
-        "Game continues"
+      get().setGameMessage("BACK TO LOBBY VOTE", [
+        "Voting failed",
+        msg.payload.message || "Game continues"
       ]);
       
       // Show toast notification

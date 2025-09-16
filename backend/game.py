@@ -181,8 +181,7 @@ class Game:
         Request to return to lobby from game. Requires majority vote.
         Returns voting status and result.
         """
-        if self.state.phase not in ["playing", "ready"]:
-            return {"success": False, "reason": "not_in_game", "message": "Can only request back to lobby during active game"}
+        # Allow back to lobby request at any time
         
         if requester_id not in self.state.players:
             return {"success": False, "reason": "unknown_player", "message": "Unknown player"}
@@ -195,13 +194,16 @@ class Game:
         # Add/update vote
         self.state.back_to_lobby_votes[requester_id] = True
         
-        # Count votes
+        # Count votes by team
         total_players = len(self.state.players)
         yes_votes = sum(1 for vote in self.state.back_to_lobby_votes.values() if vote)
+        team_a_yes = sum(1 for pid, vote in self.state.back_to_lobby_votes.items() 
+                        if vote and self.state.players[pid].team == "A")
+        team_b_yes = sum(1 for pid, vote in self.state.back_to_lobby_votes.items() 
+                        if vote and self.state.players[pid].team == "B")
         
-        # Check if majority reached (4/6 players)
-        required_votes = 4
-        if yes_votes >= required_votes:
+        # Check if we have one vote from each team
+        if team_a_yes >= 1 and team_b_yes >= 1:
             # Return to lobby
             self.state.phase = "lobby"
             self.state.lobby_locked = False
@@ -219,27 +221,26 @@ class Game:
             for player in self.state.players.values():
                 player.hand = []
             
-            logger.info(f"Returned to lobby by majority vote in room {self.state.room_id}")
+            logger.info(f"Returned to lobby by team vote in room {self.state.room_id}")
             return {
                 "success": True, 
-                "reason": "majority_reached", 
-                "message": "Returning to lobby by majority vote",
-                "votes": {"yes": yes_votes, "total": total_players, "required": required_votes}
+                "reason": "team_vote_reached", 
+                "message": "Returning to lobby by team vote (one from each team)",
+                "votes": {"yes": yes_votes, "total": total_players, "team_a_yes": team_a_yes, "team_b_yes": team_b_yes}
             }
         
         return {
             "success": False, 
             "reason": "voting_in_progress", 
-            "message": f"Voting in progress: {yes_votes}/{required_votes} votes",
-            "votes": {"yes": yes_votes, "total": total_players, "required": required_votes}
+            "message": f"Voting in progress: Team A: {team_a_yes}/1, Team B: {team_b_yes}/1",
+            "votes": {"yes": yes_votes, "total": total_players, "team_a_yes": team_a_yes, "team_b_yes": team_b_yes}
         }
 
     def vote_back_to_lobby(self, voter_id: str, vote: bool) -> dict:
         """
         Cast a vote for returning to lobby.
         """
-        if self.state.phase not in ["playing", "ready"]:
-            return {"success": False, "reason": "not_in_game", "message": "Can only vote during active game"}
+        # Allow back to lobby voting at any time
         
         if voter_id not in self.state.players:
             return {"success": False, "reason": "unknown_player", "message": "Unknown player"}
@@ -250,14 +251,31 @@ class Game:
         # Cast vote
         self.state.back_to_lobby_votes[voter_id] = vote
         
+        # If anyone votes NO, immediately fail the voting
+        if vote is False:
+            self.state.back_to_lobby_votes = {}
+            logger.info(f"Back to lobby voting failed - {voter_id} voted NO in room {self.state.room_id}")
+            return {
+                "success": False, 
+                "reason": "voting_failed", 
+                "message": "Back to lobby voting failed - someone voted NO",
+                "voter_id": voter_id,
+                "vote": vote,
+                "voting_failed": True
+            }
+        
         # Count votes
         total_players = len(self.state.players)
         yes_votes = sum(1 for v in self.state.back_to_lobby_votes.values() if v)
         no_votes = sum(1 for v in self.state.back_to_lobby_votes.values() if not v)
         
-        # Check if majority reached (4/6 players)
-        required_votes = 4
-        if yes_votes >= required_votes:
+        # Check if we have one vote from each team
+        team_a_yes = sum(1 for pid, vote in self.state.back_to_lobby_votes.items() 
+                        if vote and self.state.players[pid].team == "A")
+        team_b_yes = sum(1 for pid, vote in self.state.back_to_lobby_votes.items() 
+                        if vote and self.state.players[pid].team == "B")
+        
+        if team_a_yes >= 1 and team_b_yes >= 1:
             # Return to lobby
             self.state.phase = "lobby"
             self.state.lobby_locked = False
@@ -275,30 +293,40 @@ class Game:
             for player in self.state.players.values():
                 player.hand = []
             
-            logger.info(f"Returned to lobby by majority vote in room {self.state.room_id}")
+            logger.info(f"Returned to lobby by team vote in room {self.state.room_id}")
             return {
                 "success": True, 
-                "reason": "majority_reached", 
-                "message": "Returning to lobby by majority vote",
-                "votes": {"yes": yes_votes, "no": no_votes, "total": total_players, "required": required_votes}
+                "reason": "team_vote_reached", 
+                "message": "Returning to lobby by team vote (one from each team)",
+                "votes": {"yes": yes_votes, "no": no_votes, "total": total_players, "team_a_yes": team_a_yes, "team_b_yes": team_b_yes}
             }
         
-        # Check if voting failed (too many no votes)
-        if no_votes > total_players - required_votes:
+        # Check if voting failed (impossible to get one from each team)
+        # Count total players per team
+        team_a_players = sum(1 for p in self.state.players.values() if p.team == "A")
+        team_b_players = sum(1 for p in self.state.players.values() if p.team == "B")
+        
+        # Check if it's impossible to get one vote from each team
+        team_a_remaining = team_a_players - sum(1 for pid, vote in self.state.back_to_lobby_votes.items() 
+                                               if self.state.players[pid].team == "A")
+        team_b_remaining = team_b_players - sum(1 for pid, vote in self.state.back_to_lobby_votes.items() 
+                                               if self.state.players[pid].team == "B")
+        
+        if (team_a_yes == 0 and team_a_remaining == 0) or (team_b_yes == 0 and team_b_remaining == 0):
             self.state.back_to_lobby_votes = {}
             logger.info(f"Back to lobby voting failed in room {self.state.room_id}")
             return {
                 "success": False, 
                 "reason": "voting_failed", 
-                "message": "Back to lobby voting failed",
-                "votes": {"yes": yes_votes, "no": no_votes, "total": total_players, "required": required_votes}
+                "message": "Back to lobby voting failed - need one vote from each team",
+                "votes": {"yes": yes_votes, "no": no_votes, "total": total_players, "team_a_yes": team_a_yes, "team_b_yes": team_b_yes}
             }
         
         return {
             "success": False, 
             "reason": "voting_in_progress", 
-            "message": f"Voting in progress: {yes_votes}/{required_votes} yes votes",
-            "votes": {"yes": yes_votes, "no": no_votes, "total": total_players, "required": required_votes}
+            "message": f"Voting in progress: Team A: {team_a_yes}/1, Team B: {team_b_yes}/1",
+            "votes": {"yes": yes_votes, "no": no_votes, "total": total_players, "team_a_yes": team_a_yes, "team_b_yes": team_b_yes}
         }
 
     # ---------------- Helpers ----------------
@@ -714,7 +742,7 @@ class Game:
         return {"game_ended": False}
 
     def request_abort(self, requester_id: str):
-        """Request to abort the current game - requires 4/6 players to accept"""
+        """Request to abort the current game - requires one player from each team to accept"""
         if self.state.phase != "playing":
             return {"success": False, "reason": "not_playing"}
         
@@ -724,16 +752,21 @@ class Game:
         # Add the requester's vote
         self.state.abort_votes[requester_id] = True
         
-        # Count votes
+        # Count votes by team
         total_players = len(self.state.players)
         votes_for_abort = len(self.state.abort_votes)
+        team_a_yes = sum(1 for pid, vote in self.state.abort_votes.items() 
+                        if vote and self.state.players[pid].team == "A")
+        team_b_yes = sum(1 for pid, vote in self.state.abort_votes.items() 
+                        if vote and self.state.players[pid].team == "B")
         
         return {
             "success": True, 
             "requester_id": requester_id,
             "votes_for_abort": votes_for_abort,
             "total_players": total_players,
-            "votes_needed": 4,
+            "team_a_yes": team_a_yes,
+            "team_b_yes": team_b_yes,
             "abort_votes": self.state.abort_votes
         }
 
@@ -764,19 +797,44 @@ class Game:
         # Add/update vote
         self.state.abort_votes[voter_id] = vote
         
+        # If anyone votes NO, immediately fail the voting
+        if vote is False:
+            self.state.abort_votes = {}
+            logger.info(f"Abort voting failed - {voter_id} voted NO in room {self.state.room_id}")
+            return {
+                "success": False, 
+                "reason": "voting_failed", 
+                "message": "New game voting failed - someone voted NO",
+                "voter_id": voter_id,
+                "vote": vote,
+                "abort_executed": False,
+                "voting_failed": True
+            }
+        
         # Count votes
         total_players = len(self.state.players)
         votes_for_abort = sum(1 for v in self.state.abort_votes.values() if v)
         votes_against = sum(1 for v in self.state.abort_votes.values() if v is False)
         
-        # Check if we have enough votes to abort
-        if votes_for_abort >= 4:
+        # Check if we have one vote from each team
+        team_a_yes = sum(1 for pid, vote in self.state.abort_votes.items() 
+                        if vote and self.state.players[pid].team == "A")
+        team_b_yes = sum(1 for pid, vote in self.state.abort_votes.items() 
+                        if vote and self.state.players[pid].team == "B")
+        
+        if team_a_yes >= 1 and team_b_yes >= 1:
             return self._execute_abort()
         
-        # Check if voting has failed (enough NO votes to make it impossible to reach 4 YES votes)
-        remaining_players = total_players - len(self.state.abort_votes)
-        max_possible_yes = votes_for_abort + remaining_players
-        if max_possible_yes < 4:
+        # Check if voting has failed (impossible to get one from each team)
+        team_a_players = sum(1 for p in self.state.players.values() if p.team == "A")
+        team_b_players = sum(1 for p in self.state.players.values() if p.team == "B")
+        
+        team_a_remaining = team_a_players - sum(1 for pid, vote in self.state.abort_votes.items() 
+                                               if self.state.players[pid].team == "A")
+        team_b_remaining = team_b_players - sum(1 for pid, vote in self.state.abort_votes.items() 
+                                               if self.state.players[pid].team == "B")
+        
+        if (team_a_yes == 0 and team_a_remaining == 0) or (team_b_yes == 0 and team_b_remaining == 0):
             return self._handle_voting_failure("insufficient_support")
         
         return {
@@ -785,7 +843,8 @@ class Game:
             "vote": vote,
             "votes_for_abort": votes_for_abort,
             "total_players": total_players,
-            "votes_needed": 4,
+            "team_a_yes": team_a_yes,
+            "team_b_yes": team_b_yes,
             "abort_votes": self.state.abort_votes,
             "abort_executed": False
         }
