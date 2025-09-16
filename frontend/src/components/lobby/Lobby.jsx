@@ -210,8 +210,7 @@ export default function Lobby() {
         console.debug("[Discord] Discord auth useEffect triggered");
         console.debug("[Discord] Current state:", { name, avatar, usingDiscordProfile, profileLoaded });
         if (authRanRef.current) {
-          console.debug("[Discord] Discord auth already ran, skipping");
-          setProfileLoaded(true);
+          console.debug("[Discord] Discord auth already in progress, skipping duplicate run");
           return;
         }
         authRanRef.current = true;
@@ -409,16 +408,39 @@ export default function Lobby() {
             // Store the token for future use
             storeDiscordToken(access_token);
 
-            // Fetch the current user directly with the token and update UI immediately
-            console.debug("[Discord] Fetching /users/@me with access token...");
-            const meRes = await fetch('https://discord.com/api/users/@me', {
-              headers: { Authorization: `Bearer ${access_token}` },
-            });
-            if (!meRes.ok) {
-              const t = await meRes.text();
-              throw new Error(`users/@me failed: ${t}`);
+            // Authenticate SDK first so we can try SDK-based user fetch
+            try { 
+              await discordSdk.commands.authenticate({ access_token }); 
+              console.debug('[Discord] SDK authenticate succeeded after token exchange'); 
+            } catch (e) { 
+              console.debug('[Discord] SDK authenticate failed (will try REST users/@me fallback):', e); 
             }
-            const meUser = await meRes.json();
+
+            // Prefer SDK getUser with the authenticated context
+            let meUser = null;
+            try {
+              const sdkUserId = discordSdk.userId || discordSdk.user?.id;
+              if (sdkUserId) {
+                console.debug('[Discord] Trying SDK getUser with id:', sdkUserId);
+                meUser = await discordSdk.commands.getUser({ id: sdkUserId });
+                console.debug('[Discord] SDK getUser succeeded');
+              }
+            } catch (e) {
+              console.debug('[Discord] SDK getUser failed after auth, will try REST users/@me:', e);
+            }
+
+            // Fallback to REST users/@me if SDK path failed
+            if (!meUser) {
+              console.debug("[Discord] Fetching /users/@me with access token as fallback...");
+              const meRes = await fetch('https://discord.com/api/users/@me', {
+                headers: { Authorization: `Bearer ${access_token}` },
+              });
+              if (!meRes.ok) {
+                const t = await meRes.text();
+                throw new Error(`users/@me failed: ${t}`);
+              }
+              meUser = await meRes.json();
+            }
             const displayName = meUser.global_name || meUser.username || '';
             const avatarUrl = discordAvatarUrl(meUser.id, meUser.avatar, 128);
             setUsingDiscordProfile(Boolean(avatarUrl));
@@ -429,10 +451,8 @@ export default function Lobby() {
             const updatedMe = { ...cur, id: meUser.id, name: displayName, avatar: avatarUrl };
             setMe(updatedMe);
             console.debug('[Discord] Updated profile from REST with Discord ID:', updatedMe);
-            setProfileLoaded(true);
 
-            // Also authenticate the SDK (optional, for other features)
-            try { await discordSdk.commands.authenticate({ access_token }); console.debug('[Discord] SDK authenticate succeeded'); } catch {}
+            // SDK is already authenticated above (best-effort). Proceed to subscriptions.
 
             // After authenticate, (re)subscribe to speaking events with channel context
             try {
@@ -458,13 +478,21 @@ export default function Lobby() {
 
             // Auto-join Discord channel as room when embedded
             try {
-              const channelId = discordSdk.channelId;
+              // Resolve channel id via SDK or getChannel()
+              let channelId = discordSdk.channelId;
+              try {
+                if (!channelId && discordSdk?.commands?.getChannel) {
+                  const ch = await discordSdk.commands.getChannel();
+                  channelId = ch?.id || channelId;
+                }
+              } catch (_) {}
               if (channelId) {
                 const rid = String(channelId);
                 console.debug('[Discord] Auto-joining channel as room:', rid);
                 setRoom(rid);
                 await httpJoinRoom(rid);
-                const ws = connectWS(rid, useStore.getState().me.id, applyServer);
+                const playerIdNow = useStore.getState().me?.id || updatedMe.id;
+                const ws = connectWS(rid, playerIdNow, applyServer);
                 setWS(ws);
                 setTimeout(() => send(ws, 'sync', {}), 150);
                 console.debug('[Discord] Successfully auto-joined room:', rid);
@@ -477,6 +505,7 @@ export default function Lobby() {
             }
 
             // Done; skip the rest of the older code path
+            setProfileLoaded(true);
             return;
           } catch (error3) {
             console.error("[Discord] OAuth flow also failed:", error3);
@@ -534,7 +563,8 @@ export default function Lobby() {
         // Update store immediately
         const cur = useStore.getState().me || {};
         // Use Discord user ID as player ID for consistent reconnection
-        const updatedMe = { ...cur, id: meUser.id, name: displayName, avatar: avatarUrl };
+        // When using Discord SDK getUser(), the variable is `user` (not `meUser`).
+        const updatedMe = { ...cur, id: user.id, name: displayName, avatar: avatarUrl };
         setMe(updatedMe);
         console.debug("[Discord] Store updated with Discord ID:", updatedMe);
 
@@ -561,16 +591,23 @@ export default function Lobby() {
           console.warn("[Discord] Upsert to server failed (ignore if not joined yet):", e);
         }
 
-        setProfileLoaded(true);
-
         // Also auto-join if we have a channel id in SDK
         try {
-          if (discordSdk.channelId) {
-            const rid = String(discordSdk.channelId);
+          // Resolve channel id via SDK or getChannel()
+          let channelId = discordSdk.channelId;
+          try {
+            if (!channelId && discordSdk?.commands?.getChannel) {
+              const ch = await discordSdk.commands.getChannel();
+              channelId = ch?.id || channelId;
+            }
+          } catch (_) {}
+          if (channelId) {
+            const rid = String(channelId);
             console.debug('[Discord] Post-auth auto-joining channel as room:', rid);
             setRoom(rid);
             await httpJoinRoom(rid);
-            const ws = connectWS(rid, useStore.getState().me.id, applyServer);
+            const playerIdNow2 = useStore.getState().me?.id || updatedMe.id;
+            const ws = connectWS(rid, playerIdNow2, applyServer);
             setWS(ws);
             setTimeout(() => send(ws, 'sync', {}), 150);
             console.debug('[Discord] Successfully post-auth auto-joined room:', rid);
@@ -581,6 +618,8 @@ export default function Lobby() {
           console.error('[Discord] Post-auth auto-join failed:', e);
           setError(`Failed to auto-join room: ${e.message}`);
         }
+        // Mark profile as loaded after auto-join attempt completes
+        setProfileLoaded(true);
       } catch (e) {
         console.error("[Discord] Discord auth failed:", e);
         setUsingDiscordProfile(false);
@@ -685,13 +724,21 @@ export default function Lobby() {
           const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
           if (clientId) {
             const discordSdk = await readyDiscordSDK(clientId);
-            const channelId = discordSdk.channelId;
+            // Get channel via SDK or getChannel()
+            let channelId = discordSdk.channelId;
+            try {
+              if (!channelId && discordSdk?.commands?.getChannel) {
+                const ch = await discordSdk.commands.getChannel();
+                channelId = ch?.id || channelId;
+              }
+            } catch (_) {}
             if (channelId) {
               const rid = String(channelId);
               console.debug('[Discord] Fallback auto-join with channel ID:', rid);
               setRoom(rid);
               await httpJoinRoom(rid);
-              const ws = connectWS(rid, useStore.getState().me.id, applyServer);
+              const playerIdNow3 = useStore.getState().me?.id;
+              const ws = connectWS(rid, playerIdNow3, applyServer);
               setWS(ws);
               setTimeout(() => send(ws, 'sync', {}), 150);
               console.debug('[Discord] Successfully fallback auto-joined room:', rid);
@@ -727,7 +774,14 @@ export default function Lobby() {
         console.debug("[Discord] Direct auto-join - Platform:", discordSdk.platform);
         console.debug("[Discord] Direct auto-join - Guild ID:", discordSdk.guildId);
         
-        const channelId = discordSdk.channelId;
+        // Resolve channel id via SDK or getChannel()
+        let channelId = discordSdk.channelId;
+        try {
+          if (!channelId && discordSdk?.commands?.getChannel) {
+            const ch = await discordSdk.commands.getChannel();
+            channelId = ch?.id || channelId;
+          }
+        } catch (_) {}
         if (!autoJoinGuardRef.current && channelId && !roomId) {
           const rid = String(channelId);
           console.debug('[Discord] Direct auto-join with channel ID:', rid);
@@ -927,6 +981,33 @@ export default function Lobby() {
       }
     }
   }, [profileLoaded, state, me, roomId]);
+  // Early return: show only loading screen until profile retrieval completes
+  if (!profileLoaded) {
+    return (
+      <div className="h-screen overflow-hidden bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 p-4">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-4">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 to-blue-400 bg-clip-text text-transparent mb-1">
+              Card Set Collection
+            </h1>
+            <p className="text-zinc-400">Loading...</p>
+          </div>
+          <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-8 border border-zinc-700/50 text-center">
+            <div className="max-w-md mx-auto">
+              <div className="text-6xl mb-4 animate-pulse">🔌</div>
+              <h2 className="text-2xl font-bold text-blue-400 mb-4">Loading Discord Profile</h2>
+              <p className="text-zinc-300 mb-6">
+                Waiting for Discord authorization to finish…
+              </p>
+              <div className="bg-blue-600/20 border border-blue-500/40 px-4 py-3 rounded-lg">
+                <p className="text-sm text-blue-200">This may take a few seconds</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen overflow-hidden bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 p-4">
