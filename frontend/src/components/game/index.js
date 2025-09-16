@@ -6,3 +6,6 @@ export { default as DealingAnimation } from './DealingAnimation';
 export { default as PassedCardsDisplay } from './PassedCardsDisplay';
 export { default as MessageBubbles } from './MessageBubbles';
 export { default as MessageFeed } from './MessageFeed';
+export { default as EmojiPassAnimation } from './EmojiPassAnimation';
+export { default as ReactionTray } from './ReactionTray';
+export { default as EmojiSettings } from './EmojiSettings';

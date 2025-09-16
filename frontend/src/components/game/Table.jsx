@@ -9,7 +9,8 @@ import {
   MessageBubbles 
 } from '../';
 import ChatBubble from './ChatBubble';
-import EmojiAnimation from './EmojiAnimation';
+import EmojiPassAnimation from './EmojiPassAnimation';
+import EmojiSettings from './EmojiSettings';
 import { 
   LaydownModal, 
   GameOverModal, 
@@ -69,6 +70,7 @@ export default function Table() {
   const [requestAbortOpen, setRequestAbortOpen] = useState(false);
   const [selectedCardsToPass, setSelectedCardsToPass] = useState([]);
   const [completedSetsOpen, setCompletedSetsOpen] = useState(false);
+  const [emojiSettingsOpen, setEmojiSettingsOpen] = useState(false);
 
   const [anim, setAnim] = useState(null);
   const [lays, setLays] = useState([]);
@@ -352,6 +354,20 @@ export default function Table() {
       )}
 
 
+      {/* Emoji Settings Button - Top Right Corner */}
+      <div className="fixed top-14 right-2 md:top-16 md:right-3 z-40">
+        <button 
+          className="group bg-zinc-700/80 hover:bg-zinc-600/80 text-zinc-300 hover:text-white p-2 rounded-lg shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95"
+          onClick={() => setEmojiSettingsOpen(true)}
+          title="Emoji Settings"
+        >
+          <svg className="w-4 h-4 transition-transform group-hover:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </button>
+      </div>
+
       {/* Card Passing Indicator */}
       {selectedCardsToPass.length > 0 && (
         <div className="fixed top-20 left-4 z-40 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg">
@@ -391,7 +407,7 @@ export default function Table() {
 
        <MessageBubbles seatEls={seatEls} seatVersion={seatVersion} hideLaydownBubbles={layOpen} />
        <ChatBubble />
-       <EmojiAnimation />
+       <EmojiPassAnimation />
        
        {/* Main game area - takes up most of the viewport */}
        <div className="flex-1 flex items-center justify-center p-2 md:p-4">
@@ -677,6 +693,13 @@ export default function Table() {
            </button>
          </div>
        )}
+
+
+       {/* Emoji Settings */}
+       <EmojiSettings 
+         isOpen={emojiSettingsOpen}
+         onClose={() => setEmojiSettingsOpen(false)}
+       />
 
        {/* Toast Notifications */}
        <Toast />

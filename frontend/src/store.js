@@ -621,6 +621,16 @@ export const useStore = create((set, get) => ({
         emoji_name,
         category
       });
+      
+      // Play sound effect (imported dynamically to avoid SSR issues)
+      if (typeof window !== 'undefined') {
+        import('./utils/emojiSounds').then(({ default: emojiSoundManager }) => {
+          console.log('Playing sound for emoji:', emoji);
+          emojiSoundManager.playSound(emoji);
+        }).catch((error) => {
+          console.debug('Sound system not available:', error);
+        });
+      }
     }
 
     // PLAYER DISCONNECTED

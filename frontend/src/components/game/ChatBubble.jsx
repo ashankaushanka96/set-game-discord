@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useStore } from '../../store';
 import { send } from '../../ws';
+import ReactionTray from './ReactionTray';
 
 const EMOJIS = [
   // Special Ludo-style emojis
@@ -74,6 +75,7 @@ export default function ChatBubble() {
   const [selectedEmoji, setSelectedEmoji] = useState(null);
   const [showPlayerSelection, setShowPlayerSelection] = useState(false);
   const [activeCategory, setActiveCategory] = useState('attack');
+  const [reactionTrayOpen, setReactionTrayOpen] = useState(false);
 
   const players = state?.players || {};
   const otherPlayers = Object.values(players).filter(p => p.id !== me.id);
@@ -118,11 +120,8 @@ export default function ChatBubble() {
 
   const handleChatButtonClick = () => {
     if (!isOpen) {
-      // When opening chat, prioritize emoji selection
-      setIsOpen(true);
-      setShowEmojis(true);
-      setShowPlayerSelection(false);
-      setSelectedEmoji(null);
+      // When opening chat, show the reaction tray
+      setReactionTrayOpen(true);
     } else {
       // When closing chat, close everything
       setIsOpen(false);
@@ -294,6 +293,12 @@ export default function ChatBubble() {
           )}
         </div>
       )}
+
+      {/* Reaction Tray */}
+      <ReactionTray 
+        isOpen={reactionTrayOpen}
+        onClose={() => setReactionTrayOpen(false)}
+      />
     </div>
   );
 }
