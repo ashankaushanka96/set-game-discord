@@ -75,18 +75,18 @@ class EmojiSoundManager {
     });
   }
 
-  // Attempt to play an asset by sound key. Returns true if playback started.
+  // Attempt to play an asset by sound key. Returns true if playback initiated.
   playAssetByKey(key) {
     if (!this.useAssetsIfAvailable) return false;
     const base = this.assetAudios.get(key);
     if (!base) return false;
     try {
-      // Clone node so overlapping plays are supported
       const node = base.cloneNode(true);
       node.volume = this.volume;
       const playPromise = node.play();
       if (playPromise && typeof playPromise.then === 'function') {
-        playPromise.catch(() => {/* fall back below by returning false */});
+        // Let caller decide fallback on rejection; we just signal initiation
+        playPromise.catch(() => {});
       }
       return true;
     } catch (_) {
@@ -885,9 +885,27 @@ class EmojiSoundManager {
   // Play sound for emoji
   playSound(emoji) {
     const soundKey = this.getSoundKey(emoji);
-    // Try asset first
-    const playedAsset = this.playAssetByKey(soundKey);
-    if (playedAsset) return;
+
+    // Try asset first; on rejection, fall back to synth automatically
+    if (this.useAssetsIfAvailable) {
+      const base = this.assetAudios.get(soundKey);
+      if (base) {
+        try {
+          const node = base.cloneNode(true);
+          node.volume = this.volume;
+          const p = node.play();
+          if (p && typeof p.then === 'function') {
+            p.catch(() => {
+              const s = this.sounds.get(soundKey) || this.sounds.get('default');
+              if (s) s();
+            });
+          }
+          return;
+        } catch (_) {
+          // fall through to synth
+        }
+      }
+    }
 
     // Fallback to synthesized sound
     const sound = this.sounds.get(soundKey) || this.sounds.get('default');
@@ -954,5 +972,22 @@ class EmojiSoundManager {
 
 // Create singleton instance
 const emojiSoundManager = new EmojiSoundManager();
+
+// Convenience named exports for robustness across bundlers
+export const forceInit = () => {
+  try { emojiSoundManager.forceInit(); } catch (_) { /* no-op */ }
+};
+export const playEmojiSound = (emoji) => {
+  try { emojiSoundManager.playSound(emoji); } catch (_) { /* no-op */ }
+};
+export const setEmojiSoundVolume = (v) => {
+  try { emojiSoundManager.setVolume(v); } catch (_) { /* no-op */ }
+};
+export const preferEmojiAssets = (b) => {
+  try { emojiSoundManager.preferAssets(b); } catch (_) { /* no-op */ }
+};
+export const toggleEmojiMute = () => {
+  try { return emojiSoundManager.toggleMute(); } catch (_) { return true; }
+};
 
 export default emojiSoundManager;

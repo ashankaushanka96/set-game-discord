@@ -2,6 +2,41 @@ import { useState, useEffect } from 'react';
 import { useStore } from '../../store';
 import emojiSoundManager from '../../utils/emojiSounds';
 
+async function safeForceInitAudio() {
+  try {
+    if (emojiSoundManager && typeof emojiSoundManager.forceInit === 'function') {
+      emojiSoundManager.forceInit();
+      return;
+    }
+  } catch (_) {}
+  try {
+    const mod = await import('../../utils/emojiSounds');
+    if (mod && typeof mod.forceInit === 'function') {
+      mod.forceInit();
+      return;
+    }
+    if (mod && mod.default && typeof mod.default.forceInit === 'function') {
+      mod.default.forceInit();
+      return;
+    }
+  } catch (_) {}
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) {
+      const ctx = new AC();
+      if (ctx.state === 'suspended') await ctx.resume();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      gain.gain.value = 0.0001;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      const now = ctx.currentTime;
+      osc.start(now);
+      osc.stop(now + 0.01);
+    }
+  } catch (_) {}
+}
+
 export default function EmojiSettings({ isOpen, onClose }) {
   const { me } = useStore();
   const [settings, setSettings] = useState({
@@ -37,7 +72,7 @@ export default function EmojiSettings({ isOpen, onClose }) {
     
     // Initialize audio context on first sound enable
     if (newSoundEnabled) {
-      emojiSoundManager.forceInit();
+      safeForceInitAudio();
     }
     
     emojiSoundManager.toggleMute();

@@ -3,6 +3,43 @@ import { useStore } from '../../store';
 import { send } from '../../ws';
 import emojiSoundManager from '../../utils/emojiSounds';
 
+// Cross-platform safe audio unlock for iOS/macOS/Windows
+async function safeForceInitAudio() {
+  try {
+    if (emojiSoundManager && typeof emojiSoundManager.forceInit === 'function') {
+      emojiSoundManager.forceInit();
+      return;
+    }
+  } catch (_) {}
+  try {
+    const mod = await import('../../utils/emojiSounds');
+    if (mod && typeof mod.forceInit === 'function') {
+      mod.forceInit();
+      return;
+    }
+    if (mod && mod.default && typeof mod.default.forceInit === 'function') {
+      mod.default.forceInit();
+      return;
+    }
+  } catch (_) {}
+  try {
+    // Last-resort unlock: create a short, near-silent AudioContext tone on user gesture
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) {
+      const ctx = new AC();
+      if (ctx.state === 'suspended') await ctx.resume();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      gain.gain.value = 0.0001; // inaudible
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      const now = ctx.currentTime;
+      osc.start(now);
+      osc.stop(now + 0.01);
+    }
+  } catch (_) { /* ignore */ }
+}
+
 // Curated emoji set for quick reactions (Ludo King style)
 const QUICK_EMOJIS = [
   { emoji: '🔨', name: 'Hammer', category: 'attack', cooldown: 5000 },
@@ -43,8 +80,8 @@ export default function ReactionTray({ isOpen, onClose }) {
       return;
     }
 
-    // Initialize audio context on first emoji selection
-    emojiSoundManager.forceInit();
+    // Initialize/unlock audio context on first emoji selection (user gesture)
+    safeForceInitAudio();
 
     setSelectedEmoji(emojiData);
     setShowPlayerSelection(true);
