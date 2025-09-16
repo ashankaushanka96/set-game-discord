@@ -347,6 +347,13 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                 else:
                     await WebSocketService.broadcast(room_id, "back_to_lobby_vote_cast", {**res, "state": game.state.model_dump()})
 
+            elif t == "unassign_player":
+                res = game.unassign_player(p["admin_player_id"], p["target_player_id"])
+                if res.get("success"):
+                    await WebSocketService.broadcast(room_id, "player_unassigned", {**res, "state": game.state.model_dump()})
+                else:
+                    await WebSocketService.broadcast(room_id, "unassign_failed", {**res, "state": game.state.model_dump()})
+
             elif t == "sync":
                 await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
 

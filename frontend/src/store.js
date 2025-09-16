@@ -562,6 +562,18 @@ export const useStore = create((set, get) => ({
       get().setGameMessage("ERROR", [msg.payload.message]);
     }
 
+    // PLAYER UNASSIGNED
+    if (msg.type === "player_unassigned") {
+      const s = msg.payload.state;
+      set({ state: s });
+      get().setGameMessage("ADMIN ACTION", [msg.payload.message]);
+    }
+
+    // UNASSIGN FAILED
+    if (msg.type === "unassign_failed") {
+      get().setGameMessage("ADMIN ERROR", [msg.payload.message]);
+    }
+
     // BUBBLE MESSAGE
     if (msg.type === "bubble_message") {
       const { player_id, variant, ...data } = msg.payload;

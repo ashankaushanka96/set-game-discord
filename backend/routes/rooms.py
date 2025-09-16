@@ -97,6 +97,12 @@ def http_join_room(room_id: str, body: JoinReq):
         else:
             # Add as normal player when lobby is not locked
             game.state.players[body.id] = Player(**body.model_dump())
+            
+            # Set first player as admin
+            if game.state.admin_player_id is None:
+                game.state.admin_player_id = body.id
+                logger.info(f"Player {body.id} ({body.name}) is now the admin of room {room_id}")
+            
             logger.info(f"Player {body.id} successfully joined room {room_id}. Total players: {len(game.state.players)}")
     
     logger.info(f"Returning game state for room {room_id} to player {body.id}")

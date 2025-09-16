@@ -105,6 +105,59 @@ class Game:
             return True
         return False
 
+    def unassign_player(self, admin_player_id: str, target_player_id: str) -> dict:
+        """
+        Admin function to unassign a player from their team and seat.
+        Only works in lobby phase and only the admin can do this.
+        """
+        # Check if the requester is the admin
+        if self.state.admin_player_id != admin_player_id:
+            return {
+                "success": False, 
+                "reason": "not_admin", 
+                "message": "Only the admin can unassign players"
+            }
+        
+        # Only allow in lobby phase
+        if self.state.phase != "lobby":
+            return {
+                "success": False, 
+                "reason": "not_lobby", 
+                "message": "Can only unassign players in lobby phase"
+            }
+        
+        # Check if target player exists
+        if target_player_id not in self.state.players:
+            return {
+                "success": False, 
+                "reason": "player_not_found", 
+                "message": "Player not found"
+            }
+        
+        # Check if target player is the admin (admin cannot unassign themselves)
+        if target_player_id == admin_player_id:
+            return {
+                "success": False, 
+                "reason": "cannot_unassign_self", 
+                "message": "Admin cannot unassign themselves"
+            }
+        
+        # Remove player from seat and team
+        success = self.remove_from_seat(target_player_id)
+        
+        if success:
+            logger.info(f"Admin {admin_player_id} unassigned player {target_player_id} from team in room {self.state.room_id}")
+            return {
+                "success": True, 
+                "message": f"Player {self.state.players[target_player_id].name} has been unassigned from their team"
+            }
+        else:
+            return {
+                "success": False, 
+                "reason": "unassign_failed", 
+                "message": "Failed to unassign player"
+            }
+
     def cleanup_disconnected_seats(self) -> int:
         """
         Clean up seats for all disconnected players in lobby phase.

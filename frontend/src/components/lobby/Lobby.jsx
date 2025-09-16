@@ -5,6 +5,7 @@ import { connectWS, send } from "../../ws";
 import { apiJoinRoom } from "../../api";
 // Avatar selection removed; we always use Discord profile
 import { Toast } from "../ui";
+import { ConfirmUnassignModal } from "../modals";
 import { generateUUID } from "../../utils/uuid";
 import { DiscordSDK, Events }  from "@discord/embedded-app-sdk";
 import { readyDiscordSDK } from "../../utils/discordSdkSingleton";
@@ -27,6 +28,7 @@ export default function Lobby() {
   const [canBrowserOAuth, setCanBrowserOAuth] = useState(false);
   const [redirectingToGame, setRedirectingToGame] = useState(false);
   const [checkingReconnection, setCheckingReconnection] = useState(true);
+  const [unassignModal, setUnassignModal] = useState({ open: false, player: null });
   const autoJoinGuardRef = useRef(false);
   const isDiscordUA = /Discord/i.test(navigator.userAgent || "");
 
@@ -1048,7 +1050,14 @@ export default function Lobby() {
           <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 to-blue-400 bg-clip-text text-transparent mb-1">
             Card Set Collection
           </h1>
-          <p className="text-zinc-400">Lobby</p>
+          <div className="flex items-center gap-2">
+            <p className="text-zinc-400">Lobby</p>
+            {state?.admin_player_id === me?.id && (
+              <span className="text-xs bg-amber-600/20 border border-amber-500/40 px-2 py-1 rounded-full text-amber-300 flex items-center gap-1">
+                👑 Admin
+              </span>
+            )}
+          </div>
         </div>
 
         {error && (
@@ -1155,7 +1164,23 @@ export default function Lobby() {
                           <span className="pointer-events-none absolute -inset-0.5 rounded-full ring-2 ring-green-400 shadow-[0_0_6px_rgba(34,197,94,0.5)]" />
                         )}
                       </div>
-                      <span>{p.name}</span>
+                      <span className="flex-1 flex items-center gap-1">
+                        {p.name}
+                        {state?.admin_player_id === p.id && (
+                          <span className="text-amber-400 text-xs" title="Admin">👑</span>
+                        )}
+                      </span>
+                      {state?.admin_player_id === me?.id && p.id !== me?.id && (
+                        <button
+                          className="text-red-400 hover:text-red-300 text-xs px-1 py-0.5 rounded transition-colors"
+                          onClick={() => {
+                            setUnassignModal({ open: true, player: p });
+                          }}
+                          title="Remove from team"
+                        >
+                          ✕
+                        </button>
+                      )}
                     </div>
                   ))}
                   {players.filter((p) => p.team === "A").length === 0 && (
@@ -1197,7 +1222,23 @@ export default function Lobby() {
                           <span className="pointer-events-none absolute -inset-0.5 rounded-full ring-2 ring-green-400 shadow-[0_0_6px_rgba(34,197,94,0.5)]" />
                         )}
                       </div>
-                      <span>{p.name}</span>
+                      <span className="flex-1 flex items-center gap-1">
+                        {p.name}
+                        {state?.admin_player_id === p.id && (
+                          <span className="text-amber-400 text-xs" title="Admin">👑</span>
+                        )}
+                      </span>
+                      {state?.admin_player_id === me?.id && p.id !== me?.id && (
+                        <button
+                          className="text-red-400 hover:text-red-300 text-xs px-1 py-0.5 rounded transition-colors"
+                          onClick={() => {
+                            setUnassignModal({ open: true, player: p });
+                          }}
+                          title="Remove from team"
+                        >
+                          ✕
+                        </button>
+                      )}
                     </div>
                   ))}
                   {players.filter((p) => p.team === "B").length === 0 && (
@@ -1287,6 +1328,23 @@ export default function Lobby() {
 
       {/* Toast Notifications */}
       <Toast />
+      
+      {/* Unassign Confirmation Modal */}
+      <ConfirmUnassignModal
+        open={unassignModal.open}
+        playerName={unassignModal.player?.name}
+        onConfirm={() => {
+          if (unassignModal.player) {
+            const currentWS = useStore.getState().ws;
+            send(currentWS, "unassign_player", { 
+              admin_player_id: me.id, 
+              target_player_id: unassignModal.player.id 
+            });
+          }
+          setUnassignModal({ open: false, player: null });
+        }}
+        onClose={() => setUnassignModal({ open: false, player: null })}
+      />
     </div>
   );
 }

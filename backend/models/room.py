@@ -24,3 +24,4 @@ class RoomState(BaseModel):
     abort_votes: Dict[str, bool] = Field(default_factory=dict)
     lobby_locked: bool = False  # True when game is active, prevents new players from joining
     back_to_lobby_votes: Dict[str, bool] = Field(default_factory=dict)  # Votes for returning to lobby
+    admin_player_id: Optional[str] = None  # ID of the admin player (first player to join)
