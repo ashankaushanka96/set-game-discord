@@ -310,6 +310,15 @@ export const useStore = create((set, get) => ({
       // Check for game end first
       if (msg.payload.game_end?.game_ended) {
         set({ gameResult: msg.payload.game_end });
+        // Play game over sound
+        if (typeof window !== 'undefined') {
+          import('./utils/emojiSounds').then((m) => {
+            try {
+              if (typeof m.playKey === 'function') m.playKey('game_over');
+              else if (m.default && typeof m.default.playKey === 'function') m.default.playKey('game_over');
+            } catch {}
+          }).catch(()=>{});
+        }
         return; // Don't process other laydown logic if game ended
       }
 
@@ -328,6 +337,15 @@ export const useStore = create((set, get) => ({
 
       if (msg.payload.success) {
         try { window.dispatchEvent(new CustomEvent("celebrate", { detail: { who_id: msg.payload.who_id } })); } catch {}
+        // Success sound
+        if (typeof window !== 'undefined') {
+          import('./utils/emojiSounds').then((m) => {
+            try {
+              if (typeof m.playKey === 'function') m.playKey('lay_success');
+              else if (m.default && typeof m.default.playKey === 'function') m.default.playKey('lay_success');
+            } catch {}
+          }).catch(()=>{});
+        }
         const contribNames = (msg.payload.handoff_eligible || []).map(id => players[id]?.name).filter(Boolean);
         const handoffLine = contribNames.length ? `Handoff: available to ${contribNames.join(", ")}` : "Handoff: —";
         get().setGameMessage("LAYDOWN", [`Who: ${whoName}`, `Set: ${setName}`, `Points: +${pts} to Team ${msg.payload.owner_team}`, handoffLine]);
@@ -338,6 +356,15 @@ export const useStore = create((set, get) => ({
         }
       } else {
         try { window.dispatchEvent(new CustomEvent("cry", { detail: { who_id: msg.payload.who_id } })); } catch {}
+        // Failure sound
+        if (typeof window !== 'undefined') {
+          import('./utils/emojiSounds').then((m) => {
+            try {
+              if (typeof m.playKey === 'function') m.playKey('lay_unsuccess');
+              else if (m.default && typeof m.default.playKey === 'function') m.default.playKey('lay_unsuccess');
+            } catch {}
+          }).catch(()=>{});
+        }
         const nextId = s.turn_player;
         const nextName = players[nextId]?.name || "next player";
         get().setGameMessage("LAYDOWN — WRONG", [`Who: ${whoName}`, `Set: ${setName}`, `Points: +${pts} to Team ${msg.payload.owner_team}`, `Next Turn: ${nextName}`]);
@@ -382,6 +409,15 @@ export const useStore = create((set, get) => ({
         window.dispatchEvent(new CustomEvent("pass_anim", { detail }));
       } catch (e) {
         console.error('Failed to dispatch card pass_anim event:', e);
+      }
+      // Pass sound
+      if (typeof window !== 'undefined') {
+        import('./utils/emojiSounds').then((m) => {
+          try {
+            if (typeof m.playKey === 'function') m.playKey('pass');
+            else if (m.default && typeof m.default.playKey === 'function') m.default.playKey('pass');
+          } catch {}
+        }).catch(()=>{});
       }
       
       get().setGameMessage("CARDS PASSED", [

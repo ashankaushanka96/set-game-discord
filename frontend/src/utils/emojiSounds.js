@@ -3,14 +3,29 @@ class EmojiSoundManager {
   constructor() {
     this.sounds = new Map();
     this.isMuted = false;
-    this.volume = 0.7;
+    this.volume = 1.0;
     this.audioContext = null;
     this.isInitialized = false;
     // Optional: file-based assets override synthesized sounds
     this.assetAudios = new Map();
     this.useAssetsIfAvailable = true;
+    // Preferred output sink: 'default', 'communications', or a specific deviceId (when supported)
+    this.outputDeviceId = 'default';
+    try {
+      const ua = (navigator && navigator.userAgent) || '';
+      const isDiscord = /Discord/i.test(ua);
+      const isMobile = /Android|webOS|iPhone|iPad|iPod/i.test(ua);
+      const canSetSink = typeof HTMLMediaElement !== 'undefined' && HTMLMediaElement.prototype && typeof HTMLMediaElement.prototype.setSinkId === 'function';
+      if (isDiscord && !isMobile && canSetSink) {
+        // On desktop Discord (Chromium), 'communications' typically matches the voice output device
+        this.outputDeviceId = 'communications';
+      }
+    } catch (_) {}
     this.loadSounds();
     this.preloadAssetSounds();
+    // Autoplay gating for iOS/Safari: queue sounds until first user gesture
+    this._unlocked = false;
+    this._pending = [];
   }
 
   // Load sound files (using Web Audio API for better performance)
@@ -40,38 +55,87 @@ class EmojiSoundManager {
     this.sounds = new Map(Object.entries(soundData));
   }
 
-  // Map sound keys to asset file paths in /public
+  // Resolve public base prefix (Vite) safely
+  getBasePrefix() {
+    let base = '/';
+    try {
+      // Using Vite's import.meta; guarded in try/catch to avoid syntax errors in other bundlers
+      base = import.meta && import.meta.env && import.meta.env.BASE_URL ? import.meta.env.BASE_URL : '/';
+    } catch (_) { /* ignore */ }
+    return base && base.endsWith('/') ? base : `${base}/`;
+  }
+
+  // Map sound keys to asset file paths in /public (supports emoji + UI events)
   getAssetMap() {
-    // Files should be placed under frontend/public/sounds/<name>.mp3
-    // Using mp3 by default; can be changed per key if you add different formats
-    const keys = [
+    const prefix = this.getBasePrefix();
+
+    // Emoji keys (stored under sounds/emoji/<key>.mp3)
+    const emojiKeys = [
       'bonk','splat','crack','explosion','zap','whoosh','freeze','party','confetti',
       'victory','medal','royal','sparkle','laugh','clap','heart','gentle','default'
     ];
-    const map = {};
-    keys.forEach(k => { map[k] = `/sounds/${k}.mp3`; });
+
+    // UI event keys
+    const uiMap = {
+      'pass': `${prefix}sounds/pass/pass.mp3`,
+      'lay_success': `${prefix}sounds/laydown/success.mp3`,
+      'lay_unsuccess': `${prefix}sounds/laydown/unsuccess.mp3`,
+      'game_over': `${prefix}sounds/gameover/gameover.mp3`,
+    };
+
+    const map = { ...uiMap };
+    emojiKeys.forEach(k => { map[k] = `${prefix}sounds/emoji/${k}.mp3`; });
     return map;
   }
 
-  // Preload asset sounds (non-blocking); failures will silently fall back to synth
+  // Build candidate URLs for a key, supporting numbered variants and alternate filenames
+  getAssetCandidates(key) {
+    const base = this.getBasePrefix();
+    const urls = [];
+    const push = (u) => urls.push(u);
+    const isEmoji = !['pass','lay_success','lay_unsuccess','game_over'].includes(key);
+    if (isEmoji) {
+      push(`${base}sounds/emoji/${key}.mp3`);
+      for (let i = 2; i <= 5; i++) push(`${base}sounds/emoji/${key}-${i}.mp3`);
+    } else if (key === 'pass') {
+      push(`${base}sounds/pass/pass.mp3`);
+      push(`${base}sounds/pass/card-sounds-35956.mp3`);
+    } else if (key === 'lay_success') {
+      push(`${base}sounds/laydown/success.mp3`);
+    } else if (key === 'lay_unsuccess') {
+      push(`${base}sounds/laydown/unsuccess.mp3`);
+    } else if (key === 'game_over') {
+      push(`${base}sounds/gameover/gameover.mp3`);
+    }
+    return urls;
+  }
+
+  // Preload asset sounds (non-blocking); try candidates and cache first that can play
   preloadAssetSounds() {
-    const assetMap = this.getAssetMap();
-    Object.entries(assetMap).forEach(([key, url]) => {
-      try {
-        const audio = new Audio();
-        audio.src = url;
-        audio.preload = 'auto';
-        // Keep volume low; will be set on play too
-        audio.volume = this.volume;
-        // Attach minimal error handler to avoid console noise on 404
-        audio.addEventListener('error', () => {
-          // Remove from map if it fails to load
-          this.assetAudios.delete(key);
-        }, { once: true });
-        this.assetAudios.set(key, audio);
-      } catch (_) {
-        // Ignore preload errors; fallback will handle
-      }
+    const keys = Object.keys(this.getAssetMap());
+    keys.forEach((key) => {
+      const candidates = this.getAssetCandidates(key);
+      const tryIdx = (i) => {
+        if (i >= candidates.length) return;
+        try {
+          const audio = new Audio();
+          audio.src = candidates[i];
+          audio.preload = 'auto';
+          audio.volume = this.volume;
+          audio.setAttribute('playsinline', 'true');
+          audio.setAttribute('webkit-playsinline', 'true');
+          try {
+            if (typeof audio.setSinkId === 'function' && this.outputDeviceId) {
+              audio.setSinkId(this.outputDeviceId).catch(() => {});
+            }
+          } catch (_) {}
+          audio.addEventListener('canplaythrough', () => {
+            this.assetAudios.set(key, audio);
+          }, { once: true });
+          audio.addEventListener('error', () => tryIdx(i + 1), { once: true });
+        } catch (_) { tryIdx(i + 1); }
+      };
+      tryIdx(0);
     });
   }
 
@@ -83,6 +147,16 @@ class EmojiSoundManager {
     try {
       const node = base.cloneNode(true);
       node.volume = this.volume;
+      // Route to selected output sink if supported
+      try {
+        if (typeof node.setSinkId === 'function' && this.outputDeviceId) {
+          node.setSinkId(this.outputDeviceId).catch(() => {});
+        }
+      } catch (_) {}
+      
+      // Force main speaker on mobile devices
+      this.forceMainSpeakerForAudio(node);
+      
       const playPromise = node.play();
       if (playPromise && typeof playPromise.then === 'function') {
         // Let caller decide fallback on rejection; we just signal initiation
@@ -94,6 +168,19 @@ class EmojiSoundManager {
     }
   }
 
+  // Force audio element to play through main speaker
+  forceMainSpeakerForAudio(audioElement) {
+    try {
+      // Set audio element properties for mobile speaker routing
+      audioElement.setAttribute('playsinline', 'true');
+      audioElement.setAttribute('webkit-playsinline', 'true');
+      
+      // setSinkId is only available on HTMLMediaElement; AudioContext does not support it broadly.
+    } catch (error) {
+      console.debug('Failed to force main speaker for audio element:', error);
+    }
+  }
+
   // Initialize audio context (requires user interaction)
   initAudioContext() {
     if (this.isInitialized) return;
@@ -102,8 +189,29 @@ class EmojiSoundManager {
       this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
       this.isInitialized = true;
       console.log('Audio context initialized');
+      
+      // Force audio to play through main speaker on mobile
+      this.forceMainSpeaker();
     } catch (error) {
       console.debug('Audio context initialization failed:', error);
+    }
+  }
+
+  // Force audio to play through main speaker on mobile devices
+  forceMainSpeaker() {
+    if (!this.audioContext) return;
+    
+    try {
+      // Create a silent audio buffer to force main speaker routing
+      const buffer = this.audioContext.createBuffer(1, 1, 22050);
+      const source = this.audioContext.createBufferSource();
+      source.buffer = buffer;
+      source.connect(this.audioContext.destination);
+      source.start();
+      
+      // Note: Routing to a specific hardware sink is only supported on HTMLMediaElement via setSinkId
+    } catch (error) {
+      console.debug('Failed to force main speaker:', error);
     }
   }
 
@@ -169,7 +277,7 @@ class EmojiSoundManager {
         osc1.frequency.setValueAtTime(120, now);
         osc1.type = 'square';
         gain1.gain.setValueAtTime(0, now);
-        gain1.gain.linearRampToValueAtTime(this.volume * 0.4, now + 0.01);
+        gain1.gain.linearRampToValueAtTime(this.volume * 0.8, now + 0.01);
         gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
         osc1.start(now);
         osc1.stop(now + 0.15);
@@ -182,7 +290,7 @@ class EmojiSoundManager {
         osc2.frequency.setValueAtTime(800, now);
         osc2.type = 'sine';
         gain2.gain.setValueAtTime(0, now + 0.05);
-        gain2.gain.linearRampToValueAtTime(this.volume * 0.2, now + 0.06);
+        gain2.gain.linearRampToValueAtTime(this.volume * 0.5, now + 0.06);
         gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
         osc2.start(now + 0.05);
         osc2.stop(now + 0.3);
@@ -299,7 +407,7 @@ class EmojiSoundManager {
         osc1.frequency.setValueAtTime(60, now);
         osc1.type = 'square';
         gain1.gain.setValueAtTime(0, now);
-        gain1.gain.linearRampToValueAtTime(this.volume * 0.7, now + 0.01);
+        gain1.gain.linearRampToValueAtTime(this.volume * 1.0, now + 0.01);
         gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
         osc1.start(now);
         osc1.stop(now + 0.6);
@@ -312,7 +420,7 @@ class EmojiSoundManager {
         osc2.frequency.setValueAtTime(1200, now);
         osc2.type = 'sawtooth';
         gain2.gain.setValueAtTime(0, now + 0.1);
-        gain2.gain.linearRampToValueAtTime(this.volume * 0.3, now + 0.11);
+        gain2.gain.linearRampToValueAtTime(this.volume * 0.6, now + 0.11);
         gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
         osc2.start(now + 0.1);
         osc2.stop(now + 0.3);
@@ -343,7 +451,7 @@ class EmojiSoundManager {
         osc1.frequency.exponentialRampToValueAtTime(200, now + 0.05);
         osc1.type = 'sawtooth';
         gain1.gain.setValueAtTime(0, now);
-        gain1.gain.linearRampToValueAtTime(this.volume * 0.8, now + 0.01);
+        gain1.gain.linearRampToValueAtTime(this.volume * 1.0, now + 0.01);
         gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
         osc1.start(now);
         osc1.stop(now + 0.1);
@@ -356,7 +464,7 @@ class EmojiSoundManager {
         osc2.frequency.setValueAtTime(2000, now + 0.05);
         osc2.type = 'square';
         gain2.gain.setValueAtTime(0, now + 0.05);
-        gain2.gain.linearRampToValueAtTime(this.volume * 0.4, now + 0.06);
+        gain2.gain.linearRampToValueAtTime(this.volume * 0.7, now + 0.06);
         gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
         osc2.start(now + 0.05);
         osc2.stop(now + 0.15);
@@ -879,20 +987,22 @@ class EmojiSoundManager {
 
   // Default sound - simple pleasant tone
   createDefaultSound() {
-    return this.createBasicTone(440, 0.2, 'sine', 0.3);
+    return this.createBasicTone(440, 0.2, 'sine', 0.8);
   }
 
   // Play sound for emoji
   playSound(emoji) {
+    if (!this._unlocked) { this._pending.push(() => this.playSound(emoji)); return; }
     const soundKey = this.getSoundKey(emoji);
-
-    // Try asset first; on rejection, fall back to synth automatically
+    // Try asset first; if not preloaded, try candidates immediately
     if (this.useAssetsIfAvailable) {
       const base = this.assetAudios.get(soundKey);
       if (base) {
         try {
           const node = base.cloneNode(true);
-          node.volume = this.volume;
+          node.setAttribute('playsinline', 'true');
+          node.setAttribute('webkit-playsinline', 'true');
+          node.volume = Math.max(0, Math.min(1, this.volume));
           const p = node.play();
           if (p && typeof p.then === 'function') {
             p.catch(() => {
@@ -901,8 +1011,23 @@ class EmojiSoundManager {
             });
           }
           return;
-        } catch (_) {
-          // fall through to synth
+        } catch (_) { /* fall through */ }
+      } else {
+        // Attempt dynamic candidate playback once (and cache on success)
+        const candidates = this.getAssetCandidates(soundKey);
+        for (let i = 0; i < candidates.length; i++) {
+          try {
+            const a = new Audio();
+            a.src = candidates[i];
+            a.setAttribute('playsinline', 'true');
+            a.setAttribute('webkit-playsinline', 'true');
+            a.preload = 'auto';
+            a.volume = Math.max(0, Math.min(1, this.volume));
+            a.play().then(() => {
+              this.assetAudios.set(soundKey, a);
+            }).catch(() => {});
+            return;
+          } catch (_) { /* try next */ }
         }
       }
     }
@@ -910,6 +1035,51 @@ class EmojiSoundManager {
     // Fallback to synthesized sound
     const sound = this.sounds.get(soundKey) || this.sounds.get('default');
     if (sound) sound();
+  }
+
+  // Play by explicit key (emoji key or UI key like 'pass', 'lay_success', 'game_over')
+  playKey(key) {
+    if (!this._unlocked) { this._pending.push(() => this.playKey(key)); return; }
+    // Attempt cached asset first
+    const base = this.assetAudios.get(key);
+    if (base) {
+      try {
+        const node = base.cloneNode(true);
+        node.setAttribute('playsinline', 'true');
+        node.setAttribute('webkit-playsinline', 'true');
+        node.volume = Math.max(0, Math.min(1, this.volume));
+        node.play().catch(() => {});
+        return;
+      } catch (_) { /* fall through */ }
+    } else {
+      // Try candidates immediately and cache first that works
+      const candidates = this.getAssetCandidates(key);
+      for (let i = 0; i < candidates.length; i++) {
+        try {
+          const a = new Audio();
+          a.src = candidates[i];
+          a.setAttribute('playsinline', 'true');
+          a.setAttribute('webkit-playsinline', 'true');
+          a.preload = 'auto';
+          a.volume = Math.max(0, Math.min(1, this.volume));
+          a.play().then(() => {
+            this.assetAudios.set(key, a);
+          }).catch(() => {});
+          return;
+        } catch (_) { /* continue */ }
+      }
+    }
+    // Fallback to any synth default
+    const sound = this.sounds.get(key) || this.sounds.get('default');
+    if (sound) sound();
+  }
+
+  // Mark audio unlocked by a user gesture and drain queued sounds
+  markUnlocked() {
+    this._unlocked = true;
+    try { if (this.audioContext && this.audioContext.state === 'suspended') this.audioContext.resume(); } catch (_) {}
+    const q = this._pending.splice(0);
+    q.forEach(fn => { try { fn(); } catch (_) {} });
   }
 
   // Get sound key for emoji
@@ -967,6 +1137,45 @@ class EmojiSoundManager {
     if (this.audioContext && this.audioContext.state === 'suspended') {
       this.audioContext.resume();
     }
+    
+    // Additional mobile-specific initialization
+    this.initializeMobileAudio();
+  }
+
+  // Explicitly set output device sink id (if browser supports setSinkId on media elements)
+  async setOutputDevice(deviceId) {
+    this.outputDeviceId = deviceId || 'default';
+    // Update preloaded audio elements best-effort
+    try {
+      this.assetAudios.forEach((audio) => {
+        try { if (typeof audio.setSinkId === 'function') audio.setSinkId(this.outputDeviceId).catch(() => {}); } catch (_) {}
+      });
+    } catch (_) {}
+    return this.outputDeviceId;
+  }
+
+  // Initialize mobile-specific audio settings
+  initializeMobileAudio() {
+    try {
+      // Detect mobile device
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      
+      if (isMobile && this.audioContext) {
+        // Force audio context to use main speaker
+        this.forceMainSpeaker();
+        
+        // Create a silent audio element to establish audio routing
+        const silentAudio = new Audio();
+        silentAudio.setAttribute('playsinline', 'true');
+        silentAudio.setAttribute('webkit-playsinline', 'true');
+        silentAudio.volume = 0;
+        silentAudio.play().catch(() => {
+          // Ignore errors for silent audio
+        });
+      }
+    } catch (error) {
+      console.debug('Mobile audio initialization failed:', error);
+    }
   }
 }
 
@@ -988,6 +1197,12 @@ export const preferEmojiAssets = (b) => {
 };
 export const toggleEmojiMute = () => {
   try { return emojiSoundManager.toggleMute(); } catch (_) { return true; }
+};
+export const markEmojiAudioUnlocked = () => {
+  try { return emojiSoundManager.markUnlocked(); } catch (_) { return undefined; }
+};
+export const setEmojiOutputDevice = async (deviceId) => {
+  try { return await emojiSoundManager.setOutputDevice(deviceId); } catch (_) { return 'default'; }
 };
 
 export default emojiSoundManager;

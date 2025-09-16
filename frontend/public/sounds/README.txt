@@ -1,1 +1,0 @@
-Place MP3 files here named by sound key (e.g., bonk.mp3, splat.mp3). If absent, synthesized sounds play as fallback.
