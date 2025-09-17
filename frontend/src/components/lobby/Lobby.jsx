@@ -990,23 +990,23 @@ export default function Lobby() {
   // Early return: show only loading screen until profile retrieval completes
   if (!profileLoaded) {
     return (
-      <div className="h-screen overflow-hidden bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 p-4">
+      <div className="h-screen overflow-hidden bg-gradient-vibrant p-4">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-4">
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 to-blue-400 bg-clip-text text-transparent mb-1">
+            <h1 className="text-3xl font-bold bg-gradient-accent bg-clip-text text-transparent mb-1">
               Card Set Collection
             </h1>
-            <p className="text-zinc-400">Loading...</p>
+            <p className="text-text-muted">Loading...</p>
           </div>
-          <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-8 border border-zinc-700/50 text-center">
+          <div className="bg-dark-card/50 backdrop-blur-sm rounded-xl p-8 border border-accent-purple/20 text-center shadow-glow-purple">
             <div className="max-w-md mx-auto">
               <div className="text-6xl mb-4 animate-pulse">🔌</div>
-              <h2 className="text-2xl font-bold text-blue-400 mb-4">Loading Discord Profile</h2>
-              <p className="text-zinc-300 mb-6">
+              <h2 className="text-2xl font-bold text-accent-cyan mb-4">Loading Discord Profile</h2>
+              <p className="text-text-secondary mb-6">
                 Waiting for Discord authorization to finish…
               </p>
-              <div className="bg-blue-600/20 border border-blue-500/40 px-4 py-3 rounded-lg">
-                <p className="text-sm text-blue-200">This may take a few seconds</p>
+              <div className="bg-gradient-primary/20 border border-accent-blue/40 px-4 py-3 rounded-lg shadow-glow-blue">
+                <p className="text-sm text-accent-blue">This may take a few seconds</p>
               </div>
             </div>
           </div>
@@ -1018,23 +1018,23 @@ export default function Lobby() {
   // Show loading screen while checking reconnection
   if (checkingReconnection) {
     return (
-      <div className="h-screen overflow-hidden bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 p-4">
+      <div className="h-screen overflow-hidden bg-gradient-vibrant p-4">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-4">
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 to-blue-400 bg-clip-text text-transparent mb-1">
+            <h1 className="text-3xl font-bold bg-gradient-accent bg-clip-text text-transparent mb-1">
               Card Set Collection
             </h1>
-            <p className="text-zinc-400">Checking game status...</p>
+            <p className="text-text-muted">Checking game status...</p>
           </div>
-          <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-8 border border-zinc-700/50 text-center">
+          <div className="bg-dark-card/50 backdrop-blur-sm rounded-xl p-8 border border-accent-purple/20 text-center shadow-glow-purple">
             <div className="max-w-md mx-auto">
               <div className="text-6xl mb-4 animate-pulse">🔄</div>
-              <h2 className="text-2xl font-bold text-amber-400 mb-4">Reconnecting to Game</h2>
-              <p className="text-zinc-300 mb-6">
+              <h2 className="text-2xl font-bold text-accent-amber mb-4">Reconnecting to Game</h2>
+              <p className="text-text-secondary mb-6">
                 Checking if you have an active game session...
               </p>
-              <div className="bg-amber-600/20 border border-amber-500/40 px-4 py-3 rounded-lg">
-                <p className="text-sm text-amber-200">Please wait while we check your game status</p>
+              <div className="bg-gradient-warm/20 border border-accent-amber/40 px-4 py-3 rounded-lg shadow-glow-amber">
+                <p className="text-sm text-accent-amber">Please wait while we check your game status</p>
               </div>
             </div>
           </div>
@@ -1044,16 +1044,16 @@ export default function Lobby() {
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 p-4">
+    <div className="h-screen overflow-hidden bg-gradient-vibrant p-4">
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-4">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 to-blue-400 bg-clip-text text-transparent mb-1">
+          <h1 className="text-3xl font-bold bg-gradient-accent bg-clip-text text-transparent mb-1">
             Card Set Collection
           </h1>
           <div className="flex items-center gap-2">
-            <p className="text-zinc-400">Lobby</p>
+            <p className="text-text-muted">Lobby</p>
             {state?.admin_player_id === me?.id && (
-              <span className="text-xs bg-amber-600/20 border border-amber-500/40 px-2 py-1 rounded-full text-amber-300 flex items-center gap-1">
+              <span className="text-xs bg-gradient-warm/20 border border-accent-amber/40 px-2 py-1 rounded-full text-accent-amber flex items-center gap-1 shadow-glow-amber">
                 👑 Admin
               </span>
             )}
@@ -1061,10 +1061,10 @@ export default function Lobby() {
         </div>
 
         {error && (
-          <div className="mb-6 text-sm bg-rose-600/20 border border-rose-500/40 px-4 py-3 rounded-lg backdrop-blur-sm">
+          <div className="mb-6 text-sm bg-gradient-secondary/20 border border-accent-rose/40 px-4 py-3 rounded-lg backdrop-blur-sm shadow-glow-rose">
             <div className="flex items-center gap-2">
-              <span className="text-rose-400">⚠️</span>
-              <span>{error}</span>
+              <span className="text-accent-rose">⚠️</span>
+              <span className="text-text-primary">{error}</span>
             </div>
           </div>
         )}
@@ -1139,40 +1139,40 @@ export default function Lobby() {
         ) : profileLoaded && !checkingReconnection && !redirectingToGame && !(me && state?.players[me.id] && (typeof state.players[me.id].seat === 'number' && state.players[me.id].seat >= 0 || (state.players[me.id].is_spectator && !state.players[me.id].spectator_request_pending)) && (state?.phase === "ready" || state?.phase === "playing" || state?.phase === "ended")) ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-0 relative">
           {/* Teams */}
-          <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-4 border border-zinc-700/50">
+          <div className="bg-dark-card/50 backdrop-blur-sm rounded-xl p-4 border border-accent-purple/20 shadow-glow-purple">
             <h2 className="font-semibold mb-4 text-lg flex items-center gap-2">
-              <span className="text-purple-400">👥</span>
-              Teams
+              <span className="text-accent-purple">👥</span>
+              <span className="text-text-primary">Teams</span>
             </h2>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-3">
                 <div className="inline-flex items-center gap-2 text-sm font-medium">
-                  <span className="inline-block h-3 w-3 rounded-full bg-blue-400"></span>
-                  <span>Team A</span>
-                  <span className="text-xs text-zinc-400">({players.filter((p) => p.team === "A").length}/3)</span>
+                  <span className="inline-block h-3 w-3 rounded-full bg-accent-blue shadow-glow-blue"></span>
+                  <span className="text-text-primary">Team A</span>
+                  <span className="text-xs text-text-muted">({players.filter((p) => p.team === "A").length}/3)</span>
                 </div>
                 <div className="space-y-2 min-h-[100px]">
                   {players.filter((p) => p.team === "A").map((p) => (
-                    <div key={p.id} className="bg-blue-600/20 border border-blue-500/30 rounded-lg px-3 py-2 text-sm flex items-center gap-2">
+                    <div key={p.id} className="bg-gradient-primary/20 border border-accent-blue/30 rounded-lg px-3 py-2 text-sm flex items-center gap-2 shadow-glow-blue/20">
                       <div className="relative">
                         {typeof p.avatar === "string" && p.avatar.startsWith("http") ? (
-                          <img src={p.avatar} alt="" className="h-6 w-6 rounded-full border border-blue-500/30" referrerPolicy="no-referrer" />
+                          <img src={p.avatar} alt="" className="h-6 w-6 rounded-full border border-accent-blue/30" referrerPolicy="no-referrer" />
                         ) : (
                           <span className="text-lg">{p.avatar}</span>
                         )}
                         {speakingUsers?.[p.id] && (
-                          <span className="pointer-events-none absolute -inset-0.5 rounded-full ring-2 ring-green-400 shadow-[0_0_6px_rgba(34,197,94,0.5)]" />
+                          <span className="pointer-events-none absolute -inset-0.5 rounded-full ring-2 ring-accent-emerald shadow-glow-emerald" />
                         )}
                       </div>
-                      <span className="flex-1 flex items-center gap-1">
+                      <span className="flex-1 flex items-center gap-1 text-text-primary">
                         {p.name}
                         {state?.admin_player_id === p.id && (
-                          <span className="text-amber-400 text-xs" title="Admin">👑</span>
+                          <span className="text-accent-amber text-xs" title="Admin">👑</span>
                         )}
                       </span>
                       {state?.admin_player_id === me?.id && p.id !== me?.id && (
                         <button
-                          className="text-red-400 hover:text-red-300 text-xs px-1 py-0.5 rounded transition-colors"
+                          className="text-accent-rose hover:text-accent-pink text-xs px-1 py-0.5 rounded transition-colors"
                           onClick={() => {
                             setUnassignModal({ open: true, player: p });
                           }}
@@ -1184,14 +1184,14 @@ export default function Lobby() {
                     </div>
                   ))}
                   {players.filter((p) => p.team === "A").length === 0 && (
-                    <div className="text-xs text-zinc-500 italic">No players yet</div>
+                    <div className="text-xs text-text-muted italic">No players yet</div>
                   )}
                 </div>
                 <button
-                  className={`w-full px-3 py-2 rounded-lg text-sm transition-colors ${
+                  className={`w-full px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
                     players.filter((p) => p.team === "A").length >= 3
-                      ? "bg-zinc-600/30 border border-zinc-500/30 cursor-not-allowed opacity-50"
-                      : "bg-blue-600/30 hover:bg-blue-600/40 border border-blue-500/30"
+                      ? "bg-dark-tertiary/30 border border-text-muted/30 cursor-not-allowed opacity-50"
+                      : "bg-gradient-primary/30 hover:bg-gradient-primary/40 border border-accent-blue/30 hover:shadow-glow-blue"
                   }`}
                   onClick={() => {
                     if (players.filter((p) => p.team === "A").length < 3) {
@@ -1205,32 +1205,32 @@ export default function Lobby() {
               </div>
               <div className="space-y-3">
                 <div className="inline-flex items-center gap-2 text-sm font-medium">
-                  <span className="inline-block h-3 w-3 rounded-full bg-rose-400"></span>
-                  <span>Team B</span>
-                  <span className="text-xs text-zinc-400">({players.filter((p) => p.team === "B").length}/3)</span>
+                  <span className="inline-block h-3 w-3 rounded-full bg-accent-rose shadow-glow-rose"></span>
+                  <span className="text-text-primary">Team B</span>
+                  <span className="text-xs text-text-muted">({players.filter((p) => p.team === "B").length}/3)</span>
                 </div>
                 <div className="space-y-2 min-h-[100px]">
                   {players.filter((p) => p.team === "B").map((p) => (
-                    <div key={p.id} className="bg-rose-600/20 border border-rose-500/30 rounded-lg px-3 py-2 text-sm flex items-center gap-2">
+                    <div key={p.id} className="bg-gradient-secondary/20 border border-accent-rose/30 rounded-lg px-3 py-2 text-sm flex items-center gap-2 shadow-glow-rose/20">
                       <div className="relative">
                         {typeof p.avatar === "string" && p.avatar.startsWith("http") ? (
-                          <img src={p.avatar} alt="" className="h-6 w-6 rounded-full border border-rose-500/30" referrerPolicy="no-referrer" />
+                          <img src={p.avatar} alt="" className="h-6 w-6 rounded-full border border-accent-rose/30" referrerPolicy="no-referrer" />
                         ) : (
                           <span className="text-lg">{p.avatar}</span>
                         )}
                         {speakingUsers?.[p.id] && (
-                          <span className="pointer-events-none absolute -inset-0.5 rounded-full ring-2 ring-green-400 shadow-[0_0_6px_rgba(34,197,94,0.5)]" />
+                          <span className="pointer-events-none absolute -inset-0.5 rounded-full ring-2 ring-accent-emerald shadow-glow-emerald" />
                         )}
                       </div>
-                      <span className="flex-1 flex items-center gap-1">
+                      <span className="flex-1 flex items-center gap-1 text-text-primary">
                         {p.name}
                         {state?.admin_player_id === p.id && (
-                          <span className="text-amber-400 text-xs" title="Admin">👑</span>
+                          <span className="text-accent-amber text-xs" title="Admin">👑</span>
                         )}
                       </span>
                       {state?.admin_player_id === me?.id && p.id !== me?.id && (
                         <button
-                          className="text-red-400 hover:text-red-300 text-xs px-1 py-0.5 rounded transition-colors"
+                          className="text-accent-rose hover:text-accent-pink text-xs px-1 py-0.5 rounded transition-colors"
                           onClick={() => {
                             setUnassignModal({ open: true, player: p });
                           }}
@@ -1242,14 +1242,14 @@ export default function Lobby() {
                     </div>
                   ))}
                   {players.filter((p) => p.team === "B").length === 0 && (
-                    <div className="text-xs text-zinc-500 italic">No players yet</div>
+                    <div className="text-xs text-text-muted italic">No players yet</div>
                   )}
                 </div>
                 <button
-                  className={`w-full px-3 py-2 rounded-lg text-sm transition-colors ${
+                  className={`w-full px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
                     players.filter((p) => p.team === "B").length >= 3
-                      ? "bg-zinc-600/30 border border-zinc-500/30 cursor-not-allowed opacity-50"
-                      : "bg-rose-600/30 hover:bg-rose-600/40 border border-rose-500/30"
+                      ? "bg-dark-tertiary/30 border border-text-muted/30 cursor-not-allowed opacity-50"
+                      : "bg-gradient-secondary/30 hover:bg-gradient-secondary/40 border border-accent-rose/30 hover:shadow-glow-rose"
                   }`}
                   onClick={() => {
                     if (players.filter((p) => p.team === "B").length < 3) {
@@ -1264,18 +1264,18 @@ export default function Lobby() {
             </div>
 
             {players.length >= 6 && players.filter((p) => p.team).length < 6 && (
-              <div className="mt-4 p-3 bg-amber-600/20 border border-amber-500/40 rounded-lg">
-                <div className="text-sm text-amber-300">
+              <div className="mt-4 p-3 bg-gradient-warm/20 border border-accent-amber/40 rounded-lg shadow-glow-amber">
+                <div className="text-sm text-accent-amber">
                   <span className="font-semibold">⚠️ Team Selection Required:</span> Some connected players need to select a team before starting the game.
                 </div>
               </div>
             )}
 
             <button
-              className={`w-full mt-4 px-4 py-3 rounded-lg transition-colors font-medium ${
+              className={`w-full mt-4 px-4 py-3 rounded-lg transition-all duration-200 font-medium ${
                 (!roomId || (!TEST_MODE_ENABLED && players.filter((p)=>p.connected!==false).length !== 6))
-                  ? "bg-zinc-600 cursor-not-allowed"
-                  : "bg-amber-600 hover:bg-amber-500"
+                  ? "bg-dark-tertiary cursor-not-allowed border border-text-muted/30"
+                  : "bg-gradient-warm hover:shadow-glow-amber border border-accent-amber/30"
               }`}
               onClick={startGame}
               disabled={!roomId || (!TEST_MODE_ENABLED && players.filter((p)=>p.connected!==false).length !== 6)}
@@ -1290,34 +1290,34 @@ export default function Lobby() {
             </button>
           </div>
           {/* Players */}
-          <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-4 border border-zinc-700/50">
+          <div className="bg-dark-card/50 backdrop-blur-sm rounded-xl p-4 border border-accent-emerald/20 shadow-glow-emerald">
             <h2 className="font-semibold mb-4 text-lg flex items-center gap-2">
-              <span className="text-green-400">🎮</span>
-              Players ({players.length}/6 connected)
+              <span className="text-accent-emerald">🎮</span>
+              <span className="text-text-primary">Players ({players.length}/6 connected)</span>
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {players.map((p) => (
-                <div key={p.id} className="px-3 py-2 bg-zinc-800/50 border border-zinc-600/50 rounded-lg flex items-center gap-2">
+                <div key={p.id} className="px-3 py-2 bg-dark-tertiary/50 border border-accent-purple/20 rounded-lg flex items-center gap-2 shadow-glow-purple/10">
                   <div className="relative">
                     {typeof p.avatar === "string" && p.avatar.startsWith("http") ? (
-                      <img src={p.avatar} alt="" className="h-8 w-8 rounded-full border border-zinc-600/50" referrerPolicy="no-referrer" />
+                      <img src={p.avatar} alt="" className="h-8 w-8 rounded-full border border-accent-purple/30" referrerPolicy="no-referrer" />
                     ) : (
                       <span className="text-xl">{p.avatar}</span>
                     )}
                     {speakingUsers?.[p.id] && (
-                      <span className="pointer-events-none absolute -inset-0.5 rounded-full ring-2 ring-green-400 shadow-[0_0_6px_rgba(34,197,94,0.5)]" />
+                      <span className="pointer-events-none absolute -inset-0.5 rounded-full ring-2 ring-accent-emerald shadow-glow-emerald" />
                     )}
                   </div>
                   <div className="min-w-0">
-                    <div className="text-sm font-medium truncate max-w-[9rem]">{p.name}</div>
-                    <div className="text-xs opacity-70">{p.team ? `Team ${p.team}` : 'No Team'}</div>
+                    <div className="text-sm font-medium truncate max-w-[9rem] text-text-primary">{p.name}</div>
+                    <div className="text-xs text-text-muted">{p.team ? `Team ${p.team}` : 'No Team'}</div>
                   </div>
                 </div>
               ))}
               {!players.length && (
                 <div className="col-span-full text-center py-8">
                   <div className="text-4xl mb-2">🎯</div>
-                  <div className="text-zinc-400">No players yet. Create or join a room to appear here.</div>
+                  <div className="text-text-muted">No players yet. Create or join a room to appear here.</div>
                 </div>
               )}
             </div>

@@ -101,8 +101,13 @@ export default function GameRoom() {
   // Show loading state while connecting
   if (!state || state.room_id !== roomId) {
     return (
-      <div className="min-h-screen bg-zinc-900 flex items-center justify-center">
-        <div className="text-white text-xl">Connecting to game...</div>
+      <div className="min-h-screen bg-gradient-vibrant flex items-center justify-center">
+        <div className="text-text-primary text-xl bg-dark-card/50 backdrop-blur-sm px-6 py-4 rounded-xl border border-accent-cyan/20 shadow-glow-cyan">
+          <div className="flex items-center gap-3">
+            <div className="animate-spin w-5 h-5 border-2 border-accent-cyan border-t-transparent rounded-full"></div>
+            Connecting to game...
+          </div>
+        </div>
       </div>
     );
   }

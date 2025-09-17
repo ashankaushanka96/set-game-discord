@@ -48,7 +48,7 @@ function SetChip({ suit, set_type, owner, expandable=false, cards=[] }) {
     : RANKS_UPPER.map(rank => ({ suit, rank }));
   
   return (
-    <div className="bg-zinc-800/70 rounded-xl p-3 flex items-center gap-2 text-sm">
+    <div className="bg-dark-card/70 backdrop-blur-sm rounded-xl p-3 flex items-center gap-2 text-sm border border-accent-purple/20 shadow-glow-purple/20">
       <div className="shrink-0">
         <FannedCards 
           cards={fullSet} 
@@ -56,9 +56,9 @@ function SetChip({ suit, set_type, owner, expandable=false, cards=[] }) {
           maxCards={7}
         />
       </div>
-      <div className="capitalize">
-        {suit} <span className="opacity-70">{label}</span>
-        <span className="ml-2 text-[11px] opacity-60">— Team {owner}</span>
+      <div className="capitalize text-text-primary">
+        {suit} <span className="text-text-secondary">{label}</span>
+        <span className="ml-2 text-[11px] text-text-muted">— Team {owner}</span>
       </div>
     </div>
   );
@@ -95,8 +95,8 @@ export default function Table() {
    const seatPositions = useMemo(() => {
      // Use percentage-based positioning for responsive design
      const pos = {};
-     // Use a smaller radius for better viewport fit
-     const radiusPercent = 35; // 35% of container
+     // Use a larger radius to avoid collision with table
+     const radiusPercent = 45; // 45% of container (increased from 35%)
      for (let i = 0; i < 6; i++) {
        const angle = (90 + (i - mySeatIndex) * 60) * (Math.PI / 180);
        const x = 50 + radiusPercent * Math.cos(angle);
@@ -321,13 +321,13 @@ export default function Table() {
   // Show spectator view if player is a spectator
   if (isSpectator) {
     return (
-      <div className="h-screen w-screen overflow-hidden flex flex-col bg-zinc-900">
+      <div className="h-screen w-screen overflow-hidden flex flex-col bg-gradient-vibrant">
         <div className="flex-1 overflow-y-auto">
           <SpectatorView players={players} myId={me.id} gamePhase={state.phase} />
         </div>
         
         {/* Spectator status indicator */}
-        <div className="fixed top-4 left-4 z-40 bg-amber-600/90 text-white px-4 py-2 rounded-lg shadow-lg">
+        <div className="fixed top-4 left-4 z-40 bg-gradient-warm text-white px-4 py-2 rounded-lg shadow-lg border border-accent-amber/30">
           <div className="text-sm font-semibold">👁️ Spectator Mode</div>
           <div className="text-xs opacity-80">
             {my?.spectator_request_pending ? 'Waiting for admin approval' : 
@@ -342,14 +342,14 @@ export default function Table() {
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col" onClick={handleTableClick}>
+    <div className="h-screen w-screen overflow-hidden flex flex-col bg-gradient-vibrant" onClick={handleTableClick}>
       <Celebration tableCenterRef={tableCenterRef} />
       <DealingAnimation />
       
       {/* Back to Lobby Button - Top Left */}
       <div className="fixed top-2 left-2 md:top-3 md:left-3 z-40">
           <button 
-            className="group bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg md:rounded-xl shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center gap-2"
+            className="group bg-gradient-primary hover:shadow-glow-blue text-white px-3 py-2 md:px-4 md:py-2 rounded-lg md:rounded-xl shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center gap-2 border border-accent-blue/30"
             onClick={() => send(ws, 'request_back_to_lobby', { requester_id: me.id })}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -366,7 +366,7 @@ export default function Table() {
       {state.phase === 'playing' && (
         <div className="fixed top-2 right-2 md:top-3 md:right-3 z-40">
           <button 
-            className="group bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg md:rounded-xl shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center gap-2"
+            className="group bg-gradient-accent hover:shadow-glow-emerald text-white px-3 py-2 md:px-4 md:py-2 rounded-lg md:rounded-xl shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center gap-2 border border-accent-emerald/30"
             onClick={() => setRequestAbortOpen(true)}
           >
             <svg className="w-4 h-4 transition-transform group-hover:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -384,7 +384,7 @@ export default function Table() {
       {/* Emoji Settings Button - Top Right Corner */}
       <div className="fixed top-14 right-2 md:top-16 md:right-3 z-40">
         <button 
-          className="group bg-zinc-700/80 hover:bg-zinc-600/80 text-zinc-300 hover:text-white p-2 rounded-lg shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95"
+          className="group bg-dark-card/80 hover:bg-dark-tertiary/80 text-text-secondary hover:text-text-primary p-2 rounded-lg shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 border border-accent-purple/20 hover:border-accent-purple/40 hover:shadow-glow-purple"
           onClick={() => setEmojiSettingsOpen(true)}
           title="Emoji Settings"
         >
@@ -399,7 +399,7 @@ export default function Table() {
       {state.admin_player_id === me.id && Object.keys(state.spectator_requests || {}).length > 0 && (
         <div className="fixed top-14 right-14 md:top-16 md:right-16 z-40">
           <button 
-            className="group bg-amber-600/80 hover:bg-amber-500/80 text-white p-2 rounded-lg shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 relative"
+            className="group bg-gradient-warm hover:shadow-glow-amber text-white p-2 rounded-lg shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 relative border border-accent-amber/30"
             onClick={() => setSpectatorRequestsOpen(true)}
             title="Spectator Requests"
           >
@@ -417,7 +417,7 @@ export default function Table() {
 
       {/* Card Passing Indicator */}
       {selectedCardsToPass.length > 0 && (
-        <div className="fixed top-20 left-4 z-40 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg">
+        <div className="fixed top-20 left-4 z-40 bg-gradient-primary text-white px-4 py-2 rounded-lg shadow-lg border border-accent-blue/30 shadow-glow-blue">
           <div className="text-sm font-semibold">
             {selectedCardsToPass.length} card{selectedCardsToPass.length !== 1 ? 's' : ''} selected
           </div>
@@ -426,11 +426,11 @@ export default function Table() {
       )}
 
       {handoffFor && handoffFor.who_id === me.id && (
-        <div className="fixed top-2 md:top-4 left-1/2 -translate-x-1/2 z-[95] bg-zinc-900/90 backdrop-blur px-2 md:px-4 py-1 md:py-2 rounded-xl card-shadow flex flex-col sm:flex-row items-center gap-1 md:gap-2">
-          <span className="text-xs md:text-sm opacity-80">Pass turn to teammate:</span>
+        <div className="fixed top-2 md:top-4 left-1/2 -translate-x-1/2 z-[95] bg-dark-card/90 backdrop-blur px-2 md:px-4 py-1 md:py-2 rounded-xl card-shadow flex flex-col sm:flex-row items-center gap-1 md:gap-2 border border-accent-emerald/20">
+          <span className="text-xs md:text-sm text-text-secondary">Pass turn to teammate:</span>
           <div className="flex flex-wrap gap-1 md:gap-2">
             {handoffFor.eligible.map(pid => (
-              <button key={pid} className="text-xs md:text-sm bg-emerald-700/70 hover:bg-emerald-700 px-2 md:px-3 py-1 rounded"
+              <button key={pid} className="text-xs md:text-sm bg-gradient-accent hover:shadow-glow-emerald px-2 md:px-3 py-1 rounded border border-accent-emerald/30"
                 onClick={() => doHandoff(pid)}>
                 <div className="flex items-center gap-2">
                   {typeof players[pid]?.avatar === "string" && players[pid].avatar.startsWith("http") ? (
@@ -462,8 +462,8 @@ export default function Table() {
          <div className="relative w-full max-w-7xl flex items-center justify-center gap-2 lg:gap-4">
         <div className="hidden xl:block w-[260px]">
           <div className="sticky top-4 space-y-2">
-            <div className="text-sm font-semibold text-blue-300 mb-1">Team A — Collected</div>
-            {setsA.length === 0 && <div className="text-xs opacity-60">No sets yet.</div>}
+            <div className="text-sm font-semibold text-accent-blue mb-1">Team A — Collected</div>
+            {setsA.length === 0 && <div className="text-xs text-text-muted">No sets yet.</div>}
             {setsA.map((ts, idx)=>(
               <SetChip key={`A-${idx}`} suit={ts.suit} set_type={ts.set_type} owner="A" expandable cards={ts.cards}/>
             ))}
@@ -471,8 +471,8 @@ export default function Table() {
         </div>
 
          <div className="relative flex-1 max-w-[90vw] h-[min(60vh,500px)] lg:h-[min(70vh,600px)] flex items-center justify-center">
-           <div className="relative w-full h-full bg-zinc-900/30 rounded-3xl card-shadow">
-             <div ref={tableCenterRef} className="absolute rounded-full border-4 border-zinc-700 bg-zinc-800/40 flex items-center justify-center"
+           <div className="relative w-full h-full">
+             <div ref={tableCenterRef} className="absolute rounded-full border-4 border-emerald-800/80 bg-gradient-to-br from-green-900 via-green-800 to-emerald-900 flex items-center justify-center shadow-lg"
                   style={{ 
                     width: 'min(60%, 400px)', 
                     height: 'min(60%, 400px)', 
@@ -483,7 +483,7 @@ export default function Table() {
               {/* Shuffle & Deal button - show for current dealer when game is ready, ended, or when no cards are dealt, but NOT when game is actively playing */}
               {me?.id === state.current_dealer && state.phase !== 'playing' && (state.phase === 'ready' || state.phase === 'ended' || !state.deck_count || state.deck_count === 0 || !my?.hand?.length) && (
                 <button 
-                  className="bg-amber-600 hover:bg-amber-500 text-white px-6 py-3 rounded-lg font-semibold shadow-lg transition-colors"
+                  className="bg-gradient-warm hover:shadow-glow-amber text-white px-6 py-3 rounded-lg font-semibold shadow-lg transition-all duration-200 border border-accent-amber/30"
                   onClick={() => send(ws, 'shuffle_deal', {})}
                 >
                   Shuffle & Deal
@@ -494,7 +494,7 @@ export default function Table() {
               {state.phase === 'playing' && (
                 <button
                   onClick={() => setCompletedSetsOpen(true)}
-                  className="px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 bg-blue-600 hover:bg-blue-500 text-white shadow-lg border border-blue-500 md:hidden"
+                  className="px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 bg-gradient-primary hover:shadow-glow-blue text-white shadow-lg border border-accent-blue/30 md:hidden"
                   title="View completed sets"
                 >
                   Sets
@@ -538,7 +538,7 @@ export default function Table() {
                     />
                   </div>
                   {p && p.id !== my.id && !dealingAnimation && (
-                    <div className="mt-1 text-center text-xs opacity-70">{handCount(pid)} cards</div>
+                    <div className="mt-1 text-center text-xs text-text-muted">{handCount(pid)} cards</div>
                   )}
                 </div>
               );
@@ -614,8 +614,8 @@ export default function Table() {
 
         <div className="hidden xl:block w-[260px]">
           <div className="sticky top-4 space-y-2">
-            <div className="text-sm font-semibold text-rose-300 mb-1">Team B — Collected</div>
-            {((state.table_sets||[]).filter(s=>s.owner_team==='B').length) === 0 && <div className="text-xs opacity-60">No sets yet.</div>}
+            <div className="text-sm font-semibold text-accent-rose mb-1">Team B — Collected</div>
+            {((state.table_sets||[]).filter(s=>s.owner_team==='B').length) === 0 && <div className="text-xs text-text-muted">No sets yet.</div>}
             {(state.table_sets||[]).filter(s=>s.owner_team==='B').map((ts, idx)=>(
               <SetChip key={`B-${idx}`} suit={ts.suit} set_type={ts.set_type} owner="B" expandable cards={ts.cards}/>
             ))}
@@ -625,29 +625,29 @@ export default function Table() {
        </div>
 
        {/* Bottom section - Scoreboard, Player Hand, and Controls */}
-       <div className="flex-shrink-0 p-2 md:p-4 space-y-1 md:space-y-2 -mt-12 md:-mt-20">
+       <div className="flex-shrink-0 p-2 md:p-4 space-y-1 md:space-y-2 -mt-8 md:-mt-16">
          {/* Scoreboard */}
-         <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-6 text-xs sm:text-sm">
-        <div className="px-2 sm:px-3 py-1 rounded-full bg-zinc-900/70">
-          <span className="inline-flex items-center gap-1 sm:gap-2 text-blue-300">
-            <span className="inline-block h-2 w-2 rounded-full bg-blue-400" />
+         <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-30 text-xs sm:text-sm">
+        <div className="px-2 sm:px-3 py-1 rounded-full bg-dark-card/70 backdrop-blur-sm border border-accent-blue/20 shadow-glow-blue">
+          <span className="inline-flex items-center gap-1 sm:gap-2 text-accent-blue">
+            <span className="inline-block h-2 w-2 rounded-full bg-accent-blue shadow-glow-blue" />
             <span className="hidden sm:inline">Team A</span>
             <span className="sm:hidden">A</span>
-            <span className="text-zinc-300">—</span> 
-            <span className="text-white">{state.team_scores?.A ?? 0}</span>
+            <span className="text-text-secondary">—</span> 
+            <span className="text-text-primary font-semibold">{state.team_scores?.A ?? 0}</span>
             <span className="hidden sm:inline">pts</span>
-            <span className="opacity-60"> ({(state.table_sets||[]).filter(s=>s.owner_team==='A').length})</span>
+            <span className="text-text-muted"> ({(state.table_sets||[]).filter(s=>s.owner_team==='A').length})</span>
           </span>
         </div>
-        <div className="px-2 sm:px-3 py-1 rounded-full bg-zinc-900/70">
-          <span className="inline-flex items-center gap-1 sm:gap-2 text-rose-300">
-            <span className="inline-block h-2 w-2 rounded-full bg-rose-400" />
+        <div className="px-2 sm:px-3 py-1 rounded-full bg-dark-card/70 backdrop-blur-sm border border-accent-rose/20 shadow-glow-rose">
+          <span className="inline-flex items-center gap-1 sm:gap-2 text-accent-rose">
+            <span className="inline-block h-2 w-2 rounded-full bg-accent-rose shadow-glow-rose" />
             <span className="hidden sm:inline">Team B</span>
             <span className="sm:hidden">B</span>
-            <span className="text-zinc-300">—</span> 
-            <span className="text-white">{state.team_scores?.B ?? 0}</span>
+            <span className="text-text-secondary">—</span> 
+            <span className="text-text-primary font-semibold">{state.team_scores?.B ?? 0}</span>
             <span className="hidden sm:inline">pts</span>
-            <span className="opacity-60"> ({(state.table_sets||[]).filter(s=>s.owner_team==='B').length})</span>
+            <span className="text-text-muted"> ({(state.table_sets||[]).filter(s=>s.owner_team==='B').length})</span>
           </span>
         </div>
       </div>
@@ -665,7 +665,7 @@ export default function Table() {
            {selectedCardsToPass.length > 0 && (
              <div className="mt-2">
                <button 
-                 className="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-sm font-medium transition-colors duration-200"
+                 className="bg-gradient-secondary hover:shadow-glow-rose text-white px-3 py-1 rounded text-sm font-medium transition-all duration-200 border border-accent-rose/30"
                  onClick={() => setSelectedCardsToPass([])}
                >
                  Clear Selection ({selectedCardsToPass.length})
@@ -677,7 +677,7 @@ export default function Table() {
          {/* Game Controls */}
          <div className="flex items-center justify-center gap-3">
          {/* Debug: Show current phase */}
-         <div className="text-xs text-gray-400 ml-4">
+         <div className="text-xs text-text-muted ml-4">
            Phase: {state.phase}
          </div>
          </div>
@@ -733,7 +733,7 @@ export default function Table() {
          <div className="fixed bottom-4 right-4 z-50">
            <button
              onClick={() => setLayOpen(true)}
-             className="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg border border-emerald-500"
+             className="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 bg-gradient-accent hover:shadow-glow-emerald text-white shadow-lg border border-accent-emerald/30"
              title="Laydown cards"
            >
              <span className="hidden sm:inline">Laydown</span>

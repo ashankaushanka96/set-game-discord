@@ -123,9 +123,6 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
   if (dealingAnimation) {
     return (
       <div className="w-full flex flex-col items-center">
-        <div className="uppercase tracking-wide text-[11px] opacity-60 mb-2">
-          Your Hand
-        </div>
         <div className="text-sm opacity-50">
           Dealing cards...
         </div>
@@ -135,9 +132,6 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
 
   return (
     <div className="w-full flex flex-col items-center">
-      <div className="uppercase tracking-wide text-[11px] opacity-60 mb-2">
-        Your Hand
-      </div>
 
       {/* Desktop: One single row, horizontally scrollable */}
       <div className="hidden md:block w-full relative">
