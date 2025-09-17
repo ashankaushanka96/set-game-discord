@@ -3,7 +3,7 @@ import { useStore } from '../../store';
 
 // Emoji-specific animation configurations
 const EMOJI_CONFIGS = {
-  '🔨': {
+  '\u{1F528}': {
     name: 'Hammer',
     category: 'attack',
     physics: {
@@ -16,7 +16,7 @@ const EMOJI_CONFIGS = {
     sound: 'bonk',
     impactEffect: 'shake'
   },
-  '🍅': {
+  '\u{1F345}': {
     name: 'Tomato',
     category: 'attack',
     physics: {
@@ -29,20 +29,7 @@ const EMOJI_CONFIGS = {
     sound: 'splat',
     impactEffect: 'splat'
   },
-  '🥚': {
-    name: 'Egg',
-    category: 'attack',
-    physics: {
-      spinSpeed: 1.2,
-      arcHeight: 70,
-      impactScale: 2.0,
-      splat: true,
-      decal: 'egg-splat'
-    },
-    sound: 'crack',
-    impactEffect: 'splat'
-  },
-  '💣': {
+  '\u{1F4A3}': {
     name: 'Bomb',
     category: 'attack',
     physics: {
@@ -54,7 +41,7 @@ const EMOJI_CONFIGS = {
     sound: 'explosion',
     impactEffect: 'explosion'
   },
-  '⚡': {
+  '\u{26A1}': {
     name: 'Lightning',
     category: 'attack',
     physics: {
@@ -67,7 +54,7 @@ const EMOJI_CONFIGS = {
     sound: 'zap',
     impactEffect: 'electric'
   },
-  '🔥': {
+  '\u{1F525}': {
     name: 'Fire',
     category: 'attack',
     physics: {
@@ -80,32 +67,7 @@ const EMOJI_CONFIGS = {
     sound: 'whoosh',
     impactEffect: 'burn'
   },
-  '❄️': {
-    name: 'Ice',
-    category: 'attack',
-    physics: {
-      spinSpeed: 0.5,
-      arcHeight: 30,
-      impactScale: 1.6,
-      sparkles: true
-    },
-    sound: 'freeze',
-    impactEffect: 'freeze'
-  },
-  '💨': {
-    name: 'Wind',
-    category: 'attack',
-    physics: {
-      spinSpeed: 0.3,
-      arcHeight: 20,
-      impactScale: 1.4,
-      trail: true,
-      speed: 0.8
-    },
-    sound: 'whoosh',
-    impactEffect: 'wind'
-  },
-  '🎉': {
+  '\u{1F389}': {
     name: 'Party',
     category: 'celebration',
     physics: {
@@ -117,19 +79,7 @@ const EMOJI_CONFIGS = {
     sound: 'party',
     impactEffect: 'confetti'
   },
-  '🎊': {
-    name: 'Confetti',
-    category: 'celebration',
-    physics: {
-      spinSpeed: 2.0,
-      arcHeight: 100,
-      impactScale: 2.2,
-      confetti: true
-    },
-    sound: 'confetti',
-    impactEffect: 'confetti'
-  },
-  '🏆': {
+  '\u{1F3C6}': {
     name: 'Trophy',
     category: 'celebration',
     physics: {
@@ -141,19 +91,7 @@ const EMOJI_CONFIGS = {
     sound: 'victory',
     impactEffect: 'sparkles'
   },
-  '🥇': {
-    name: 'Gold Medal',
-    category: 'celebration',
-    physics: {
-      spinSpeed: 1.2,
-      arcHeight: 70,
-      impactScale: 1.8,
-      sparkles: true
-    },
-    sound: 'medal',
-    impactEffect: 'sparkles'
-  },
-  '👑': {
+  '\u{1F451}': {
     name: 'Crown',
     category: 'celebration',
     physics: {
@@ -165,43 +103,7 @@ const EMOJI_CONFIGS = {
     sound: 'royal',
     impactEffect: 'sparkles'
   },
-  '💎': {
-    name: 'Diamond',
-    category: 'celebration',
-    physics: {
-      spinSpeed: 1.8,
-      arcHeight: 80,
-      impactScale: 1.9,
-      sparkles: true
-    },
-    sound: 'sparkle',
-    impactEffect: 'sparkles'
-  },
-  '🌟': {
-    name: 'Star',
-    category: 'celebration',
-    physics: {
-      spinSpeed: 2.2,
-      arcHeight: 85,
-      impactScale: 2.1,
-      sparkles: true
-    },
-    sound: 'sparkle',
-    impactEffect: 'sparkles'
-  },
-  '✨': {
-    name: 'Sparkles',
-    category: 'celebration',
-    physics: {
-      spinSpeed: 2.5,
-      arcHeight: 75,
-      impactScale: 2.0,
-      sparkles: true
-    },
-    sound: 'sparkle',
-    impactEffect: 'sparkles'
-  },
-  '😂': {
+  '\u{1F602}': {
     name: 'Laughing',
     category: 'reaction',
     physics: {
@@ -213,7 +115,7 @@ const EMOJI_CONFIGS = {
     sound: 'laugh',
     impactEffect: 'bounce'
   },
-  '👏': {
+  '\u{1F44F}': {
     name: 'Clap',
     category: 'gesture',
     physics: {
@@ -225,7 +127,7 @@ const EMOJI_CONFIGS = {
     sound: 'clap',
     impactEffect: 'burst'
   },
-  '❤️': {
+  '\u2764\uFE0F': {
     name: 'Red Heart',
     category: 'heart',
     physics: {
@@ -237,17 +139,17 @@ const EMOJI_CONFIGS = {
     sound: 'heart',
     impactEffect: 'hearts'
   },
-  '🌹': {
-    name: 'Rose',
-    category: 'heart',
+  '\u{1F44D}': {
+    name: 'Thumbs Up',
+    category: 'gesture',
     physics: {
-      spinSpeed: 0.4,
+      spinSpeed: 0.6,
       arcHeight: 45,
-      impactScale: 1.5,
-      petals: true
+      impactScale: 1.4,
+      bounce: true
     },
     sound: 'gentle',
-    impactEffect: 'petals'
+    impactEffect: 'bounce'
   }
 };
 
@@ -261,7 +163,7 @@ const DEFAULT_CONFIG = {
     impactScale: 1.5,
     bounce: true
   },
-  sound: 'default',
+  sound: 'gentle',
   impactEffect: 'bounce'
 };
 
