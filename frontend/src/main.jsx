@@ -1,16 +1,18 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
-import emojiSoundManager, { forceInit as forceInitEmojiAudio, markEmojiAudioUnlocked } from './utils/emojiSounds'
 
 // Global one-time audio unlock for iOS/macOS/Discord webviews
 function installGlobalAudioUnlock() {
   let unlocked = false;
-  const tryUnlock = () => {
+  const tryUnlock = async () => {
     if (unlocked) return;
     unlocked = true;
-    try { if (forceInitEmojiAudio) forceInitEmojiAudio(); } catch (_) {}
-    try { if (markEmojiAudioUnlocked) markEmojiAudioUnlocked(); else if (emojiSoundManager && emojiSoundManager.markUnlocked) emojiSoundManager.markUnlocked(); } catch(_) {}
+    try {
+      const m = await import('./utils/emojiSounds');
+      try { if (typeof m.forceInit === 'function') m.forceInit(); else if (m.default && typeof m.default.forceInit === 'function') m.default.forceInit(); } catch (_) {}
+      try { if (typeof m.markEmojiAudioUnlocked === 'function') m.markEmojiAudioUnlocked(); else if (m.default && typeof m.default.markUnlocked === 'function') m.default.markUnlocked(); } catch (_) {}
+    } catch (_) {}
     window.removeEventListener('pointerdown', tryUnlock);
     window.removeEventListener('keydown', tryUnlock);
     window.removeEventListener('touchstart', tryUnlock);
@@ -19,6 +21,7 @@ function installGlobalAudioUnlock() {
   window.addEventListener('pointerdown', tryUnlock, { once: true, passive: true });
   window.addEventListener('keydown', tryUnlock, { once: true });
   window.addEventListener('touchstart', tryUnlock, { once: true, passive: true });
+  window.addEventListener('touchend', tryUnlock, { once: true, passive: true });
   window.addEventListener('click', tryUnlock, { once: true, capture: true });
 }
 

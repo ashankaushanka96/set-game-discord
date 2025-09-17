@@ -6,6 +6,7 @@ async function safeForceInitAudio() {
   try {
     if (emojiSoundManager && typeof emojiSoundManager.forceInit === 'function') {
       emojiSoundManager.forceInit();
+      if (typeof emojiSoundManager.markUnlocked === 'function') emojiSoundManager.markUnlocked();
       return;
     }
   } catch (_) {}
@@ -13,10 +14,12 @@ async function safeForceInitAudio() {
     const mod = await import('../../utils/emojiSounds');
     if (mod && typeof mod.forceInit === 'function') {
       mod.forceInit();
+      if (typeof mod.markEmojiAudioUnlocked === 'function') mod.markEmojiAudioUnlocked();
       return;
     }
     if (mod && mod.default && typeof mod.default.forceInit === 'function') {
       mod.default.forceInit();
+      if (mod.default && typeof mod.default.markUnlocked === 'function') mod.default.markUnlocked();
       return;
     }
   } catch (_) {}

@@ -1,4 +1,16 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
+
+// Lazy sound loader with caching to avoid repeated dynamic imports
+let _playKeyCached = null;
+async function playSfxKeyOnce(key) {
+  try {
+    if (!_playKeyCached) {
+      const mod = await import('../../utils/emojiSounds');
+      _playKeyCached = mod.playKey || (mod.default && mod.default.playKey && ((k)=>mod.default.playKey(k)));
+    }
+    if (typeof _playKeyCached === 'function') _playKeyCached(key);
+  } catch (_) {}
+}
 import { useStore } from '../../store';
 import { Card, CardBack } from '../cards';
 
@@ -119,6 +131,8 @@ const DealingAnimation = () => {
       }
     }
 
+    // No visual shuffle; just proceed to dealing
+
     // Skip shuffle animation, go directly to dealing
     // Add a small delay to ensure seat positions are updated
     setTimeout(() => {
@@ -160,10 +174,11 @@ const DealingAnimation = () => {
       }
 
       // Process each card in sequence
+      let lastTick = 0;
       dealSequence.forEach((cardData, index) => {
         setTimeout(() => {
           const cardKey = `${cardData.id}-${Date.now()}`;
-          
+
           // Add flying card
           setFlyingCards(prev => [...prev, {
             ...cardData,
@@ -174,9 +189,16 @@ const DealingAnimation = () => {
           const seatPos = seatRefs.current[cardData.seat];
           const fromSeat = cardData.fromSeat !== undefined ? cardData.fromSeat : dealingAnimation.dealerSeat;
           const fromPos = seatRefs.current[fromSeat];
-          
+
           if (seatPos && fromPos) {
             animateCard(cardKey, fromPos, seatPos, 800);
+          }
+
+          // Deal sound (use the same SFX as pass; throttle to ~10/sec)
+          const now = Date.now();
+          if (now - lastTick > 80) {
+            lastTick = now;
+            playSfxKeyOnce('pass');
           }
 
           // Remove flying card after animation and add to hand

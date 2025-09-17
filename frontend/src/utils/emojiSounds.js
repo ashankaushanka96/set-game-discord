@@ -81,6 +81,8 @@ class EmojiSoundManager {
       'lay_success': `${prefix}sounds/laydown/success.mp3`,
       'lay_unsuccess': `${prefix}sounds/laydown/unsuccess.mp3`,
       'game_over': `${prefix}sounds/gameover/gameover.mp3`,
+      'shuffle': `${prefix}sounds/shuffle/shuffle.mp3`,
+      'deal': `${prefix}sounds/deal/deal.mp3`,
     };
 
     const map = { ...uiMap };
@@ -106,6 +108,12 @@ class EmojiSoundManager {
       push(`${base}sounds/laydown/unsuccess.mp3`);
     } else if (key === 'game_over') {
       push(`${base}sounds/gameover/gameover.mp3`);
+    } else if (key === 'shuffle') {
+      push(`${base}sounds/shuffle/shuffle.mp3`);
+      push(`${base}sounds/shuffle/shuffle-2.mp3`);
+    } else if (key === 'deal') {
+      push(`${base}sounds/deal/deal.mp3`);
+      push(`${base}sounds/deal/deal-2.mp3`);
     }
     return urls;
   }
