@@ -20,11 +20,10 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://ashankaushanka96.github.io",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "https://set-game-test.ashankaushanka.com",
-        "https://set-game.ashankaushanka.com",
+        "https://set-game-discord.ashankaushanka.com",
         "*"  # Keep wildcard for development
     ],
     allow_credentials=True,

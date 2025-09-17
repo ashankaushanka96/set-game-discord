@@ -2,7 +2,7 @@
 DIR="$( cd -P "$( dirname "$0" )" && pwd )"
 cd "$DIR"
 
-LOGFILE="logs/app.log"
+LOGFILE="logs/nohup.out"
 
 # Run run.sh with nohup in background
 nohup bash run.sh > "$LOGFILE" 2>&1 &
