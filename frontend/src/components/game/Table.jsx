@@ -96,7 +96,7 @@ export default function Table() {
      // Use percentage-based positioning for responsive design
      const pos = {};
      // Use a larger radius to avoid collision with table
-     const radiusPercent = 45; // 45% of container (increased from 35%)
+         const radiusPercent = 35; // Closer to table edge like sitting at the table
      for (let i = 0; i < 6; i++) {
        const angle = (90 + (i - mySeatIndex) * 60) * (Math.PI / 180);
        const x = 50 + radiusPercent * Math.cos(angle);
@@ -475,8 +475,8 @@ export default function Table() {
              {/* Table Base/Legs */}
              <div className="absolute rounded-full"
                   style={{ 
-                    width: 'min(65%, 420px)', 
-                    height: 'min(65%, 420px)', 
+                    width: 'min(55%, 380px)', 
+                    height: 'min(55%, 380px)', 
                     left: '50%', 
                     top: '50%', 
                     transform: 'translate(-50%, -50%)',
@@ -486,10 +486,10 @@ export default function Table() {
              </div>
              
              {/* Main Table Surface */}
-             <div ref={tableCenterRef} className="absolute rounded-full border-8 border-amber-800/90 bg-gradient-to-br from-green-900 via-green-800 to-emerald-900 flex items-center justify-center"
+             <div ref={tableCenterRef} className="absolute rounded-full border-6 border-amber-800/90 bg-gradient-to-br from-green-900 via-green-800 to-emerald-900 flex items-center justify-center"
                   style={{ 
-                    width: 'min(60%, 400px)', 
-                    height: 'min(60%, 400px)', 
+                    width: 'min(50%, 350px)', 
+                    height: 'min(50%, 350px)', 
                     left: '50%', 
                     top: '50%', 
                     transform: 'translate(-50%, -50%)',
@@ -653,7 +653,7 @@ export default function Table() {
        </div>
 
        {/* Bottom section - Scoreboard, Player Hand, and Controls */}
-       <div className="flex-shrink-0 p-2 md:p-4 space-y-1 md:space-y-2 -mt-8 md:-mt-16">
+       <div className="flex-shrink-0 p-2 md:p-4 space-y-1 md:space-y-2 -mt-4 md:-mt-8">
          {/* Scoreboard */}
          <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-30 text-xs sm:text-sm">
         <div className="px-2 sm:px-3 py-1 rounded-full bg-dark-card/70 backdrop-blur-sm border border-accent-blue/20 shadow-glow-blue">
