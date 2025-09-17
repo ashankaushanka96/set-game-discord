@@ -403,9 +403,10 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
             elif t == "spectator_pass_cards":
                 # Spectator passes cards from one player to another (test mode only)
                 from_player_id = p["from_player_id"]
+                to_player_id = p["to_player_id"]
                 cards = [Card(**card) for card in p["cards"]]
                 
-                # Find a target player (opponent team)
+                # Validate source player
                 from_player = game.state.players.get(from_player_id)
                 if not from_player:
                     await ws.send_text(json.dumps({
@@ -414,19 +415,20 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                     }))
                     continue
                 
-                # Find an opponent player
-                target_player = None
-                for player in game.state.players.values():
-                    if (player.seat is not None and 
-                        player.team != from_player.team and 
-                        player.id != from_player_id):
-                        target_player = player
-                        break
-                
+                # Validate target player
+                target_player = game.state.players.get(to_player_id)
                 if not target_player:
                     await ws.send_text(json.dumps({
                         "type": "spectator_pass_cards_result",
-                        "payload": {"success": False, "error": "No opponent player found"}
+                        "payload": {"success": False, "error": "Target player not found"}
+                    }))
+                    continue
+                
+                # Validate that target is an opponent
+                if target_player.team == from_player.team:
+                    await ws.send_text(json.dumps({
+                        "type": "spectator_pass_cards_result",
+                        "payload": {"success": False, "error": "Cannot pass cards to teammate"}
                     }))
                     continue
                 
@@ -508,3 +510,4 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
             
         except Exception as e:
             logger.error(f"Error handling WebSocket disconnect for player {player_id}: {e}")
+

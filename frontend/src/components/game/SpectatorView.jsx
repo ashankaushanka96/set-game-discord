@@ -146,17 +146,6 @@ function PlayerHandDisplay({ player, isMe, onCardSelect, selectedCards, selectab
         </div>
       )}
       
-      {/* Pass Cards Button - Test Mode Only */}
-      {selectable && selectedCards && selectedCards.length > 0 && onPassCards && (
-        <div className="mt-3 pt-3 border-t border-zinc-600">
-          <button
-            onClick={onPassCards}
-            className="w-full bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded text-sm font-medium transition-colors"
-          >
-            Pass {selectedCards.length} card{selectedCards.length !== 1 ? 's' : ''} to opponent
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -165,6 +154,7 @@ export default function SpectatorView({ players, myId, gamePhase }) {
   const { ws } = useStore();
   const [selectedCards, setSelectedCards] = useState([]);
   const [selectedPlayerId, setSelectedPlayerId] = useState(null);
+  const [targetPlayerId, setTargetPlayerId] = useState(null);
   
   // Get all players with seats (active players)
   const activePlayers = Object.values(players).filter(p => p.seat !== null && p.seat !== undefined);
@@ -190,13 +180,15 @@ export default function SpectatorView({ players, myId, gamePhase }) {
   };
   
   const handlePassCards = () => {
-    if (selectedPlayerId && selectedCards.length > 0) {
+    if (selectedPlayerId && targetPlayerId && selectedCards.length > 0) {
       send(ws, 'spectator_pass_cards', {
         from_player_id: selectedPlayerId,
+        to_player_id: targetPlayerId,
         cards: selectedCards
       });
       setSelectedCards([]);
       setSelectedPlayerId(null);
+      setTargetPlayerId(null);
     }
   };
 
@@ -210,7 +202,7 @@ export default function SpectatorView({ players, myId, gamePhase }) {
         {TEST_MODE_ENABLED && gamePhase !== 'lobby' && (
           <div className="mt-2 px-3 py-1 bg-amber-600/20 border border-amber-500/40 rounded-lg inline-block">
             <p className="text-xs text-amber-300">
-              🧪 Test Mode: You can pass cards from bot players to opponents
+              🧪 Test Mode: Select a bot player, choose cards, then select an opponent to pass to
             </p>
           </div>
         )}
@@ -257,16 +249,18 @@ export default function SpectatorView({ players, myId, gamePhase }) {
             const isBot = player.name && player.name.toLowerCase().includes('bot');
             const isSelectable = TEST_MODE_ENABLED && isBot;
             const isSelected = selectedPlayerId === player.id;
+            const isTarget = targetPlayerId === player.id;
+            const isOpponent = selectedPlayerId && players[selectedPlayerId] && player.team !== players[selectedPlayerId].team;
             
             return (
-              <div key={player.id} className={`${isSelected ? 'ring-2 ring-blue-400 rounded-lg' : ''}`}>
+              <div key={player.id} className={`${isSelected ? 'ring-2 ring-blue-400 rounded-lg' : ''} ${isTarget ? 'ring-2 ring-green-400 rounded-lg' : ''}`}>
                 <PlayerHandDisplay 
                   player={player} 
                   isMe={player.id === myId}
-                  selectable={isSelectable}
+                  selectable={isSelectable && isSelected}
                   selectedCards={isSelected ? selectedCards : []}
-                  onCardSelect={isSelectable ? handleCardSelect : undefined}
-                  onPassCards={isSelectable && selectedCards.length > 0 ? handlePassCards : undefined}
+                  onCardSelect={isSelectable && isSelected ? handleCardSelect : undefined}
+                  onPassCards={undefined} // We'll handle this separately
                 />
                 {isSelectable && (
                   <div className="mt-2 text-center">
@@ -274,6 +268,7 @@ export default function SpectatorView({ players, myId, gamePhase }) {
                       onClick={() => {
                         setSelectedPlayerId(isSelected ? null : player.id);
                         setSelectedCards([]);
+                        setTargetPlayerId(null);
                       }}
                       className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
                         isSelected 
@@ -285,9 +280,42 @@ export default function SpectatorView({ players, myId, gamePhase }) {
                     </button>
                   </div>
                 )}
+                {selectedPlayerId && isOpponent && (
+                  <div className="mt-2 text-center">
+                    <button
+                      onClick={() => {
+                        setTargetPlayerId(isTarget ? null : player.id);
+                      }}
+                      className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                        isTarget 
+                          ? 'bg-green-600 text-white' 
+                          : 'bg-zinc-600 hover:bg-zinc-500 text-zinc-300'
+                      }`}
+                    >
+                      {isTarget ? 'Selected as target' : 'Select as target'}
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
+          
+          {/* Pass Cards Button - Show when both source and target are selected */}
+          {selectedPlayerId && targetPlayerId && selectedCards.length > 0 && (
+            <div className="mt-4 p-4 bg-blue-600/20 border border-blue-500/40 rounded-lg">
+              <div className="text-center">
+                <p className="text-sm text-blue-300 mb-3">
+                  Pass {selectedCards.length} card{selectedCards.length !== 1 ? 's' : ''} from {players[selectedPlayerId]?.name} to {players[targetPlayerId]?.name}
+                </p>
+                <button
+                  onClick={handlePassCards}
+                  className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded font-medium transition-colors"
+                >
+                  Pass Cards
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
       
