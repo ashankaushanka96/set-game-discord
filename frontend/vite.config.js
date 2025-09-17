@@ -9,7 +9,7 @@ export default defineConfig({
     port: 5173,
     allowedHosts: ['set-game-test.ashankaushanka.com'],
     cors: {
-      origin: ['http://localhost:5173', 'https://set-game-test.ashankaushanka.com'],
+      origin: ['http://localhost:5173', 'https://set-game-test.ashankaushanka.com', 'https://set-game-discord.ashankaushanka.com'],
       credentials: true
     },
     headers: {
