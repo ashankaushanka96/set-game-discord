@@ -28,6 +28,22 @@ class Game:
         )
         self._deck: List[Card] = []
 
+    def log_all_player_hands(self, context: str = ""):
+        """Log all player hands for debugging purposes"""
+        if not self.state.players:
+            logger.info(f"[HANDS LOG] {context} - No players in room")
+            return
+            
+        logger.info(f"[HANDS LOG] {context} - Room: {self.state.room_id}")
+        logger.info(f"[HANDS LOG] {context} - Phase: {self.state.phase}")
+        
+        for player_id, player in self.state.players.items():
+            hand_str = ", ".join([f"{card.rank} of {card.suit}" for card in player.hand]) if player.hand else "No cards"
+            logger.info(f"[HANDS LOG] {context} - {player.name} (Seat {player.seat}, Team {player.team}): {len(player.hand)} cards - [{hand_str}]")
+        
+        logger.info(f"[HANDS LOG] {context} - Deck count: {self.state.deck_count}")
+        logger.info(f"[HANDS LOG] {context} - " + "="*50)
+
     # ---------------- Deck ----------------
     def build_deck(self):
         self._deck = []
@@ -52,6 +68,9 @@ class Game:
         for pid, cards in hands_by_pid.items():
             self.state.players[pid].hand = cards
         self.state.deck_count = 0
+        
+        # Log all player hands after dealing
+        self.log_all_player_hands("AFTER DEALING")
 
     # ---------------- Seating & Teams ----------------
     def assign_seat(self, player_id: str, team: str) -> Optional[int]:
@@ -691,6 +710,9 @@ class Game:
         # Check if game has ended
         game_end_result = self.check_game_end()
 
+        # Log all player hands after laydown
+        self.log_all_player_hands(f"AFTER LAYDOWN - {my.name} ({suit} {set_type})")
+
         return {
             "success": True,
             "who_id": who_id,
@@ -728,6 +750,9 @@ class Game:
         
         # Add cards to to_player's hand
         to_player.hand.extend(cards)
+        
+        # Log all player hands after card passing
+        self.log_all_player_hands(f"AFTER PASS - {from_player.name} -> {to_player.name}")
         
         # Check if game should end after card transfer
         game_end_result = self.check_game_end()
