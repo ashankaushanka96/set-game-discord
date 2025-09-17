@@ -3,7 +3,7 @@
   remote_user: ashan
   connection: ssh
   vars:
-    component_path: /home/ashan/app/set-game-backend
+    component_path: /home/ashan/app/discord/set-game-backend
     _date: "{{ansible_date_time.iso8601}}"
     venv_path: "{{ component_path }}/.venv"
   roles:

@@ -21,6 +21,11 @@ jobs:
         run: |
           cp -rf backend app
       
+      - name: Create .env file with Discord secrets
+        run: |
+          echo "DISCORD_CLIENT_ID=${{ vars.DISCORD_CLIENT_ID }}" > app/.env
+          echo "DISCORD_CLIENT_SECRET=${{ secrets.DISCORD_CLIENT_SECRET }}" >> app/.env
+      
       - name: Create tarball of the repository
         run: tar -czvf app.tar.gz app
 

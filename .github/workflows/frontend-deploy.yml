@@ -34,7 +34,9 @@ jobs:
           cd frontend
           npm run build
         env:
-          VITE_API_BASE: ${{ secrets.API_BASE }}
+          VITE_API_BASE: ${{ vars.API_BASE }}
+          VITE_DISCORD_CLIENT_ID: ${{ vars.DISCORD_CLIENT_ID }}
+          VITE_TEST_MODE_ENABLE: ${{ vars.TEST_MODE_ENABLE }}
 
       - name: Create a directory and move files
         run: |
