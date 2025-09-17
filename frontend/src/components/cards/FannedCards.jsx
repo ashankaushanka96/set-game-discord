@@ -1,10 +1,19 @@
 import { Card } from './';
+import { RANKS_LOWER, RANKS_UPPER } from '../../lib/deck';
 
 export default function FannedCards({ cards, size = "sm", maxCards = 6 }) {
   if (!cards || cards.length === 0) return null;
 
+  // Sort cards by rank (lower set: 2-7, upper set: 8-A)
+  const sortedCards = [...cards].sort((a, b) => {
+    const allRanks = [...RANKS_LOWER, ...RANKS_UPPER];
+    const rankA = allRanks.indexOf(a.rank);
+    const rankB = allRanks.indexOf(b.rank);
+    return rankA - rankB;
+  });
+
   // Limit the number of cards to display
-  const displayCards = cards.slice(0, maxCards);
+  const displayCards = sortedCards.slice(0, maxCards);
   const hasMore = cards.length > maxCards;
 
   return (

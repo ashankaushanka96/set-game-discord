@@ -518,11 +518,11 @@ export default function Table() {
                 </button>
               )}
               
-              {/* Sets Button - show in center of table after game starts (mobile only) */}
+              {/* Sets Button - show in center of table after game starts (mobile and small desktop) */}
               {state.phase === 'playing' && (
                 <button
                   onClick={() => setCompletedSetsOpen(true)}
-                  className="px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 bg-gradient-primary hover:shadow-glow-blue text-white shadow-lg border border-accent-blue/30 md:hidden"
+                  className="px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 bg-gradient-primary hover:shadow-glow-blue text-white shadow-lg border border-accent-blue/30 xl:hidden"
                   title="View completed sets"
                 >
                   Sets
