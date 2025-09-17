@@ -400,6 +400,63 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                         "state": game.state.model_dump()
                     })
 
+            elif t == "spectator_pass_cards":
+                # Spectator passes cards from one player to another (test mode only)
+                from_player_id = p["from_player_id"]
+                cards = [Card(**card) for card in p["cards"]]
+                
+                # Find a target player (opponent team)
+                from_player = game.state.players.get(from_player_id)
+                if not from_player:
+                    await ws.send_text(json.dumps({
+                        "type": "spectator_pass_cards_result",
+                        "payload": {"success": False, "error": "Source player not found"}
+                    }))
+                    continue
+                
+                # Find an opponent player
+                target_player = None
+                for player in game.state.players.values():
+                    if (player.seat is not None and 
+                        player.team != from_player.team and 
+                        player.id != from_player_id):
+                        target_player = player
+                        break
+                
+                if not target_player:
+                    await ws.send_text(json.dumps({
+                        "type": "spectator_pass_cards_result",
+                        "payload": {"success": False, "error": "No opponent player found"}
+                    }))
+                    continue
+                
+                try:
+                    # Use the existing pass_cards logic
+                    res = game.pass_cards(from_player_id, target_player.id, cards)
+                    
+                    # Broadcast the result
+                    await WebSocketService.broadcast(room_id, "spectator_pass_cards_result", {
+                        "success": True,
+                        "from_player_id": from_player_id,
+                        "from_name": from_player.name,
+                        "to_player_id": target_player.id,
+                        "to_name": target_player.name,
+                        "cards": [c.model_dump() for c in cards],
+                        "state": game.state.model_dump()
+                    })
+                    
+                    # Also broadcast the normal cards_passed event for consistency
+                    await WebSocketService.broadcast(room_id, "cards_passed", {**res, "state": game.state.model_dump()})
+                    
+                except ValueError as e:
+                    await WebSocketService.broadcast(room_id, "spectator_pass_cards_result", {
+                        "success": False,
+                        "error": str(e),
+                        "from_player_id": from_player_id,
+                        "to_player_id": target_player.id,
+                        "state": game.state.model_dump()
+                    })
+
             elif t == "sync":
                 await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
 

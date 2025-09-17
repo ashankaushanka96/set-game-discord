@@ -1,9 +1,22 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card } from '../cards';
 import { RANKS_LOWER, RANKS_UPPER, SUITS } from '../../lib/deck';
+import { TEST_MODE_ENABLED } from '../../config';
+import { useStore } from '../../store';
+import { send } from '../../ws';
 
-function PlayerHandDisplay({ player, isMe }) {
+function PlayerHandDisplay({ player, isMe, onCardSelect, selectedCards, selectable, onPassCards }) {
   const cards = player?.hand || [];
+  
+  const isCardSelected = (card) => {
+    return selectedCards?.some(c => c.suit === card.suit && c.rank === card.rank) || false;
+  };
+
+  const handleCardClick = (card) => {
+    if (selectable && onCardSelect) {
+      onCardSelect(card);
+    }
+  };
   
   // Build ordered arrays with suit separators for lower/upper
   const { lowerItems, upperItems } = React.useMemo(() => {
@@ -99,7 +112,11 @@ function PlayerHandDisplay({ player, isMe }) {
                 it.__sep ? (
                   <span key={it.__sep} className="inline-block w-2" />
                 ) : (
-                  <span key={it.__key} className="inline-block">
+                  <span 
+                    key={it.__key} 
+                    className={`inline-block ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''}`}
+                    onClick={() => handleCardClick(it)}
+                  >
                     <Card suit={it.suit} rank={it.rank} size="xs" />
                   </span>
                 )
@@ -115,7 +132,11 @@ function PlayerHandDisplay({ player, isMe }) {
                 it.__sep ? (
                   <span key={it.__sep} className="inline-block w-2" />
                 ) : (
-                  <span key={it.__key} className="inline-block">
+                  <span 
+                    key={it.__key} 
+                    className={`inline-block ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''}`}
+                    onClick={() => handleCardClick(it)}
+                  >
                     <Card suit={it.suit} rank={it.rank} size="xs" />
                   </span>
                 )
@@ -124,11 +145,27 @@ function PlayerHandDisplay({ player, isMe }) {
           )}
         </div>
       )}
+      
+      {/* Pass Cards Button - Test Mode Only */}
+      {selectable && selectedCards && selectedCards.length > 0 && onPassCards && (
+        <div className="mt-3 pt-3 border-t border-zinc-600">
+          <button
+            onClick={onPassCards}
+            className="w-full bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded text-sm font-medium transition-colors"
+          >
+            Pass {selectedCards.length} card{selectedCards.length !== 1 ? 's' : ''} to opponent
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
 export default function SpectatorView({ players, myId, gamePhase }) {
+  const { ws } = useStore();
+  const [selectedCards, setSelectedCards] = useState([]);
+  const [selectedPlayerId, setSelectedPlayerId] = useState(null);
+  
   // Get all players with seats (active players)
   const activePlayers = Object.values(players).filter(p => p.seat !== null && p.seat !== undefined);
   
@@ -137,6 +174,31 @@ export default function SpectatorView({ players, myId, gamePhase }) {
 
   // Get all players (including those without seats for lobby view)
   const allPlayers = Object.values(players).filter(p => !p.is_spectator);
+  
+  // Get bot players (for test mode card passing)
+  const botPlayers = activePlayers.filter(p => p.name && p.name.toLowerCase().includes('bot'));
+  
+  const handleCardSelect = (card) => {
+    setSelectedCards(prev => {
+      const isSelected = prev.some(c => c.suit === card.suit && c.rank === card.rank);
+      if (isSelected) {
+        return prev.filter(c => !(c.suit === card.suit && c.rank === card.rank));
+      } else {
+        return [...prev, card];
+      }
+    });
+  };
+  
+  const handlePassCards = () => {
+    if (selectedPlayerId && selectedCards.length > 0) {
+      send(ws, 'spectator_pass_cards', {
+        from_player_id: selectedPlayerId,
+        cards: selectedCards
+      });
+      setSelectedCards([]);
+      setSelectedPlayerId(null);
+    }
+  };
 
   return (
     <div className="w-full max-w-4xl mx-auto p-4">
@@ -145,6 +207,13 @@ export default function SpectatorView({ players, myId, gamePhase }) {
         <p className="text-sm text-zinc-400">
           {gamePhase === 'lobby' ? 'Lobby - Players selecting teams' : 'You can see all player hands'}
         </p>
+        {TEST_MODE_ENABLED && gamePhase !== 'lobby' && (
+          <div className="mt-2 px-3 py-1 bg-amber-600/20 border border-amber-500/40 rounded-lg inline-block">
+            <p className="text-xs text-amber-300">
+              🧪 Test Mode: You can pass cards from bot players to opponents
+            </p>
+          </div>
+        )}
       </div>
       
       {gamePhase === 'lobby' ? (
@@ -184,13 +253,41 @@ export default function SpectatorView({ players, myId, gamePhase }) {
       ) : (
         // Show game view with player hands
         <div className="space-y-3">
-          {activePlayers.map((player) => (
-            <PlayerHandDisplay 
-              key={player.id} 
-              player={player} 
-              isMe={player.id === myId}
-            />
-          ))}
+          {activePlayers.map((player) => {
+            const isBot = player.name && player.name.toLowerCase().includes('bot');
+            const isSelectable = TEST_MODE_ENABLED && isBot;
+            const isSelected = selectedPlayerId === player.id;
+            
+            return (
+              <div key={player.id} className={`${isSelected ? 'ring-2 ring-blue-400 rounded-lg' : ''}`}>
+                <PlayerHandDisplay 
+                  player={player} 
+                  isMe={player.id === myId}
+                  selectable={isSelectable}
+                  selectedCards={isSelected ? selectedCards : []}
+                  onCardSelect={isSelectable ? handleCardSelect : undefined}
+                  onPassCards={isSelectable && selectedCards.length > 0 ? handlePassCards : undefined}
+                />
+                {isSelectable && (
+                  <div className="mt-2 text-center">
+                    <button
+                      onClick={() => {
+                        setSelectedPlayerId(isSelected ? null : player.id);
+                        setSelectedCards([]);
+                      }}
+                      className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                        isSelected 
+                          ? 'bg-blue-600 text-white' 
+                          : 'bg-zinc-600 hover:bg-zinc-500 text-zinc-300'
+                      }`}
+                    >
+                      {isSelected ? 'Selected for card passing' : 'Select for card passing'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
       

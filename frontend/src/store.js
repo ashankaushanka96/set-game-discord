@@ -762,5 +762,26 @@ export const useStore = create((set, get) => ({
       ]);
       get().showToast("info", "Spectator Rejected", `${spectatorName} was rejected`);
     }
+
+    // SPECTATOR PASS CARDS RESULT
+    if (msg.type === "spectator_pass_cards_result") {
+      const s = msg.payload.state;
+      set({ state: s });
+      const success = msg.payload.success;
+      const fromName = msg.payload.from_name || "Unknown";
+      const toName = msg.payload.to_name || "Unknown";
+      const cardCount = msg.payload.cards?.length || 0;
+      
+      if (success) {
+        get().setGameMessage("SPECTATOR CARD PASS", [
+          `Spectator passed ${cardCount} card${cardCount !== 1 ? 's' : ''}`,
+          `From: ${fromName} → To: ${toName}`
+        ]);
+        get().showToast("success", "Cards Passed", `Spectator passed ${cardCount} card${cardCount !== 1 ? 's' : ''}`);
+      } else {
+        get().setGameMessage("SPECTATOR PASS ERROR", [msg.payload.error || "Failed to pass cards"]);
+        get().showToast("error", "Pass Failed", msg.payload.error || "Failed to pass cards");
+      }
+    }
   },
 }));
