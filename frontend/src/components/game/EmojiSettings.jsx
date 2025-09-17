@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useStore } from '../../store';
 import emojiSoundManager from '../../utils/sounds';
+import { setTTSEnabled, isTTSAvailable } from '../../utils/tts';
 
 async function safeForceInitAudio() {
   try {
@@ -45,7 +46,8 @@ export default function EmojiSettings({ isOpen, onClose }) {
   const [settings, setSettings] = useState({
     soundEnabled: !emojiSoundManager.isMutedState(),
     animationsEnabled: true,
-    reduceMotion: false
+    reduceMotion: false,
+    ttsEnabled: true
   });
 
   // Load settings from localStorage
@@ -54,6 +56,10 @@ export default function EmojiSettings({ isOpen, onClose }) {
     if (savedSettings) {
       const parsed = JSON.parse(savedSettings);
       setSettings(prev => ({ ...prev, ...parsed }));
+      // Apply TTS setting
+      if (parsed.ttsEnabled !== undefined) {
+        setTTSEnabled(parsed.ttsEnabled);
+      }
     }
 
     // Check for system reduce motion preference
@@ -86,6 +92,13 @@ export default function EmojiSettings({ isOpen, onClose }) {
   const handleAnimationToggle = () => {
     const newAnimationsEnabled = !settings.animationsEnabled;
     saveSettings({ ...settings, animationsEnabled: newAnimationsEnabled });
+  };
+
+  // Handle TTS toggle
+  const handleTTSToggle = () => {
+    const newTTSEnabled = !settings.ttsEnabled;
+    setTTSEnabled(newTTSEnabled);
+    saveSettings({ ...settings, ttsEnabled: newTTSEnabled });
   };
 
   // Handle reduce motion toggle
@@ -203,6 +216,33 @@ export default function EmojiSettings({ isOpen, onClose }) {
                 />
               </button>
             </div>
+
+            {/* TTS Settings */}
+            {isTTSAvailable() && (
+              <div className="flex items-center justify-between p-3 bg-zinc-800/30 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="text-xl">🗣️</div>
+                  <div>
+                    <div className="text-sm font-medium text-white">Voice Announcements</div>
+                    <div className="text-xs text-zinc-400">Announce game over results</div>
+                  </div>
+                </div>
+                <button
+                  onClick={handleTTSToggle}
+                  className={`
+                    relative w-12 h-6 rounded-full transition-colors
+                    ${settings.ttsEnabled ? 'bg-blue-600' : 'bg-zinc-600'}
+                  `}
+                >
+                  <div
+                    className={`
+                      absolute top-1 w-4 h-4 bg-white rounded-full transition-transform
+                      ${settings.ttsEnabled ? 'translate-x-7' : 'translate-x-1'}
+                    `}
+                  />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Info Section */}

@@ -305,23 +305,8 @@ export const useStore = create((set, get) => ({
     // LAYDOWN result (animate & celebrate / cry)
     if (msg.type === "laydown_result") {
       const s = msg.payload.state;
-      set({ state: s, phase: s.phase, pendingLay: null });
 
-      // Check for game end first
-      if (msg.payload.game_end?.game_ended) {
-        set({ gameResult: msg.payload.game_end });
-        // Play game over sound
-        if (typeof window !== 'undefined') {
-          import('./utils/sounds').then((m) => {
-            try {
-              if (typeof m.playKey === 'function') m.playKey('game_over');
-              else if (m.default && typeof m.default.playKey === 'function') m.default.playKey('game_over');
-            } catch {}
-          }).catch(()=>{});
-        }
-        return; // Don't process other laydown logic if game ended
-      }
-
+      // Show laydown animation first, even if game ends
       if (Array.isArray(msg.payload.contributors) && msg.payload.contributors.length) {
         try {
           window.dispatchEvent(new CustomEvent("lay_anim", {
@@ -329,6 +314,38 @@ export const useStore = create((set, get) => ({
           }));
         } catch {}
       }
+
+      // Check for game end after animation
+      if (msg.payload.game_end?.game_ended) {
+        // Delay ALL state updates to allow animation to show
+        setTimeout(() => {
+          set({ state: s, phase: s.phase, pendingLay: null, gameResult: msg.payload.game_end });
+          // Play game over sound
+          if (typeof window !== 'undefined') {
+            import('./utils/sounds').then((m) => {
+              try {
+                if (typeof m.playKey === 'function') m.playKey('game_over');
+                else if (m.default && typeof m.default.playKey === 'function') m.default.playKey('game_over');
+              } catch {}
+            }).catch(()=>{});
+            
+            // Add voice announcement after game over sound
+            import('./utils/tts').then((tts) => {
+              try {
+                tts.speakGameOver(
+                  msg.payload.game_end.winner,
+                  msg.payload.game_end.team_a_score,
+                  msg.payload.game_end.team_b_score
+                );
+              } catch {}
+            }).catch(()=>{});
+          }
+        }, 1500); // Wait for laydown animation to complete (1000ms + 500ms buffer)
+        return; // Don't process other laydown logic if game ended
+      }
+
+      // Normal laydown (not game ending) - update state immediately
+      set({ state: s, phase: s.phase, pendingLay: null });
 
       const players = s.players || {};
       const whoName = players[msg.payload.who_id]?.name || "Unknown";
