@@ -134,7 +134,7 @@ export default function ChatBubble() {
   if (!me) return null;
 
   return (
-    <div className="fixed bottom-20 left-4 z-50">
+    <div className="fixed bottom-4 left-4 z-50">
       {/* Chat Toggle Button */}
       <button
         onClick={handleChatButtonClick}
