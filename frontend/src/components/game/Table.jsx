@@ -366,7 +366,7 @@ export default function Table() {
       {state.phase === 'playing' && (
         <div className="fixed top-2 right-2 md:top-3 md:right-3 z-40">
           <button 
-            className="group bg-gradient-accent hover:shadow-glow-emerald text-white px-3 py-2 md:px-4 md:py-2 rounded-lg md:rounded-xl shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center gap-2 border border-accent-emerald/30"
+            className="group bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg md:rounded-xl shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center gap-2 border border-purple-500/30"
             onClick={() => setRequestAbortOpen(true)}
           >
             <svg className="w-4 h-4 transition-transform group-hover:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -472,13 +472,41 @@ export default function Table() {
 
          <div className="relative flex-1 max-w-[90vw] h-[min(60vh,500px)] lg:h-[min(70vh,600px)] flex items-center justify-center">
            <div className="relative w-full h-full">
-             <div ref={tableCenterRef} className="absolute rounded-full border-4 border-emerald-800/80 bg-gradient-to-br from-green-900 via-green-800 to-emerald-900 flex items-center justify-center shadow-lg"
+             {/* Table Base/Legs */}
+             <div className="absolute rounded-full"
+                  style={{ 
+                    width: 'min(65%, 420px)', 
+                    height: 'min(65%, 420px)', 
+                    left: '50%', 
+                    top: '50%', 
+                    transform: 'translate(-50%, -50%)',
+                    background: 'radial-gradient(circle, rgba(101, 67, 33, 0.8) 0%, rgba(139, 69, 19, 0.6) 70%, transparent 100%)',
+                    boxShadow: '0 15px 30px rgba(0, 0, 0, 0.5)'
+                  }}>
+             </div>
+             
+             {/* Main Table Surface */}
+             <div ref={tableCenterRef} className="absolute rounded-full border-8 border-amber-800/90 bg-gradient-to-br from-green-900 via-green-800 to-emerald-900 flex items-center justify-center"
                   style={{ 
                     width: 'min(60%, 400px)', 
                     height: 'min(60%, 400px)', 
                     left: '50%', 
                     top: '50%', 
-                    transform: 'translate(-50%, -50%)' 
+                    transform: 'translate(-50%, -50%)',
+                    backgroundImage: `
+                      radial-gradient(circle at 30% 30%, rgba(255,255,255,0.15) 0%, transparent 50%),
+                      radial-gradient(circle at 70% 70%, rgba(0,0,0,0.3) 0%, transparent 50%),
+                      linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.08) 50%, transparent 70%),
+                      repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(0,0,0,0.1) 2px, rgba(0,0,0,0.1) 4px)
+                    `,
+                    boxShadow: `
+                      0 0 0 2px rgba(139, 69, 19, 0.9),
+                      0 0 0 4px rgba(160, 82, 45, 0.7),
+                      0 0 0 6px rgba(139, 69, 19, 0.5),
+                      0 25px 50px -12px rgba(0, 0, 0, 0.8),
+                      inset 0 2px 4px rgba(0, 0, 0, 0.4),
+                      inset 0 -2px 4px rgba(255, 255, 255, 0.1)
+                    `
                   }}>
               {/* Shuffle & Deal button - show for current dealer when game is ready, ended, or when no cards are dealt, but NOT when game is actively playing */}
               {me?.id === state.current_dealer && state.phase !== 'playing' && (state.phase === 'ready' || state.phase === 'ended' || !state.deck_count || state.deck_count === 0 || !my?.hand?.length) && (
@@ -733,7 +761,7 @@ export default function Table() {
          <div className="fixed bottom-4 right-4 z-50">
            <button
              onClick={() => setLayOpen(true)}
-             className="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 bg-gradient-accent hover:shadow-glow-emerald text-white shadow-lg border border-accent-emerald/30"
+             className="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white shadow-lg border border-amber-500/30"
              title="Laydown cards"
            >
              <span className="hidden sm:inline">Laydown</span>

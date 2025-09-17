@@ -3,14 +3,14 @@ export default {
     theme: { 
       extend: {
         colors: {
-          // Coordinated color palette
-          'dark-primary': '#0f1419',
-          'dark-secondary': '#1a2332',
-          'dark-tertiary': '#243447',
-          'dark-accent': '#2d3f5c',
-          'dark-card': '#1e2a3a',
-          'dark-table': '#0f1419',
-          'dark-table-center': '#1a2332',
+          // Elegant color palette
+          'dark-primary': '#1a1a2e',
+          'dark-secondary': '#16213e',
+          'dark-tertiary': '#0f3460',
+          'dark-accent': '#533483',
+          'dark-card': '#1e1e3f',
+          'dark-table': '#1a1a2e',
+          'dark-table-center': '#16213e',
           
           // Text colors
           'text-primary': '#e2e8f0',
@@ -33,8 +33,8 @@ export default {
           'gradient-accent': 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
           'gradient-warm': 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
           'gradient-cool': 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
-          'gradient-dark': 'linear-gradient(135deg, #0f1419 0%, #1a2332 50%, #243447 100%)',
-          'gradient-vibrant': 'linear-gradient(135deg, #0f1419 0%, #1a2332 50%, #243447 100%)',
+          'gradient-dark': 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+          'gradient-vibrant': 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
         },
         spacing: {
           '25': '6.25rem',

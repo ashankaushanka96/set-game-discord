@@ -7,14 +7,14 @@
   color: rgba(255, 255, 255, 0.87);
   background-color: #0f0f23;
 
-  /* Coordinated color palette */
-  --bg-primary: #0f1419;
-  --bg-secondary: #1a2332;
-  --bg-tertiary: #243447;
-  --bg-accent: #2d3f5c;
-  --bg-card: #1e2a3a;
-  --bg-table: #0f1419;
-  --bg-table-center: #1a2332;
+  /* Elegant color palette */
+  --bg-primary: #1a1a2e;
+  --bg-secondary: #16213e;
+  --bg-tertiary: #0f3460;
+  --bg-accent: #533483;
+  --bg-card: #1e1e3f;
+  --bg-table: #1a1a2e;
+  --bg-table-center: #16213e;
   
   --text-primary: #f8fafc;
   --text-secondary: #e2e8f0;
@@ -34,7 +34,7 @@
   --gradient-accent: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
   --gradient-warm: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
   --gradient-cool: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
-  --gradient-vibrant: linear-gradient(135deg, #0f1419 0%, #1a2332 50%, #243447 100%);
+  --gradient-vibrant: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
