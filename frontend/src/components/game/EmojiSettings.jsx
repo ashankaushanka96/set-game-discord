@@ -110,14 +110,14 @@ export default function EmojiSettings({ isOpen, onClose }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[130] bg-black/20 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-zinc-900/95 backdrop-blur-md rounded-2xl shadow-2xl border border-zinc-700/50 max-w-md w-full">
+    <div className="fixed inset-0 z-[130] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-dark-card/95 backdrop-blur-md rounded-2xl shadow-2xl border border-accent-purple/20 max-w-md w-full">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-zinc-700/50">
-          <h3 className="text-lg font-semibold text-white">Emoji Settings</h3>
+        <div className="flex items-center justify-between p-4 border-b border-accent-purple/20">
+          <h3 className="text-lg font-semibold text-text-primary">Emoji Settings</h3>
           <button
             onClick={onClose}
-            className="text-zinc-400 hover:text-white transition-colors p-1"
+            className="text-text-muted hover:text-text-primary transition-colors p-1"
           >
             ✕
           </button>
@@ -127,14 +127,14 @@ export default function EmojiSettings({ isOpen, onClose }) {
         <div className="p-4 space-y-4">
           {/* Sound Settings */}
           <div className="space-y-3">
-            <h4 className="text-sm font-medium text-zinc-300">Sound Effects</h4>
+            <h4 className="text-sm font-medium text-text-secondary">Sound Effects</h4>
             
-            <div className="flex items-center justify-between p-3 bg-zinc-800/30 rounded-lg">
+            <div className="flex items-center justify-between p-3 bg-dark-tertiary/30 rounded-lg">
               <div className="flex items-center gap-3">
                 <div className="text-xl">🔊</div>
                 <div>
-                  <div className="text-sm font-medium text-white">Enable Sounds</div>
-                  <div className="text-xs text-zinc-400">Play sound effects for emoji animations</div>
+                  <div className="text-sm font-medium text-text-primary">Enable Sounds</div>
+                  <div className="text-xs text-text-muted">Play sound effects for emoji animations</div>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -155,7 +155,7 @@ export default function EmojiSettings({ isOpen, onClose }) {
                 {settings.soundEnabled && (
                   <button
                     onClick={() => emojiSoundManager.playSound('🔨')}
-                    className="text-xs px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
+                    className="text-xs px-2 py-1 bg-gradient-primary hover:shadow-glow-blue text-white rounded transition-all duration-200 border border-accent-blue/30"
                     title="Test sound"
                   >
                     🔊 Test
@@ -167,14 +167,14 @@ export default function EmojiSettings({ isOpen, onClose }) {
 
           {/* Animation Settings */}
           <div className="space-y-3">
-            <h4 className="text-sm font-medium text-zinc-300">Animations</h4>
+            <h4 className="text-sm font-medium text-text-secondary">Animations</h4>
             
-            <div className="flex items-center justify-between p-3 bg-zinc-800/30 rounded-lg">
+            <div className="flex items-center justify-between p-3 bg-dark-tertiary/30 rounded-lg">
               <div className="flex items-center gap-3">
                 <div className="text-xl">✨</div>
                 <div>
-                  <div className="text-sm font-medium text-white">Enable Animations</div>
-                  <div className="text-xs text-zinc-400">Show emoji flying animations</div>
+                  <div className="text-sm font-medium text-text-primary">Enable Animations</div>
+                  <div className="text-xs text-text-muted">Show emoji flying animations</div>
                 </div>
               </div>
               <button
@@ -193,12 +193,12 @@ export default function EmojiSettings({ isOpen, onClose }) {
               </button>
             </div>
 
-            <div className="flex items-center justify-between p-3 bg-zinc-800/30 rounded-lg">
+            <div className="flex items-center justify-between p-3 bg-dark-tertiary/30 rounded-lg">
               <div className="flex items-center gap-3">
                 <div className="text-xl">♿</div>
                 <div>
-                  <div className="text-sm font-medium text-white">Reduce Motion</div>
-                  <div className="text-xs text-zinc-400">Minimize animations for accessibility</div>
+                  <div className="text-sm font-medium text-text-primary">Reduce Motion</div>
+                  <div className="text-xs text-text-muted">Minimize animations for accessibility</div>
                 </div>
               </div>
               <button
@@ -219,12 +219,12 @@ export default function EmojiSettings({ isOpen, onClose }) {
 
             {/* TTS Settings */}
             {isTTSAvailable() && (
-              <div className="flex items-center justify-between p-3 bg-zinc-800/30 rounded-lg">
+              <div className="flex items-center justify-between p-3 bg-dark-tertiary/30 rounded-lg">
                 <div className="flex items-center gap-3">
                   <div className="text-xl">🗣️</div>
                   <div>
-                    <div className="text-sm font-medium text-white">Voice Announcements</div>
-                    <div className="text-xs text-zinc-400">Announce game over results</div>
+                  <div className="text-sm font-medium text-text-primary">Voice Announcements</div>
+                  <div className="text-xs text-text-muted">Announce game over results</div>
                   </div>
                 </div>
                 <button
@@ -246,10 +246,10 @@ export default function EmojiSettings({ isOpen, onClose }) {
           </div>
 
           {/* Info Section */}
-          <div className="p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+          <div className="p-3 bg-accent-blue/10 border border-accent-blue/30 rounded-lg">
             <div className="flex items-start gap-2">
-              <div className="text-blue-400 text-sm">ℹ️</div>
-              <div className="text-xs text-blue-200">
+              <div className="text-accent-blue text-sm">ℹ️</div>
+              <div className="text-xs text-accent-blue">
                 <p className="font-medium mb-1">Accessibility Note:</p>
                 <p>These settings help make the game more accessible. Reduced motion settings will minimize animations while keeping the core gameplay intact.</p>
               </div>
@@ -258,10 +258,10 @@ export default function EmojiSettings({ isOpen, onClose }) {
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-zinc-700/50">
+        <div className="p-4 border-t border-accent-purple/20">
           <button
             onClick={onClose}
-            className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors"
+            className="w-full py-2 px-4 bg-gradient-primary hover:shadow-glow-blue text-white rounded-lg transition-all duration-200 border border-accent-blue/30"
           >
             Done
           </button>

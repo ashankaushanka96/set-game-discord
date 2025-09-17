@@ -216,10 +216,10 @@ export default function LaydownModal({ onClose }) {
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-3xl max-h-[90vh] bg-zinc-900 rounded-2xl shadow-xl p-5 flex flex-col">
+      <div className="w-full max-w-3xl max-h-[90vh] bg-dark-card/95 backdrop-blur-sm rounded-2xl shadow-2xl p-5 flex flex-col border border-accent-purple/20">
         <div className="flex items-center justify-between mb-4">
-          <div className="text-lg font-semibold">Lay Down a Set</div>
-          <button className="text-zinc-300 hover:text-white" onClick={handleClose}>✕</button>
+          <div className="text-lg font-semibold text-text-primary">Lay Down a Set</div>
+          <button className="text-text-muted hover:text-text-primary transition-colors" onClick={handleClose}>✕</button>
         </div>
 
         {/* Stepper */}
@@ -248,8 +248,8 @@ export default function LaydownModal({ onClose }) {
             {eligibleSets.map(({ suit, type }) => (
               <button
                 key={`${suit}-${type}`}
-                className={`p-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-left ${
-                  pick.suit === suit && pick.setType === type ? "border-2 border-emerald-500" : "border-2 border-transparent"
+                className={`p-3 rounded-xl bg-dark-tertiary/50 hover:bg-dark-tertiary/80 text-left transition-all duration-200 ${
+                  pick.suit === suit && pick.setType === type ? "border-2 border-accent-emerald shadow-glow-emerald" : "border-2 border-transparent hover:border-accent-purple/20"
                 }`}
                 onClick={() => {
                   setPick({ suit, setType: type });
@@ -266,7 +266,7 @@ export default function LaydownModal({ onClose }) {
                 }}
               >
                 <div className="flex flex-col items-center gap-3">
-                  <div className="bg-zinc-700/30 rounded-lg p-3">
+                  <div className="bg-dark-secondary/30 rounded-lg p-3">
                     <FannedCards 
                       cards={SETS[type].map(rank => ({ suit, rank }))} 
                       size="xs" 
@@ -290,7 +290,7 @@ export default function LaydownModal({ onClose }) {
             </div>
             <div className="flex justify-center">
               {mySetRanks.length > 0 ? (
-                <div className="bg-emerald-500/10 rounded-xl p-4 border-2 border-emerald-500">
+                <div className="bg-accent-emerald/10 rounded-xl p-4 border-2 border-accent-emerald shadow-glow-emerald">
                   <FannedCards 
                     cards={mySetRanks} 
                     size="sm" 
@@ -315,7 +315,7 @@ export default function LaydownModal({ onClose }) {
             <div className="flex items-center gap-2 flex-wrap mb-2">
               <span className="text-xs opacity-80">Remaining:</span>
               {remainingNeeded.length > 0 ? (
-                <div className="bg-zinc-800 rounded-lg p-2">
+                <div className="bg-dark-tertiary/50 rounded-lg p-2">
                   <FannedCards 
                     cards={remainingNeeded.map(rank => ({ suit: pick.suit, rank }))} 
                     size="xs" 
@@ -379,7 +379,7 @@ export default function LaydownModal({ onClose }) {
                     {assigned.size > 0 && (
                       <div className="mt-2 text-xs opacity-80 flex items-center gap-2 flex-wrap">
                         <span>Selected:</span>
-                        <div className="bg-emerald-500/10 rounded-lg p-2">
+                        <div className="bg-accent-emerald/10 rounded-lg p-2">
                           <FannedCards 
                             cards={Array.from(assigned).map(rank => ({ suit: pick.suit, rank }))} 
                             size="xs" 
@@ -425,7 +425,7 @@ export default function LaydownModal({ onClose }) {
               {Object.entries(collabRanks).map(([pid, set]) => (
                 <div key={pid} className="flex items-center gap-2">
                   <span className="opacity-70">{players[pid]?.name}:</span>
-                  <div className="bg-zinc-800 rounded-lg p-2">
+                  <div className="bg-dark-tertiary/50 rounded-lg p-2">
                     <FannedCards 
                       cards={Array.from(set || []).map(rank => ({ suit: pick.suit, rank }))} 
                       size="xs" 
@@ -447,13 +447,13 @@ export default function LaydownModal({ onClose }) {
 
         {/* Footer */}
         <div className="mt-5 flex items-center justify-between">
-          <button className="px-3 py-2 rounded bg-zinc-800 hover:bg-zinc-700" onClick={step === 0 ? handleClose : prevStep}>
+          <button className="px-3 py-2 rounded bg-dark-tertiary/80 hover:bg-dark-tertiary text-text-primary transition-all duration-200 border border-accent-purple/20 hover:border-accent-purple/40" onClick={step === 0 ? handleClose : prevStep}>
             {step === 0 ? "Close" : "Back"}
           </button>
           <div className="flex items-center gap-2">
             {step < 3 && (
               <button
-                className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40"
+                className="px-4 py-2 rounded bg-gradient-primary hover:shadow-glow-blue text-white disabled:opacity-40 transition-all duration-200 border border-accent-blue/30"
                 disabled={
                   step === 0 ? !(pick.suit && pick.setType) : false
                 }
@@ -463,7 +463,7 @@ export default function LaydownModal({ onClose }) {
               </button>
             )}
             {step === 3 && (
-              <button className="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-500" onClick={submitLaydown}>
+              <button className="px-4 py-2 rounded bg-gradient-accent hover:shadow-glow-cyan text-white transition-all duration-200 border border-accent-cyan/30" onClick={submitLaydown}>
                 Confirm Laydown
               </button>
             )}
@@ -476,7 +476,7 @@ export default function LaydownModal({ onClose }) {
 
 function StepDot({ active, label }) {
   return (
-    <div className={`px-2 py-1 rounded-full ${active ? "bg-zinc-700" : "bg-zinc-800"} text-zinc-200 whitespace-nowrap text-xs`}>
+    <div className={`px-2 py-1 rounded-full ${active ? "bg-accent-purple/20 border border-accent-purple/40" : "bg-dark-tertiary/50 border border-accent-purple/10"} text-text-secondary whitespace-nowrap text-xs transition-all duration-200`}>
       <span className="hidden sm:inline">{label}</span>
       <span className="sm:hidden">{label.split(' ')[0]}</span>
     </div>
