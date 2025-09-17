@@ -108,7 +108,8 @@ export default function GameRoom() {
   }
 
   // If we're in lobby phase, redirect back to lobby for team selection
-  if (state.phase === 'lobby') {
+  // But allow spectators to stay in the game room
+  if (state.phase === 'lobby' && !me?.is_spectator) {
     navigate('/');
     return null;
   }

@@ -8,6 +8,7 @@ import {
   DealingAnimation, 
   MessageBubbles 
 } from '../';
+import SpectatorView from './SpectatorView';
 import ChatBubble from './ChatBubble';
 import EmojiPassAnimation from './EmojiPassAnimation';
 import EmojiSettings from './EmojiSettings';
@@ -18,7 +19,8 @@ import {
   NewGameModal, 
   VotingResultModal, 
   CompletedSetsModal,
-  BackToLobbyModal
+  BackToLobbyModal,
+  SpectatorRequestsModal
 } from '../modals';
 import { 
   Toast, 
@@ -71,6 +73,7 @@ export default function Table() {
   const [selectedCardsToPass, setSelectedCardsToPass] = useState([]);
   const [completedSetsOpen, setCompletedSetsOpen] = useState(false);
   const [emojiSettingsOpen, setEmojiSettingsOpen] = useState(false);
+  const [spectatorRequestsOpen, setSpectatorRequestsOpen] = useState(false);
 
   const [anim, setAnim] = useState(null);
   const [lays, setLays] = useState([]);
@@ -86,6 +89,7 @@ export default function Table() {
   const players = state.players || {};
   const seats = state.seats || {};
   const my = players[me.id];
+  const isSpectator = my?.is_spectator || false;
 
    const mySeatIndex = typeof my?.seat === 'number' ? my.seat : 0;
    const seatPositions = useMemo(() => {
@@ -314,6 +318,29 @@ export default function Table() {
     }
   };
 
+  // Show spectator view if player is a spectator
+  if (isSpectator) {
+    return (
+      <div className="h-screen w-screen overflow-hidden flex flex-col bg-zinc-900">
+        <div className="flex-1 overflow-y-auto">
+          <SpectatorView players={players} myId={me.id} gamePhase={state.phase} />
+        </div>
+        
+        {/* Spectator status indicator */}
+        <div className="fixed top-4 left-4 z-40 bg-amber-600/90 text-white px-4 py-2 rounded-lg shadow-lg">
+          <div className="text-sm font-semibold">👁️ Spectator Mode</div>
+          <div className="text-xs opacity-80">
+            {my?.spectator_request_pending ? 'Waiting for admin approval' : 
+             state.phase === 'lobby' ? 'Watching lobby' : 'Watching game'}
+          </div>
+        </div>
+        
+        {/* Toast Notifications */}
+        <Toast />
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col" onClick={handleTableClick}>
       <Celebration tableCenterRef={tableCenterRef} />
@@ -367,6 +394,26 @@ export default function Table() {
           </svg>
         </button>
       </div>
+
+      {/* Spectator Requests Button - Admin Only */}
+      {state.admin_player_id === me.id && Object.keys(state.spectator_requests || {}).length > 0 && (
+        <div className="fixed top-14 right-14 md:top-16 md:right-16 z-40">
+          <button 
+            className="group bg-amber-600/80 hover:bg-amber-500/80 text-white p-2 rounded-lg shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 relative"
+            onClick={() => setSpectatorRequestsOpen(true)}
+            title="Spectator Requests"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
+            {/* Notification badge */}
+            <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+              {Object.keys(state.spectator_requests || {}).length}
+            </div>
+          </button>
+        </div>
+      )}
 
       {/* Card Passing Indicator */}
       {selectedCardsToPass.length > 0 && (
@@ -696,14 +743,20 @@ export default function Table() {
        )}
 
 
-       {/* Emoji Settings */}
-       <EmojiSettings 
-         isOpen={emojiSettingsOpen}
-         onClose={() => setEmojiSettingsOpen(false)}
-       />
+      {/* Emoji Settings */}
+      <EmojiSettings 
+        isOpen={emojiSettingsOpen}
+        onClose={() => setEmojiSettingsOpen(false)}
+      />
 
-       {/* Toast Notifications */}
-       <Toast />
-     </div>
-   );
- }
+      {/* Spectator Requests Modal */}
+      <SpectatorRequestsModal
+        open={spectatorRequestsOpen}
+        onClose={() => setSpectatorRequestsOpen(false)}
+      />
+
+      {/* Toast Notifications */}
+      <Toast />
+    </div>
+  );
+}

@@ -17,6 +17,10 @@ class JoinReq(BaseModel):
     name: str
     avatar: str
 
+class SpectatorApprovalReq(BaseModel):
+    spectator_id: str
+    approved: bool
+
 @router.get("/health")
 def health_check():
     from services.game_service import GameService
@@ -82,7 +86,7 @@ def http_join_room(room_id: str, body: JoinReq):
     else:
         # Add new player (even if lobby is locked, so they can see the UI)
         if game.state.lobby_locked:
-            # Add as spectator (no seat, no team) when lobby is locked
+            # Add as spectator with pending request when lobby is locked
             spectator_player = Player(
                 id=body.id,
                 name=body.name,
@@ -90,10 +94,13 @@ def http_join_room(room_id: str, body: JoinReq):
                 team=None,  # No team for spectators
                 seat=None,  # No seat for spectators
                 hand=[],    # No hand for spectators
-                connected=True
+                connected=True,
+                is_spectator=True,
+                spectator_request_pending=True
             )
             game.state.players[body.id] = spectator_player
-            logger.info(f"Player {body.id} joined locked room {room_id} as spectator (will see lobby locked screen)")
+            game.state.spectator_requests[body.id] = body.name
+            logger.info(f"Player {body.id} joined locked room {room_id} as spectator with pending request")
         else:
             # Add as normal player when lobby is not locked
             game.state.players[body.id] = Player(**body.model_dump())
@@ -107,3 +114,34 @@ def http_join_room(room_id: str, body: JoinReq):
     
     logger.info(f"Returning game state for room {room_id} to player {body.id}")
     return game.state.model_dump()
+
+@router.post("/{room_id}/spectator/approve")
+def approve_spectator(room_id: str, body: SpectatorApprovalReq):
+    """Admin endpoint to approve or reject spectator requests"""
+    if room_id not in GameService.rooms:
+        raise HTTPException(status_code=404, detail="Room not found")
+    
+    game = GameService.rooms[room_id]
+    
+    # Check if spectator exists and has pending request
+    if body.spectator_id not in game.state.players:
+        raise HTTPException(status_code=404, detail="Spectator not found")
+    
+    spectator = game.state.players[body.spectator_id]
+    if not spectator.is_spectator or not spectator.spectator_request_pending:
+        raise HTTPException(status_code=400, detail="No pending spectator request")
+    
+    if body.approved:
+        # Approve spectator request
+        spectator.spectator_request_pending = False
+        if body.spectator_id in game.state.spectator_requests:
+            del game.state.spectator_requests[body.spectator_id]
+        logger.info(f"Spectator {body.spectator_id} ({spectator.name}) approved in room {room_id}")
+    else:
+        # Reject spectator request - remove player from room
+        del game.state.players[body.spectator_id]
+        if body.spectator_id in game.state.spectator_requests:
+            del game.state.spectator_requests[body.spectator_id]
+        logger.info(f"Spectator {body.spectator_id} ({spectator.name}) rejected and removed from room {room_id}")
+    
+    return {"status": "success", "message": f"Spectator request {'approved' if body.approved else 'rejected'}"}

@@ -354,6 +354,52 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                 else:
                     await WebSocketService.broadcast(room_id, "unassign_failed", {**res, "state": game.state.model_dump()})
 
+            elif t == "approve_spectator":
+                # Admin approves or rejects spectator request
+                spectator_id = p["spectator_id"]
+                approved = p["approved"]
+                
+                if spectator_id not in game.state.players:
+                    await ws.send_text(json.dumps({
+                        "type": "spectator_approval_error",
+                        "payload": {"error": "Spectator not found"}
+                    }))
+                    continue
+                
+                spectator = game.state.players[spectator_id]
+                if not spectator.is_spectator or not spectator.spectator_request_pending:
+                    await ws.send_text(json.dumps({
+                        "type": "spectator_approval_error", 
+                        "payload": {"error": "No pending spectator request"}
+                    }))
+                    continue
+                
+                if approved:
+                    # Approve spectator request
+                    spectator.spectator_request_pending = False
+                    if spectator_id in game.state.spectator_requests:
+                        del game.state.spectator_requests[spectator_id]
+                    logger.info(f"Spectator {spectator_id} ({spectator.name}) approved in room {room_id}")
+                    
+                    await WebSocketService.broadcast(room_id, "spectator_approved", {
+                        "spectator_id": spectator_id,
+                        "spectator_name": spectator.name,
+                        "state": game.state.model_dump()
+                    })
+                else:
+                    # Reject spectator request - remove player from room
+                    spectator_name = spectator.name
+                    del game.state.players[spectator_id]
+                    if spectator_id in game.state.spectator_requests:
+                        del game.state.spectator_requests[spectator_id]
+                    logger.info(f"Spectator {spectator_id} ({spectator_name}) rejected and removed from room {room_id}")
+                    
+                    await WebSocketService.broadcast(room_id, "spectator_rejected", {
+                        "spectator_id": spectator_id,
+                        "spectator_name": spectator_name,
+                        "state": game.state.model_dump()
+                    })
+
             elif t == "sync":
                 await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
 

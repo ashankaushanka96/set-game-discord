@@ -9,3 +9,4 @@ export { default as MessageFeed } from './MessageFeed';
 export { default as EmojiPassAnimation } from './EmojiPassAnimation';
 export { default as ReactionTray } from './ReactionTray';
 export { default as EmojiSettings } from './EmojiSettings';
+export { default as SpectatorView } from './SpectatorView';

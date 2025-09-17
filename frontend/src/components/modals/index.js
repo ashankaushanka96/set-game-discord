@@ -10,3 +10,4 @@ export { default as NewGameModal } from './NewGameModal';
 export { default as NewGameVotingModal } from './NewGameVotingModal';
 export { default as CompletedSetsModal } from './CompletedSetsModal';
 export { default as VotingResultModal } from './VotingResultModal';
+export { default as SpectatorRequestsModal } from './SpectatorRequestsModal';

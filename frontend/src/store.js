@@ -738,5 +738,29 @@ export const useStore = create((set, get) => ({
         }
       }, 1000);
     }
+
+    // SPECTATOR APPROVED
+    if (msg.type === "spectator_approved") {
+      const s = msg.payload.state;
+      set({ state: s });
+      const spectatorName = msg.payload.spectator_name || "Unknown";
+      get().setGameMessage("SPECTATOR APPROVED", [
+        `${spectatorName} has been approved as a spectator`,
+        "They can now view all player hands"
+      ]);
+      get().showToast("success", "Spectator Approved", `${spectatorName} can now spectate`);
+    }
+
+    // SPECTATOR REJECTED
+    if (msg.type === "spectator_rejected") {
+      const s = msg.payload.state;
+      set({ state: s });
+      const spectatorName = msg.payload.spectator_name || "Unknown";
+      get().setGameMessage("SPECTATOR REJECTED", [
+        `${spectatorName} has been rejected`,
+        "They have been removed from the room"
+      ]);
+      get().showToast("info", "Spectator Rejected", `${spectatorName} was rejected`);
+    }
   },
 }));

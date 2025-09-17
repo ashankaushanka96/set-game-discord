@@ -11,3 +11,5 @@ class Player(BaseModel):
     seat: Optional[int] = None  # 0..5
     hand: List[Card] = Field(default_factory=list)
     connected: bool = True  # Track connection status
+    is_spectator: bool = False  # True if player is a spectator
+    spectator_request_pending: bool = False  # True if spectator request is pending admin approval
