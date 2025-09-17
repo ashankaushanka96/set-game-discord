@@ -18,12 +18,18 @@ export default function Seat({ seatIndex, player, highlight, selectable, onSelec
           'w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-full flex flex-col items-center justify-center',
           'bg-zinc-800/90 card-shadow relative overflow-hidden',
           teamBg,
-          selectable ? 'cursor-pointer hover:scale-[1.03] transition' : 'cursor-default',
+          selectable ? 'cursor-pointer hover:scale-[1.05] transition-all duration-200' : 'cursor-default',
+          selectable ? 'ring-4 ring-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.8)] bg-amber-500/20 animate-pulse' : '',
           highlight ? 'ring-4 ring-emerald-400 shadow-[0_0_0_6px_rgba(16,185,129,0.3)] animate-pulse' : '',
           isMe ? 'ring-2 ring-cyan-400/70' : '',
           player && !player.connected ? 'opacity-60 grayscale ring-2 ring-red-500/50' : '',
         ].join(' ')}
       >
+        {/* Selectable Overlay */}
+        {selectable && (
+          <div className="absolute inset-0 bg-amber-500/30 rounded-full animate-pulse" />
+        )}
+        
         {/* Avatar Background */}
         <div className="absolute inset-0 flex items-center justify-center">
           {typeof player?.avatar === "string" && player.avatar.startsWith("http") ? (
@@ -48,6 +54,11 @@ export default function Seat({ seatIndex, player, highlight, selectable, onSelec
           <div className="text-[8px] sm:text-[10px] opacity-60 bg-black/50 px-1 rounded backdrop-blur-sm">
             {player ? `Seat ${player.seat+1}` : `Seat ${seatIndex+1}`}
           </div>
+          {selectable && (
+            <div className="text-[8px] sm:text-[10px] text-amber-300 font-bold bg-amber-500/20 px-1 rounded backdrop-blur-sm animate-pulse">
+              CLICK TO PASS
+            </div>
+          )}
         </div>
         {isMe && (
           <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[10px] bg-cyan-600/90 px-2 py-[2px] rounded-full">

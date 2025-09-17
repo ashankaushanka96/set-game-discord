@@ -42,6 +42,20 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Custom animations for opponent seat highlighting */
+@keyframes opponent-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.4), 0 0 0 8px rgba(245, 158, 11, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.6), 0 0 0 12px rgba(245, 158, 11, 0.3);
+  }
+}
+
+.opponent-pulse {
+  animation: opponent-pulse 1.5s ease-in-out infinite;
+}
+
 a {
   font-weight: 500;
   color: var(--accent-cyan);

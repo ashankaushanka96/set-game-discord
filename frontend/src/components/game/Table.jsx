@@ -417,7 +417,7 @@ export default function Table() {
 
       {/* Card Passing Indicator */}
       {selectedCardsToPass.length > 0 && (
-        <div className="fixed top-20 left-4 z-40 bg-gradient-primary text-white px-4 py-2 rounded-lg shadow-lg border border-accent-blue/30 shadow-glow-blue">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 bg-gradient-primary text-white px-4 py-2 rounded-lg shadow-lg border border-accent-blue/30 shadow-glow-blue">
           <div className="text-sm font-semibold">
             {selectedCardsToPass.length} card{selectedCardsToPass.length !== 1 ? 's' : ''} selected
           </div>
