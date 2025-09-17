@@ -5,7 +5,7 @@ let _playKeyCached = null;
 async function playSfxKeyOnce(key) {
   try {
     if (!_playKeyCached) {
-      const mod = await import('../../utils/emojiSounds');
+      const mod = await import('../../utils/sounds');
       _playKeyCached = mod.playKey || (mod.default && mod.default.playKey && ((k)=>mod.default.playKey(k)));
     }
     if (typeof _playKeyCached === 'function') _playKeyCached(key);

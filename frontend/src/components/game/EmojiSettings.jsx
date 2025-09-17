@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useStore } from '../../store';
-import emojiSoundManager from '../../utils/emojiSounds';
+import emojiSoundManager from '../../utils/sounds';
 
 async function safeForceInitAudio() {
   try {
@@ -11,7 +11,7 @@ async function safeForceInitAudio() {
     }
   } catch (_) {}
   try {
-    const mod = await import('../../utils/emojiSounds');
+    const mod = await import('../../utils/sounds');
     if (mod && typeof mod.forceInit === 'function') {
       mod.forceInit();
       if (typeof mod.markEmojiAudioUnlocked === 'function') mod.markEmojiAudioUnlocked();

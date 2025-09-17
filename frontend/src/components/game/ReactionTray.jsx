@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useStore } from '../../store';
 import { send } from '../../ws';
-import emojiSoundManager from '../../utils/emojiSounds';
+import emojiSoundManager from '../../utils/sounds';
 
 // Cross-platform safe audio unlock for iOS/macOS/Windows
 async function safeForceInitAudio() {
@@ -13,7 +13,7 @@ async function safeForceInitAudio() {
     }
   } catch (_) {}
   try {
-    const mod = await import('../../utils/emojiSounds');
+    const mod = await import('../../utils/sounds');
     if (mod && typeof mod.forceInit === 'function') {
       mod.forceInit();
       if (typeof mod.markEmojiAudioUnlocked === 'function') mod.markEmojiAudioUnlocked();

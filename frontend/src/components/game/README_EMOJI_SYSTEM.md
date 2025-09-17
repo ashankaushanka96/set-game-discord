@@ -32,7 +32,7 @@ This system provides a comprehensive emoji reaction system similar to Ludo King,
   - Persistent settings (localStorage)
   - Accessibility information
 
-### 4. emojiSounds.js
+### 4. sounds.js
 - **Purpose**: Sound effect management system
 - **Features**:
   - Web Audio API-based synthetic sounds

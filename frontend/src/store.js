@@ -312,7 +312,7 @@ export const useStore = create((set, get) => ({
         set({ gameResult: msg.payload.game_end });
         // Play game over sound
         if (typeof window !== 'undefined') {
-          import('./utils/emojiSounds').then((m) => {
+          import('./utils/sounds').then((m) => {
             try {
               if (typeof m.playKey === 'function') m.playKey('game_over');
               else if (m.default && typeof m.default.playKey === 'function') m.default.playKey('game_over');
@@ -339,7 +339,7 @@ export const useStore = create((set, get) => ({
         try { window.dispatchEvent(new CustomEvent("celebrate", { detail: { who_id: msg.payload.who_id } })); } catch {}
         // Success sound
         if (typeof window !== 'undefined') {
-          import('./utils/emojiSounds').then((m) => {
+          import('./utils/sounds').then((m) => {
             try {
               if (typeof m.playKey === 'function') m.playKey('lay_success');
               else if (m.default && typeof m.default.playKey === 'function') m.default.playKey('lay_success');
@@ -358,7 +358,7 @@ export const useStore = create((set, get) => ({
         try { window.dispatchEvent(new CustomEvent("cry", { detail: { who_id: msg.payload.who_id } })); } catch {}
         // Failure sound
         if (typeof window !== 'undefined') {
-          import('./utils/emojiSounds').then((m) => {
+          import('./utils/sounds').then((m) => {
             try {
               if (typeof m.playKey === 'function') m.playKey('lay_unsuccess');
               else if (m.default && typeof m.default.playKey === 'function') m.default.playKey('lay_unsuccess');
@@ -412,7 +412,7 @@ export const useStore = create((set, get) => ({
       }
       // Pass sound
       if (typeof window !== 'undefined') {
-        import('./utils/emojiSounds').then((m) => {
+        import('./utils/sounds').then((m) => {
           try {
             if (typeof m.playKey === 'function') m.playKey('pass');
             else if (m.default && typeof m.default.playKey === 'function') m.default.playKey('pass');
@@ -660,7 +660,7 @@ export const useStore = create((set, get) => ({
       
       // Play sound effect (imported dynamically to avoid SSR issues)
       if (typeof window !== 'undefined') {
-        import('./utils/emojiSounds').then(({ default: emojiSoundManager }) => {
+        import('./utils/sounds').then(({ default: emojiSoundManager }) => {
           console.log('Playing sound for emoji:', emoji);
           emojiSoundManager.playSound(emoji);
         }).catch((error) => {
