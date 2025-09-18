@@ -994,7 +994,7 @@ class Game:
     def _execute_abort(self):
         """Execute the abort - reset game but stay in room"""
         # Reset game state but keep players and teams
-        self.state.phase = "ended"  # Set to ended so shuffle/deal can be used
+        self.state.phase = "ready"  # Set to ready so shuffle/deal can be used
         self.state.turn_player = None
         self.state.ask_chain_from = None
         self.state.deck_count = 0
@@ -1087,7 +1087,7 @@ class Game:
         # Build deck and deal starting from the seat clockwise from the dealer
         self.build_deck()
 
-        deal_start_seat = next_dealer_seat
+        deal_start_seat = next_turn_seat  # Start dealing from the turn player (clockwise from dealer)
 
         # Create dealing sequence for animation to mirror real dealing order
         dealing_sequence = []

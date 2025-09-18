@@ -1,4 +1,4 @@
-export default function Seat({ seatIndex, player, highlight, selectable, onSelect, team, isMe, isLaydownPlayer, isSpeaking }) {
+export default function Seat({ seatIndex, player, highlight, selectable, onSelect, team, isMe, isLaydownPlayer, isSpeaking, isDealer }) {
     const handleClick = () => {
       if (selectable && player) onSelect?.(player);
     };
@@ -63,6 +63,11 @@ export default function Seat({ seatIndex, player, highlight, selectable, onSelec
         {isMe && (
           <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[10px] bg-cyan-600/90 px-2 py-[2px] rounded-full">
             You
+          </div>
+        )}
+        {isDealer && (
+          <div className="absolute -top-1 left-1/2 -translate-x-1/2 text-[10px] bg-purple-600/90 px-2 py-[2px] rounded-full">
+            Dealer
           </div>
         )}
         {isLaydownPlayer && (

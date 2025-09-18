@@ -578,6 +578,7 @@ export default function Table() {
                       isMe={isMe}
                       isLaydownPlayer={isLaydownPlayer}
                       isSpeaking={!!isSpeaking}
+                      isDealer={p?.id === state.current_dealer}
                     />
                   </div>
                   {p && p.id !== my.id && !dealingAnimation && (
@@ -719,9 +720,17 @@ export default function Table() {
 
          {/* Game Controls */}
          <div className="flex items-center justify-center gap-3">
-         {/* Debug: Show current phase */}
+         {/* Show current phase and dealer info */}
          <div className="text-xs text-text-muted">
            Phase: {state.phase}
+           {state.phase === 'ready' && state.current_dealer && (
+             <span className="ml-2 text-blue-400">
+               • Dealer: {(() => {
+                 const dealerSeat = Object.entries(state.seats).find(([_, playerId]) => playerId === state.current_dealer)?.[0];
+                 return dealerSeat ? `Seat ${parseInt(dealerSeat) + 1}` : 'Unknown';
+               })()}
+             </span>
+           )}
          </div>
          </div>
        </div>
