@@ -1361,7 +1361,7 @@ export default function Lobby() {
           <div className="flex-1 flex flex-col space-y-3 overflow-hidden">
             {/* Seat Selection */}
             <div className="flex-1 overflow-hidden">
-              <SeatSelector players={players} state={state} me={me} />
+              <SeatSelector players={players} state={state} me={me} speakingUsers={speakingUsers} />
             </div>
 
             {/* Game Controls */}

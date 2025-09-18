@@ -2,7 +2,7 @@ import React from 'react';
 import { useStore } from '../../store';
 import { send } from '../../ws';
 
-export default function SeatSelector({ players, state, me }) {
+export default function SeatSelector({ players, state, me, speakingUsers }) {
   const { ws } = useStore();
 
   // Create seat slots for each team (3 per team)
@@ -113,6 +113,9 @@ export default function SeatSelector({ players, state, me }) {
                       {player.connected && (
                         <div className="absolute -bottom-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-red-600"></div>
                       )}
+                      {speakingUsers && speakingUsers[player.id] && (
+                        <div className="absolute -inset-0.5 rounded-full ring-2 ring-green-400 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse"></div>
+                      )}
                     </div>
                     <div className="flex-1">
                       <div className="text-red-100 font-medium text-xs">{player.name}</div>
@@ -198,6 +201,9 @@ export default function SeatSelector({ players, state, me }) {
                       {player.connected && (
                         <div className="absolute -bottom-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-blue-600"></div>
                       )}
+                      {speakingUsers && speakingUsers[player.id] && (
+                        <div className="absolute -inset-0.5 rounded-full ring-2 ring-green-400 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse"></div>
+                      )}
                     </div>
                     <div className="flex-1">
                       <div className="text-blue-100 font-medium text-xs">{player.name}</div>
@@ -262,6 +268,9 @@ export default function SeatSelector({ players, state, me }) {
                     )}
                     {player.connected && (
                       <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full border border-gray-600"></div>
+                    )}
+                    {speakingUsers && speakingUsers[player.id] && (
+                      <div className="absolute -inset-0.5 rounded-full ring-2 ring-green-400 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse"></div>
                     )}
                   </div>
                   <div className="text-center">
