@@ -215,11 +215,28 @@ export default function LaydownModal({ onClose }) {
     "Confirm";
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-3xl max-h-[90vh] bg-dark-card/95 backdrop-blur-sm rounded-2xl shadow-2xl p-5 flex flex-col border border-accent-purple/20">
+    <div 
+      className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={step === 0 ? handleClose : undefined}
+    >
+      <div 
+        className="w-full max-w-3xl max-h-[90vh] bg-dark-card/95 backdrop-blur-sm rounded-2xl shadow-2xl p-5 flex flex-col border border-accent-purple/20"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between mb-4">
           <div className="text-lg font-semibold text-text-primary">Lay Down a Set</div>
-          <button className="text-text-muted hover:text-text-primary transition-colors" onClick={handleClose}>✕</button>
+          <button 
+            className={`transition-colors ${
+              step > 0 
+                ? 'text-gray-500 cursor-not-allowed' 
+                : 'text-text-muted hover:text-text-primary'
+            }`}
+            onClick={step === 0 ? handleClose : undefined}
+            disabled={step > 0}
+            title={step > 0 ? "Complete laydown process to close" : "Close"}
+          >
+            ✕
+          </button>
         </div>
 
         {/* Stepper */}
@@ -234,6 +251,16 @@ export default function LaydownModal({ onClose }) {
         </div>
 
         <div className="mb-3 font-medium">{stepTitle}</div>
+        
+        {/* Warning message when set is selected */}
+        {step > 0 && (
+          <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+            <div className="flex items-center gap-2 text-yellow-400 text-sm">
+              <span>⚠️</span>
+              <span>Set selected! Complete the laydown process to finish.</span>
+            </div>
+          </div>
+        )}
 
         {/* Scrollable content area */}
         <div className="flex-1 overflow-y-auto min-h-0">
@@ -447,7 +474,16 @@ export default function LaydownModal({ onClose }) {
 
         {/* Footer */}
         <div className="mt-5 flex items-center justify-between">
-          <button className="px-3 py-2 rounded bg-dark-tertiary/80 hover:bg-dark-tertiary text-text-primary transition-all duration-200 border border-accent-purple/20 hover:border-accent-purple/40" onClick={step === 0 ? handleClose : prevStep}>
+          <button 
+            className={`px-3 py-2 rounded transition-all duration-200 border ${
+              step > 0 
+                ? 'bg-gray-500 cursor-not-allowed text-gray-300 border-gray-400/30' 
+                : 'bg-dark-tertiary/80 hover:bg-dark-tertiary text-text-primary border-accent-purple/20 hover:border-accent-purple/40'
+            }`}
+            onClick={step === 0 ? handleClose : prevStep}
+            disabled={step > 0}
+            title={step > 0 ? "Complete laydown process to go back" : (step === 0 ? "Close" : "Back")}
+          >
             {step === 0 ? "Close" : "Back"}
           </button>
           <div className="flex items-center gap-2">
