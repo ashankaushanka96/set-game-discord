@@ -18,6 +18,8 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
     mobileRow2: { canScrollLeft: false, canScrollRight: false },
     mobileRow3: { canScrollLeft: false, canScrollRight: false }
   });
+  const [newCards, setNewCards] = useState(new Set());
+  const [previousCards, setPreviousCards] = useState([]);
   const scrollRefs = useRef({
     desktop: null,
     mobileRow1: null,
@@ -30,10 +32,19 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
     return selectedCards.some(c => c.suit === card.suit && c.rank === card.rank);
   };
 
-  const handleCardClick = (card) => {
+  const isNewCard = (card) => {
+    return newCards.has(`${card.suit}-${card.rank}`);
+  };
+
+  const handleCardClick = (card, event) => {
+    event.stopPropagation(); // Prevent clearing highlights when clicking cards
     if (selectable && onCardSelect) {
       onCardSelect(card);
     }
+  };
+
+  const clearHighlights = () => {
+    setNewCards(new Set());
   };
 
   // Check scroll state for a given container
@@ -75,6 +86,39 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
     const timeoutId = setTimeout(checkAllScrollStates, 100);
     return () => clearTimeout(timeoutId);
   }, [cards]);
+
+  // Detect new cards and highlight them
+  useEffect(() => {
+    if (previousCards.length > 0) {
+      const currentCardKeys = new Set(cards.map(c => `${c.suit}-${c.rank}`));
+      const previousCardKeys = new Set(previousCards.map(c => `${c.suit}-${c.rank}`));
+      
+      // Find new cards
+      const newlyAdded = new Set();
+      currentCardKeys.forEach(key => {
+        if (!previousCardKeys.has(key)) {
+          newlyAdded.add(key);
+        }
+      });
+
+      if (newlyAdded.size > 0) {
+        // Clear any existing highlights and set new ones
+        setNewCards(new Set());
+        
+        // Small delay to ensure state update, then highlight new cards
+        setTimeout(() => {
+          setNewCards(newlyAdded);
+          
+          // Remove highlight after 10 seconds
+          setTimeout(() => {
+            setNewCards(new Set());
+          }, 10000);
+        }, 50);
+      }
+    }
+    
+    setPreviousCards(cards);
+  }, [cards, previousCards]);
 
   // Build ordered arrays for 3 rows - simple sequential distribution
   const { row1Items, row2Items, row3Items } = useMemo(() => {
@@ -150,7 +194,7 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
   }
 
   return (
-    <div className="w-full flex flex-col items-center">
+    <div className="w-full flex flex-col items-center" onClick={clearHighlights}>
 
       {/* Desktop: One single row, horizontally scrollable */}
       <div className="hidden md:block w-full relative">
@@ -191,8 +235,8 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
           {desktopItems.map((it) => (
             <span 
               key={it.__key} 
-              className={`inline-block flex-shrink-0 ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''}`}
-              onClick={() => handleCardClick(it)}
+              className={`inline-block flex-shrink-0 transition-all duration-300 ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''} ${isNewCard(it) ? 'ring-2 ring-green-400 rounded-lg shadow-lg shadow-green-400/50 animate-pulse' : ''}`}
+              onClick={(e) => handleCardClick(it, e)}
             >
               <Card suit={it.suit} rank={it.rank} />
             </span>
@@ -241,8 +285,8 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
                 {row1Items.map((it) => (
                   <span 
                     key={it.__key} 
-                    className={`inline-block flex-shrink-0 ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''}`}
-                    onClick={() => handleCardClick(it)}
+                    className={`inline-block flex-shrink-0 transition-all duration-300 ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''} ${isNewCard(it) ? 'ring-2 ring-green-400 rounded-lg shadow-lg shadow-green-400/50 animate-pulse' : ''}`}
+                    onClick={(e) => handleCardClick(it, e)}
                   >
                     <Card suit={it.suit} rank={it.rank} />
                   </span>
@@ -289,8 +333,8 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
                 {row2Items.map((it) => (
                   <span 
                     key={it.__key} 
-                    className={`inline-block flex-shrink-0 ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''}`}
-                    onClick={() => handleCardClick(it)}
+                    className={`inline-block flex-shrink-0 transition-all duration-300 ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''} ${isNewCard(it) ? 'ring-2 ring-green-400 rounded-lg shadow-lg shadow-green-400/50 animate-pulse' : ''}`}
+                    onClick={(e) => handleCardClick(it, e)}
                   >
                     <Card suit={it.suit} rank={it.rank} />
                   </span>
@@ -337,8 +381,8 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
                 {row3Items.map((it) => (
                   <span 
                     key={it.__key} 
-                    className={`inline-block flex-shrink-0 ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''}`}
-                    onClick={() => handleCardClick(it)}
+                    className={`inline-block flex-shrink-0 transition-all duration-300 ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''} ${isNewCard(it) ? 'ring-2 ring-green-400 rounded-lg shadow-lg shadow-green-400/50 animate-pulse' : ''}`}
+                    onClick={(e) => handleCardClick(it, e)}
                   >
                     <Card suit={it.suit} rank={it.rank} />
                   </span>
