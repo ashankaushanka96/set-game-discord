@@ -1000,7 +1000,23 @@ class Game:
         self.state.deck_count = 0
         self.state.team_scores = {"A": 0, "B": 0}
         self.state.table_sets = []
-        # Keep current_dealer so shuffle/deal button shows for the right player
+        
+        # Rotate dealer clockwise for new game
+        if self.state.current_dealer:
+            current_dealer_seat = None
+            for seat, pid in self.state.seats.items():
+                if pid == self.state.current_dealer:
+                    current_dealer_seat = seat
+                    break
+            
+            if current_dealer_seat is not None:
+                # Find next occupied seat clockwise
+                for offset in range(1, 7):
+                    next_seat = (current_dealer_seat + offset) % 6
+                    next_player_id = self.state.seats.get(next_seat)
+                    if next_player_id:
+                        self.state.current_dealer = next_player_id
+                        break
         
         # Clear abort votes
         if hasattr(self.state, 'abort_votes'):
@@ -1046,7 +1062,10 @@ class Game:
                     return seat, player_id
             return None, None
 
-        next_dealer_seat, next_dealer_id = find_next_occupied_seat(current_dealer_seat)
+        # Never rotate dealer in shuffle_deal_new_game - keep current dealer
+        # Dealer rotation only happens in start_new_round() or new game button
+        next_dealer_seat = current_dealer_seat
+        next_dealer_id = self.state.current_dealer
 
         if next_dealer_seat is None or not next_dealer_id:
             return {"success": False, "reason": "no_dealer"}
@@ -1128,16 +1147,30 @@ class Game:
         if current_dealer_seat is None:
             current_dealer_seat = 0
         
-        # Next dealer is clockwise (seat + 1, wrapping 0-5)
-        next_dealer_seat = (current_dealer_seat + 1) % 6
-        next_dealer_id = self.state.seats.get(next_dealer_seat)
+        # Find next occupied seat clockwise
+        next_dealer_seat = None
+        next_dealer_id = None
+        for offset in range(1, 7):
+            seat = (current_dealer_seat + offset) % 6
+            player_id = self.state.seats.get(seat)
+            if player_id:
+                next_dealer_seat = seat
+                next_dealer_id = player_id
+                break
         
         if not next_dealer_id:
             return {"success": False, "reason": "no_dealer"}
         
-        # Turn starts from the next player after dealer (dealer + 1)
-        next_turn_seat = (next_dealer_seat + 1) % 6
-        next_turn_id = self.state.seats.get(next_turn_seat)
+        # Turn starts from the next player after dealer
+        next_turn_seat = None
+        next_turn_id = None
+        for offset in range(1, 7):
+            seat = (next_dealer_seat + offset) % 6
+            player_id = self.state.seats.get(seat)
+            if player_id:
+                next_turn_seat = seat
+                next_turn_id = player_id
+                break
         
         if not next_turn_id:
             return {"success": False, "reason": "no_turn_player"}
