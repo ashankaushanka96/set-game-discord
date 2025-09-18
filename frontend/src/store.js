@@ -9,6 +9,9 @@ function setMeInSession(me) { sessionStorage.setItem("me", JSON.stringify(me)); 
 let uid = 0;
 const mid = () => `${Date.now()}-${uid++}`;
 
+const DEAL_ANIMATION_DURATION = 27000;
+const DEAL_ANIMATION_BUFFER = 1000;
+
 const setLabel = (t) => (t === "lower" ? "Lower (2–7)" : "Upper (8–A)");
 const cardLabel = (c) => (c ? `${c.rank} of ${c.suit}` : "card");
 
@@ -480,7 +483,7 @@ export const useStore = create((set, get) => ({
       setTimeout(() => {
         set({ dealingAnimation: null });
         get().setGameMessage("NEW GAME", [`Dealt by: ${originalDealerName}`, "Cards dealt to all players"]);
-      }, 12000);
+      }, DEAL_ANIMATION_DURATION + DEAL_ANIMATION_BUFFER);
     }
 
     // ABORT REQUESTED

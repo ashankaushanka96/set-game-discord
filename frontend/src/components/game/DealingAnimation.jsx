@@ -14,6 +14,10 @@ async function playSfxKeyOnce(key) {
 import { useStore } from '../../store';
 import { Card, CardBack } from '../cards';
 
+const CARD_FLIGHT_DURATION = 800;
+const FULL_DEAL_DURATION = 27000;
+const FULL_DEAL_CARD_COUNT = 52;
+
 const DealingAnimation = () => {
   const { dealingAnimation, me } = useStore();
   const [phase, setPhase] = useState('idle'); // 'idle', 'dealing', 'complete'
@@ -58,7 +62,7 @@ const DealingAnimation = () => {
   };
 
   // Animate card from start to target position
-  const animateCard = useCallback((cardKey, fromPos, targetPos, duration = 800) => {
+  const animateCard = useCallback((cardKey, fromPos, targetPos, duration = CARD_FLIGHT_DURATION) => {
     const startTime = performance.now();
     
     const animate = (currentTime) => {
@@ -139,43 +143,92 @@ const DealingAnimation = () => {
       setPhase('dealing');
       setFlyingCards([]);
       setHandCards({});
+      playSfxKeyOnce('deal');
       
       // Create dealing sequence - one card at a time
-      const dealSequence = [];
+      const baseSequence = [];
       let cardIndex = 0;
       
       if (dealingSequence && dealingSequence.length > 0) {
         // Use real dealing sequence from backend
         dealingSequence.forEach((dealData, index) => {
-          dealSequence.push({
+          baseSequence.push({
             id: `deal-${index}`,
             seat: dealData.seat,
             playerId: dealData.player_id,
             round: dealData.round,
             card: dealData.card,
-            fromSeat: dealData.from_seat, // Use the from_seat for animation origin
-            delay: index * 200, // 200ms between each card for realistic pace
+            fromSeat: dealData.from_seat // Use the from_seat for animation origin
           });
         });
       } else {
         // Fallback to creating sequence without real cards
         for (let round = 0; round < 8; round++) {
           for (const { seat, playerId } of dealingOrder) {
-            dealSequence.push({
+            baseSequence.push({
               id: `deal-${cardIndex}`,
               seat,
               playerId,
               round,
-              delay: cardIndex * 200, // 200ms between each card for realistic pace
+              fromSeat: dealingAnimation.dealerSeat
             });
             cardIndex++;
           }
         }
       }
+      
+      let fillerCycle = baseSequence.map(card => ({
+        seat: card.seat,
+        playerId: card.playerId,
+        fromSeat: card.fromSeat
+      }));
+      
+      if (fillerCycle.length === 0) {
+        fillerCycle = dealingOrder
+          .filter(target => target.seat !== undefined && target.seat !== null)
+          .map(({ seat, playerId }) => ({
+            seat,
+            playerId,
+            fromSeat: dealingAnimation.dealerSeat
+          }));
+      }
+      
+      if (fillerCycle.length === 0) {
+        fillerCycle = [{
+          seat: dealingAnimation.dealerSeat,
+          playerId: null,
+          fromSeat: dealingAnimation.dealerSeat
+        }];
+      }
+      
+      const cycleSize = Math.max(1, fillerCycle.length);
+      let fillerIndex = 0;
+      while (baseSequence.length < FULL_DEAL_CARD_COUNT) {
+        const cycleTarget = fillerCycle[fillerIndex % cycleSize] || fillerCycle[0];
+        const targetSeat = cycleTarget && cycleTarget.seat !== undefined && cycleTarget.seat !== null ? cycleTarget.seat : dealingAnimation.dealerSeat;
+        const targetFromSeat = cycleTarget && cycleTarget.fromSeat !== undefined && cycleTarget.fromSeat !== null ? cycleTarget.fromSeat : dealingAnimation.dealerSeat;
+        const targetPlayerId = cycleTarget ? cycleTarget.playerId ?? null : null;
+        baseSequence.push({
+          id: `deal-filler-${baseSequence.length}`,
+          seat: targetSeat,
+          playerId: targetPlayerId,
+          round: Math.floor(baseSequence.length / cycleSize),
+          fromSeat: targetFromSeat,
+          phantom: true
+        });
+        fillerIndex++;
+      }
+      
+      const sequenceLength = baseSequence.length || 1;
+      const spreadDuration = Math.max(FULL_DEAL_DURATION - CARD_FLIGHT_DURATION, 0);
+      const interval = sequenceLength > 1 ? spreadDuration / (sequenceLength - 1) : spreadDuration;
+      const dealSequence = baseSequence.map((cardData, index) => ({
+        ...cardData,
+        delay: Math.round(index * interval)
+      }));
 
       // Process each card in sequence
-      let lastTick = 0;
-      dealSequence.forEach((cardData, index) => {
+      dealSequence.forEach((cardData) => {
         setTimeout(() => {
           const cardKey = `${cardData.id}-${Date.now()}`;
 
@@ -191,14 +244,7 @@ const DealingAnimation = () => {
           const fromPos = seatRefs.current[fromSeat];
 
           if (seatPos && fromPos) {
-            animateCard(cardKey, fromPos, seatPos, 800);
-          }
-
-          // Deal sound (use the same SFX as pass; throttle to ~10/sec)
-          const now = Date.now();
-          if (now - lastTick > 80) {
-            lastTick = now;
-            playSfxKeyOnce('pass');
+            animateCard(cardKey, fromPos, seatPos, CARD_FLIGHT_DURATION);
           }
 
           // Remove flying card after animation and add to hand
@@ -210,25 +256,28 @@ const DealingAnimation = () => {
               return newPositions;
             });
             
-            // Add card to player's hand
-            setHandCards(prev => ({
-              ...prev,
-              [cardData.playerId]: [
-                ...(prev[cardData.playerId] || []),
-                {
-                  id: cardData.id,
-                  seat: cardData.seat,
-                  round: cardData.round
-                }
-              ]
-            }));
-          }, 800); // Card flight duration
+            if (cardData.playerId !== undefined && cardData.playerId !== null) {
+              // Add card to player's hand overlay
+              setHandCards(prev => ({
+                ...prev,
+                [cardData.playerId]: [
+                  ...(prev[cardData.playerId] || []),
+                  {
+                    id: cardData.id,
+                    seat: cardData.seat,
+                    round: cardData.round,
+                    phantom: cardData.phantom || false
+                  }
+                ]
+              }));
+            }
+          }, CARD_FLIGHT_DURATION); // Card flight duration
 
         }, cardData.delay);
       });
 
       // Complete animation after all cards are dealt
-      const totalDealingTime = dealSequence.length * 200 + 1000;
+      const totalDealingTime = FULL_DEAL_DURATION;
       setTimeout(() => {
         setPhase('complete');
         setTimeout(() => {
