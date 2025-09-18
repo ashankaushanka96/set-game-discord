@@ -486,7 +486,7 @@ export default function Table() {
              </div>
              
              {/* Main Table Surface */}
-             <div ref={tableCenterRef} className="absolute rounded-full border-6 border-amber-800/90 bg-gradient-to-br from-green-900 via-green-800 to-emerald-900 flex items-center justify-center"
+             <div ref={tableCenterRef} data-table-center="true" className="absolute rounded-full border-6 border-amber-800/90 bg-gradient-to-br from-green-900 via-green-800 to-emerald-900 flex items-center justify-center"
                   style={{ 
                     width: 'min(50%, 350px)', 
                     height: 'min(50%, 350px)', 

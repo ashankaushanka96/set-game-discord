@@ -17,6 +17,19 @@ import { Card, CardBack } from '../cards';
 const CARD_FLIGHT_DURATION = 800;
 const FULL_DEAL_DURATION = 27000;
 const FULL_DEAL_CARD_COUNT = 52;
+const TABLE_CENTER_KEY = 'table-center';
+
+const getTableCenterPosition = () => {
+  if (typeof window === 'undefined') {
+    return { x: 0, y: 0 };
+  }
+  const centerEl = document.querySelector('[data-table-center]');
+  if (centerEl) {
+    const rect = centerEl.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  }
+  return { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+};
 
 const DealingAnimation = () => {
   const { dealingAnimation, me } = useStore();
@@ -39,6 +52,7 @@ const DealingAnimation = () => {
           y: rect.top + rect.height / 2
         };
       });
+      seatRefs.current[TABLE_CENTER_KEY] = getTableCenterPosition();
     };
 
     updateSeatPositions();
@@ -112,6 +126,7 @@ const DealingAnimation = () => {
           y: rect.top + rect.height / 2
         };
       });
+      seatRefs.current[TABLE_CENTER_KEY] = getTableCenterPosition();
     };
     
     // Small delay to ensure DOM is ready
@@ -158,7 +173,7 @@ const DealingAnimation = () => {
             playerId: dealData.player_id,
             round: dealData.round,
             card: dealData.card,
-            fromSeat: dealData.from_seat // Use the from_seat for animation origin
+            fromSeat: dealData.from_seat !== undefined && dealData.from_seat !== null ? dealData.from_seat : TABLE_CENTER_KEY // Use the from_seat for animation origin
           });
         });
       } else {
@@ -170,7 +185,7 @@ const DealingAnimation = () => {
               seat,
               playerId,
               round,
-              fromSeat: dealingAnimation.dealerSeat
+              fromSeat: TABLE_CENTER_KEY
             });
             cardIndex++;
           }
@@ -180,7 +195,7 @@ const DealingAnimation = () => {
       let fillerCycle = baseSequence.map(card => ({
         seat: card.seat,
         playerId: card.playerId,
-        fromSeat: card.fromSeat
+        fromSeat: card.fromSeat !== undefined && card.fromSeat !== null ? card.fromSeat : TABLE_CENTER_KEY
       }));
       
       if (fillerCycle.length === 0) {
@@ -189,7 +204,7 @@ const DealingAnimation = () => {
           .map(({ seat, playerId }) => ({
             seat,
             playerId,
-            fromSeat: dealingAnimation.dealerSeat
+            fromSeat: TABLE_CENTER_KEY
           }));
       }
       
@@ -197,7 +212,7 @@ const DealingAnimation = () => {
         fillerCycle = [{
           seat: dealingAnimation.dealerSeat,
           playerId: null,
-          fromSeat: dealingAnimation.dealerSeat
+          fromSeat: TABLE_CENTER_KEY
         }];
       }
       
@@ -240,8 +255,8 @@ const DealingAnimation = () => {
 
           // Start animation
           const seatPos = seatRefs.current[cardData.seat];
-          const fromSeat = cardData.fromSeat !== undefined ? cardData.fromSeat : dealingAnimation.dealerSeat;
-          const fromPos = seatRefs.current[fromSeat];
+          const originSeat = cardData.fromSeat !== undefined && cardData.fromSeat !== null ? cardData.fromSeat : TABLE_CENTER_KEY;
+          const fromPos = seatRefs.current[originSeat] || seatRefs.current[TABLE_CENTER_KEY];
 
           if (seatPos && fromPos) {
             animateCard(cardKey, fromPos, seatPos, CARD_FLIGHT_DURATION);
@@ -309,8 +324,8 @@ const DealingAnimation = () => {
       {flyingCards.map((card) => {
         const seatPos = seatRefs.current[card.seat];
         // Use fromSeat if available, otherwise fall back to dealer position
-        const fromSeat = card.fromSeat !== undefined ? card.fromSeat : dealingAnimation.dealerSeat;
-        const fromPos = seatRefs.current[fromSeat];
+        const originSeat = card.fromSeat !== undefined && card.fromSeat !== null ? card.fromSeat : TABLE_CENTER_KEY;
+        const fromPos = seatRefs.current[originSeat] || seatRefs.current[TABLE_CENTER_KEY];
         if (!seatPos || !fromPos) return null;
 
         // Only show real cards for the current player, card backs for others

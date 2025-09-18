@@ -1031,32 +1031,40 @@ class Game:
         self.state.current_dealer = next_dealer_id
         self.state.turn_player = next_turn_id
         
-        # Build deck and deal starting from the dealer
+        # Build deck and deal starting from the seat clockwise from the dealer
         self.build_deck()
-        
-        # Create dealing sequence for animation
-        # Note: Cards are dealt starting from next_dealer_seat, but animation shows from original_dealer_seat
+
+        deal_start_seat = (next_dealer_seat + 1) % 6
+
+        # Create dealing sequence for animation to mirror real dealing order
         dealing_sequence = []
         temp_deck = self._deck.copy()  # Copy for animation purposes
-        order = [(next_dealer_seat + i) % 6 for i in range(6)]
-        
-        # Generate dealing sequence (8 rounds, 6 players = 48 cards)
-        for round_num in range(8):
+        order = [(deal_start_seat + i) % 6 for i in range(6)]
+
+        round_num = 0
+        while temp_deck:
+            dealt_this_round = False
             for seat in order:
-                if temp_deck:
-                    card = temp_deck.pop(0)
-                    player_id = self.state.seats.get(seat)
-                    if player_id:
-                        dealing_sequence.append({
-                            "seat": seat,
-                            "player_id": player_id,
-                            "round": round_num,
-                            "card": {"suit": card.suit, "rank": card.rank},
-                            "from_seat": original_dealer_seat  # Animation shows cards coming from original dealer
-                        })
-        
-        # Now actually deal the cards
-        self.deal_all(start_from_seat=next_dealer_seat)
+                if not temp_deck:
+                    break
+                player_id = self.state.seats.get(seat)
+                if not player_id:
+                    continue
+                card = temp_deck.pop(0)
+                dealt_this_round = True
+                dealing_sequence.append({
+                    "seat": seat,
+                    "player_id": player_id,
+                    "round": round_num,
+                    "card": {"suit": card.suit, "rank": card.rank},
+                    "from_seat": None  # Animation origin handled on frontend
+                })
+            if not dealt_this_round:
+                break
+            round_num += 1
+
+        # Now actually deal the cards using the same start seat
+        self.deal_all(start_from_seat=deal_start_seat)
         
         return {
             "success": True,
