@@ -457,7 +457,7 @@ export default function Table() {
        <EmojiPassAnimation />
        
        {/* Main game area - takes up most of the viewport */}
-       <div className="flex-1 flex items-center justify-center p-2 md:p-4">
+       <div className="flex-1 flex items-center justify-center p-2 md:p-4 max-h-[60vh] md:max-h-none">
          {/* left panel (Team A) - table - right panel (Team B) */}
          <div className="relative w-full max-w-7xl flex items-center justify-center gap-2 lg:gap-4">
         <div className="hidden xl:block w-[260px]">
@@ -653,7 +653,7 @@ export default function Table() {
        </div>
 
        {/* Bottom section - Scoreboard, Player Hand, and Controls */}
-       <div className="flex-shrink-0 p-2 md:p-4 space-y-1 md:space-y-2 -mt-4 md:-mt-8">
+       <div className="flex-shrink-0 p-2 md:p-4 space-y-1 md:space-y-2 mt-2 md:-mt-4">
          {/* Scoreboard */}
          <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-30 text-xs sm:text-sm">
         <div className="px-2 sm:px-3 py-1 rounded-full bg-dark-card/70 backdrop-blur-sm border border-accent-blue/20 shadow-glow-blue">
