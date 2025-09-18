@@ -25,14 +25,6 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
     mobileRow3: null
   });
   
-  const idxLower = (r) => {
-    const i = RANKS_LOWER.indexOf(r);
-    return i === -1 ? 999 : i;
-  };
-  const idxUpper = (r) => {
-    const i = RANKS_UPPER.indexOf(r);
-    return i === -1 ? 999 : i;
-  };
 
   const isCardSelected = (card) => {
     return selectedCards.some(c => c.suit === card.suit && c.rank === card.rank);
@@ -84,95 +76,66 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
     return () => clearTimeout(timeoutId);
   }, [cards]);
 
-  // Build ordered arrays with suit separators for 3 rows
+  // Build ordered arrays for 3 rows - simple sequential distribution
   const { row1Items, row2Items, row3Items } = useMemo(() => {
-    const row1Groups = {};
-    const row2Groups = {};
-    const row3Groups = {};
-    for (const s of SUITS) {
-      row1Groups[s] = [];
-      row2Groups[s] = [];
-      row3Groups[s] = [];
-    }
-
-    // Split cards into 3 groups: 2-4, 5-7, 8-A
-    for (const c of cards) {
-      if (["2", "3", "4"].includes(c.rank)) row1Groups[c.suit].push(c);
-      else if (["5", "6", "7"].includes(c.rank)) row2Groups[c.suit].push(c);
-      else if (["8", "9", "10", "J", "Q", "K", "A"].includes(c.rank)) row3Groups[c.suit].push(c);
-    }
-
-    // sort within each suit
-    const sortCards = (cards) => {
+    // Sort all cards first
+    const sortedCards = [...cards].sort((a, b) => {
+      const suitOrder = ["hearts", "diamonds", "clubs", "spades"];
       const rankOrder = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
-      return cards.sort((a, b) => rankOrder.indexOf(a.rank) - rankOrder.indexOf(b.rank));
-    };
+      
+      const suitDiff = suitOrder.indexOf(a.suit) - suitOrder.indexOf(b.suit);
+      if (suitDiff !== 0) return suitDiff;
+      
+      return rankOrder.indexOf(a.rank) - rankOrder.indexOf(b.rank);
+    });
 
-    for (const s of SUITS) {
-      row1Groups[s] = sortCards(row1Groups[s]);
-      row2Groups[s] = sortCards(row2Groups[s]);
-      row3Groups[s] = sortCards(row3Groups[s]);
+    // Distribute cards sequentially across 3 rows (dynamic cards per row)
+    const totalCards = sortedCards.length;
+    
+    // Try 6 cards per row first, fall back to 5 if needed
+    let cardsPerRow = 6;
+    if (totalCards > 15) { // If more than 15 cards, use 5 per row to fit in 3 rows
+      cardsPerRow = 5;
     }
+    
+    const row1 = [];
+    const row2 = [];
+    const row3 = [];
 
-    // flatten with suit separators
-    const toItems = (groups, prefix) => {
-      const items = [];
-      SUITS.forEach((suit, si) => {
-        const arr = groups[suit];
-        if (!arr.length) return;
-        if (items.length) items.push({ __sep: `${prefix}-sep-${si}` }); // gap between suits
-        arr.forEach((c, i) =>
-          items.push({ ...c, __key: `${prefix}-${suit}-${c.rank}-${i}` })
-        );
-      });
-      return items;
-    };
+    sortedCards.forEach((card, index) => {
+      if (index < cardsPerRow) {
+        row1.push({ ...card, __key: `row1-${index}` });
+      } else if (index < cardsPerRow * 2) {
+        row2.push({ ...card, __key: `row2-${index}` });
+      } else {
+        row3.push({ ...card, __key: `row3-${index}` });
+      }
+    });
 
     return {
-      row1Items: toItems(row1Groups, "row1"),
-      row2Items: toItems(row2Groups, "row2"),
-      row3Items: toItems(row3Groups, "row3"),
+      row1Items: row1,
+      row2Items: row2,
+      row3Items: row3,
     };
   }, [cards]);
 
-  // Keep the old structure for desktop compatibility
-  const { lowerItems, upperItems } = useMemo(() => {
-    const lowerGroups = {};
-    const upperGroups = {};
-    for (const s of SUITS) {
-      lowerGroups[s] = [];
-      upperGroups[s] = [];
-    }
+  // Desktop: Simple sorted single row
+  const desktopItems = useMemo(() => {
+    // Sort all cards the same way as mobile
+    const sortedCards = [...cards].sort((a, b) => {
+      const suitOrder = ["hearts", "diamonds", "clubs", "spades"];
+      const rankOrder = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
+      
+      const suitDiff = suitOrder.indexOf(a.suit) - suitOrder.indexOf(b.suit);
+      if (suitDiff !== 0) return suitDiff;
+      
+      return rankOrder.indexOf(a.rank) - rankOrder.indexOf(b.rank);
+    });
 
-    for (const c of cards) {
-      if (RANKS_LOWER.includes(c.rank)) lowerGroups[c.suit].push(c);
-      else if (RANKS_UPPER.includes(c.rank)) upperGroups[c.suit].push(c);
-    }
-
-    // sort within each suit
-    for (const s of SUITS) {
-      lowerGroups[s].sort((a, b) => idxLower(a.rank) - idxLower(b.rank));
-      upperGroups[s].sort((a, b) => idxUpper(a.rank) - idxUpper(b.rank));
-    }
-
-    // flatten with suit separators
-    const toItems = (groups, prefix) => {
-      const items = [];
-      SUITS.forEach((suit, si) => {
-        const arr = groups[suit];
-        if (!arr.length) return;
-        if (items.length) items.push({ __sep: `${prefix}-sep-${si}` }); // gap between suits
-        arr.forEach((c, i) =>
-          items.push({ ...c, __key: `${prefix}-${suit}-${c.rank}-${i}` })
-        );
-      });
-      return items;
-    };
-
-    return {
-      lowerItems: toItems(lowerGroups, "low"),
-      upperItems: toItems(upperGroups, "up"),
-    };
+    return sortedCards.map((card, index) => ({
+      ...card,
+      __key: `desktop-${index}`
+    }));
   }, [cards]);
 
   // Hide player hand during dealing animation
@@ -219,48 +182,28 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
           ref={el => scrollRefs.current.desktop = el}
           className="flex items-center justify-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent pb-2"
           onScroll={handleScroll('desktop')}
+          style={{ 
+            scrollbarWidth: 'none', 
+            msOverflowStyle: 'none',
+            WebkitOverflowScrolling: 'touch'
+          }}
         >
-          {/* LOWER */}
-          {lowerItems.map((it) =>
-            it.__sep ? (
-              <span key={it.__sep} className="inline-block w-4 flex-shrink-0" />
-            ) : (
-              <span 
-                key={it.__key} 
-                className={`inline-block flex-shrink-0 ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''}`}
-                onClick={() => handleCardClick(it)}
-              >
-                <Card suit={it.suit} rank={it.rank} />
-              </span>
-            )
-          )}
-
-          {/* Divider between lower and upper (only if both exist) */}
-          {lowerItems.length > 0 && upperItems.length > 0 && (
-            <span className="inline-block mx-4 h-10 w-px bg-white/20 align-middle flex-shrink-0" />
-          )}
-
-          {/* UPPER */}
-          {upperItems.map((it) =>
-            it.__sep ? (
-              <span key={it.__sep} className="inline-block w-4 flex-shrink-0" />
-            ) : (
-              <span 
-                key={it.__key} 
-                className={`inline-block flex-shrink-0 ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''}`}
-                onClick={() => handleCardClick(it)}
-              >
-                <Card suit={it.suit} rank={it.rank} />
-              </span>
-            )
-          )}
+          {desktopItems.map((it) => (
+            <span 
+              key={it.__key} 
+              className={`inline-block flex-shrink-0 ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''}`}
+              onClick={() => handleCardClick(it)}
+            >
+              <Card suit={it.suit} rank={it.rank} />
+            </span>
+          ))}
         </div>
       </div>
 
       {/* Mobile: Three rows, horizontally scrollable */}
       <div className="md:hidden w-full">
         <div className="flex flex-col gap-1">
-          {/* ROW 1: 2-4 */}
+          {/* ROW 1 */}
           {row1Items.length > 0 && (
             <div className="relative">
               {/* Left scroll indicator for row 1 */}
@@ -289,25 +232,26 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
                 ref={el => scrollRefs.current.mobileRow1 = el}
                 className="flex items-center justify-center gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent pb-1"
                 onScroll={handleScroll('mobileRow1')}
+                style={{ 
+                  scrollbarWidth: 'none', 
+                  msOverflowStyle: 'none',
+                  WebkitOverflowScrolling: 'touch'
+                }}
               >
-                {row1Items.map((it) =>
-                  it.__sep ? (
-                    <span key={it.__sep} className="inline-block w-1 flex-shrink-0" />
-                  ) : (
-                    <span 
-                      key={it.__key} 
-                      className={`inline-block flex-shrink-0 ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''}`}
-                      onClick={() => handleCardClick(it)}
-                    >
-                      <Card suit={it.suit} rank={it.rank} />
-                    </span>
-                  )
-                )}
+                {row1Items.map((it) => (
+                  <span 
+                    key={it.__key} 
+                    className={`inline-block flex-shrink-0 ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''}`}
+                    onClick={() => handleCardClick(it)}
+                  >
+                    <Card suit={it.suit} rank={it.rank} />
+                  </span>
+                ))}
               </div>
             </div>
           )}
 
-          {/* ROW 2: 5-7 */}
+          {/* ROW 2 */}
           {row2Items.length > 0 && (
             <div className="relative">
               {/* Left scroll indicator for row 2 */}
@@ -336,25 +280,26 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
                 ref={el => scrollRefs.current.mobileRow2 = el}
                 className="flex items-center justify-center gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent pb-1"
                 onScroll={handleScroll('mobileRow2')}
+                style={{ 
+                  scrollbarWidth: 'none', 
+                  msOverflowStyle: 'none',
+                  WebkitOverflowScrolling: 'touch'
+                }}
               >
-                {row2Items.map((it) =>
-                  it.__sep ? (
-                    <span key={it.__sep} className="inline-block w-1 flex-shrink-0" />
-                  ) : (
-                    <span 
-                      key={it.__key} 
-                      className={`inline-block flex-shrink-0 ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''}`}
-                      onClick={() => handleCardClick(it)}
-                    >
-                      <Card suit={it.suit} rank={it.rank} />
-                    </span>
-                  )
-                )}
+                {row2Items.map((it) => (
+                  <span 
+                    key={it.__key} 
+                    className={`inline-block flex-shrink-0 ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''}`}
+                    onClick={() => handleCardClick(it)}
+                  >
+                    <Card suit={it.suit} rank={it.rank} />
+                  </span>
+                ))}
               </div>
             </div>
           )}
 
-          {/* ROW 3: 8-A */}
+          {/* ROW 3 */}
           {row3Items.length > 0 && (
             <div className="relative">
               {/* Left scroll indicator for row 3 */}
@@ -383,20 +328,21 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
                 ref={el => scrollRefs.current.mobileRow3 = el}
                 className="flex items-center justify-center gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent pb-1"
                 onScroll={handleScroll('mobileRow3')}
+                style={{ 
+                  scrollbarWidth: 'none', 
+                  msOverflowStyle: 'none',
+                  WebkitOverflowScrolling: 'touch'
+                }}
               >
-                {row3Items.map((it) =>
-                  it.__sep ? (
-                    <span key={it.__sep} className="inline-block w-1 flex-shrink-0" />
-                  ) : (
-                    <span 
-                      key={it.__key} 
-                      className={`inline-block flex-shrink-0 ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''}`}
-                      onClick={() => handleCardClick(it)}
-                    >
-                      <Card suit={it.suit} rank={it.rank} />
-                    </span>
-                  )
-                )}
+                {row3Items.map((it) => (
+                  <span 
+                    key={it.__key} 
+                    className={`inline-block flex-shrink-0 ${selectable ? 'cursor-pointer' : ''} ${isCardSelected(it) ? 'ring-2 ring-yellow-400 rounded-lg' : ''}`}
+                    onClick={() => handleCardClick(it)}
+                  >
+                    <Card suit={it.suit} rank={it.rank} />
+                  </span>
+                ))}
               </div>
             </div>
           )}
