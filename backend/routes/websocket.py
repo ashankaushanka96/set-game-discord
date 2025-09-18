@@ -155,6 +155,28 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                 game.assign_seat(p["player_id"], p["team"])
                 await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
 
+            elif t == "select_seat":
+                logger.info(f"Player {p['player_id']} selecting seat {p['seat']} for team {p['team']} in room {room_id}")
+                success = game.select_seat(p["player_id"], p["seat"], p["team"])
+                if success:
+                    await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
+                else:
+                    # Send error message back to the player
+                    await WebSocketService.send_to_player(room_id, player_id, "error", {
+                        "message": "Failed to select seat. Seat may be occupied or invalid."
+                    })
+
+            elif t == "leave_seat":
+                logger.info(f"Player {p['player_id']} leaving their seat in room {room_id}")
+                success = game.remove_from_seat(p["player_id"])
+                if success:
+                    await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
+                else:
+                    # Send error message back to the player
+                    await WebSocketService.send_to_player(room_id, player_id, "error", {
+                        "message": "Failed to leave seat. You may not be able to leave during an active game."
+                    })
+
             elif t == "add_ai_player":
                 logger.info(f"Adding AI player {p['player_id']} ({p['name']}) to team {p['team']} in room {room_id}")
                 from models import Player

@@ -98,6 +98,39 @@ class Game:
         
         return None
 
+    def select_seat(self, player_id: str, seat: int, team: str) -> bool:
+        """
+        Assign a player to a specific seat and team.
+        Returns True if successful, False if seat is occupied or invalid.
+        """
+        if self.state.phase != "lobby":
+            logger.warning(f"Cannot assign seat during {self.state.phase} phase")
+            return False
+            
+        if player_id not in self.state.players:
+            logger.warning(f"Player {player_id} not found in room {self.state.room_id}")
+            return False
+            
+        if seat < 0 or seat >= 6:
+            logger.warning(f"Invalid seat number {seat}")
+            return False
+            
+        if self.state.seats[seat] is not None:
+            logger.warning(f"Seat {seat} is already occupied by player {self.state.seats[seat]}")
+            return False
+            
+        # Remove player from current seat if they have one
+        self.remove_from_seat(player_id)
+        
+        # Assign to new seat
+        self.state.seats[seat] = player_id
+        player = self.state.players[player_id]
+        player.seat = seat
+        player.team = team
+        
+        logger.info(f"Player {player_id} assigned to seat {seat} on team {team}")
+        return True
+
     def remove_from_seat(self, player_id: str) -> bool:
         """
         Remove a player from their current seat.

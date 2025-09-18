@@ -6,6 +6,7 @@ import { apiJoinRoom } from "../../api";
 // Avatar selection removed; we always use Discord profile
 import { Toast } from "../ui";
 import { ConfirmUnassignModal } from "../modals";
+import { SeatSelector } from "./";
 import { generateUUID } from "../../utils/uuid";
 import { DiscordSDK, Events }  from "@discord/embedded-app-sdk";
 import { readyDiscordSDK } from "../../utils/discordSdkSingleton";
@@ -1044,20 +1045,19 @@ export default function Lobby() {
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-gradient-vibrant p-4">
-      <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-4">
-          <h1 className="text-3xl font-bold bg-gradient-accent bg-clip-text text-transparent mb-1">
+    <div className="h-screen bg-gradient-vibrant p-2 overflow-hidden">
+      <div className="max-w-6xl mx-auto h-full flex flex-col">
+        <div className="text-center mb-4 flex-shrink-0">
+          <h1 className="text-2xl md:text-3xl font-bold bg-gradient-accent bg-clip-text text-transparent mb-1">
             Card Set Collection
           </h1>
-          <div className="flex items-center gap-2">
-            <p className="text-text-muted">Lobby</p>
-            {state?.admin_player_id === me?.id && (
+          {state?.admin_player_id === me?.id && (
+            <div className="flex justify-center mt-1">
               <span className="text-xs bg-gradient-warm/20 border border-accent-amber/40 px-2 py-1 rounded-full text-accent-amber flex items-center gap-1 shadow-glow-amber">
-                👑 Admin
+                👑 ADMIN
               </span>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {error && (
@@ -1137,192 +1137,48 @@ export default function Lobby() {
             </div>
           </div>
         ) : profileLoaded && !checkingReconnection && !redirectingToGame && !(me && state?.players[me.id] && (typeof state.players[me.id].seat === 'number' && state.players[me.id].seat >= 0 || (state.players[me.id].is_spectator && !state.players[me.id].spectator_request_pending)) && (state?.phase === "ready" || state?.phase === "playing" || state?.phase === "ended")) ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-0 relative">
-          {/* Teams */}
-          <div className="bg-dark-card/50 backdrop-blur-sm rounded-xl p-4 border border-accent-purple/20 shadow-glow-purple">
-            <h2 className="font-semibold mb-4 text-lg flex items-center gap-2">
-              <span className="text-accent-purple">👥</span>
-              <span className="text-text-primary">Teams</span>
-            </h2>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-3">
-                <div className="inline-flex items-center gap-2 text-sm font-medium">
-                  <span className="inline-block h-3 w-3 rounded-full bg-accent-blue shadow-glow-blue"></span>
-                  <span className="text-text-primary">Team A</span>
-                  <span className="text-xs text-text-muted">({players.filter((p) => p.team === "A").length}/3)</span>
-                </div>
-                <div className="space-y-2 min-h-[100px]">
-                  {players.filter((p) => p.team === "A").map((p) => (
-                    <div key={p.id} className="bg-gradient-primary/20 border border-accent-blue/30 rounded-lg px-3 py-2 text-sm flex items-center gap-2 shadow-glow-blue/20">
-                      <div className="relative">
-                        {typeof p.avatar === "string" && p.avatar.startsWith("http") ? (
-                          <img src={p.avatar} alt="" className="h-6 w-6 rounded-full border border-accent-blue/30" referrerPolicy="no-referrer" />
-                        ) : (
-                          <span className="text-lg">{p.avatar}</span>
-                        )}
-                        {speakingUsers?.[p.id] && (
-                          <span className="pointer-events-none absolute -inset-0.5 rounded-full ring-2 ring-accent-emerald shadow-glow-emerald" />
-                        )}
-                      </div>
-                      <span className="flex-1 flex items-center gap-1 text-text-primary">
-                        {p.name}
-                        {state?.admin_player_id === p.id && (
-                          <span className="text-accent-amber text-xs" title="Admin">👑</span>
-                        )}
-                      </span>
-                      {state?.admin_player_id === me?.id && p.id !== me?.id && (
-                        <button
-                          className="text-accent-rose hover:text-accent-pink text-xs px-1 py-0.5 rounded transition-colors"
-                          onClick={() => {
-                            setUnassignModal({ open: true, player: p });
-                          }}
-                          title="Remove from team"
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  {players.filter((p) => p.team === "A").length === 0 && (
-                    <div className="text-xs text-text-muted italic">No players yet</div>
-                  )}
-                </div>
-                <button
-                  className={`w-full px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
-                    players.filter((p) => p.team === "A").length >= 3
-                      ? "bg-dark-tertiary/30 border border-text-muted/30 cursor-not-allowed opacity-50"
-                      : "bg-gradient-primary/30 hover:bg-gradient-primary/40 border border-accent-blue/30 hover:shadow-glow-blue"
-                  }`}
-                  onClick={() => {
-                    if (players.filter((p) => p.team === "A").length < 3) {
-                      send(useStore.getState().ws, "select_team", { player_id: useStore.getState().me.id, team: "A" });
-                    }
-                  }}
-                  disabled={players.filter((p) => p.team === "A").length >= 3}
-                >
-                  {players.filter((p) => p.team === "A").length >= 3 ? "Team A Full" : "Join Team A"}
-                </button>
-              </div>
-              <div className="space-y-3">
-                <div className="inline-flex items-center gap-2 text-sm font-medium">
-                  <span className="inline-block h-3 w-3 rounded-full bg-accent-rose shadow-glow-rose"></span>
-                  <span className="text-text-primary">Team B</span>
-                  <span className="text-xs text-text-muted">({players.filter((p) => p.team === "B").length}/3)</span>
-                </div>
-                <div className="space-y-2 min-h-[100px]">
-                  {players.filter((p) => p.team === "B").map((p) => (
-                    <div key={p.id} className="bg-gradient-secondary/20 border border-accent-rose/30 rounded-lg px-3 py-2 text-sm flex items-center gap-2 shadow-glow-rose/20">
-                      <div className="relative">
-                        {typeof p.avatar === "string" && p.avatar.startsWith("http") ? (
-                          <img src={p.avatar} alt="" className="h-6 w-6 rounded-full border border-accent-rose/30" referrerPolicy="no-referrer" />
-                        ) : (
-                          <span className="text-lg">{p.avatar}</span>
-                        )}
-                        {speakingUsers?.[p.id] && (
-                          <span className="pointer-events-none absolute -inset-0.5 rounded-full ring-2 ring-accent-emerald shadow-glow-emerald" />
-                        )}
-                      </div>
-                      <span className="flex-1 flex items-center gap-1 text-text-primary">
-                        {p.name}
-                        {state?.admin_player_id === p.id && (
-                          <span className="text-accent-amber text-xs" title="Admin">👑</span>
-                        )}
-                      </span>
-                      {state?.admin_player_id === me?.id && p.id !== me?.id && (
-                        <button
-                          className="text-accent-rose hover:text-accent-pink text-xs px-1 py-0.5 rounded transition-colors"
-                          onClick={() => {
-                            setUnassignModal({ open: true, player: p });
-                          }}
-                          title="Remove from team"
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  {players.filter((p) => p.team === "B").length === 0 && (
-                    <div className="text-xs text-text-muted italic">No players yet</div>
-                  )}
-                </div>
-                <button
-                  className={`w-full px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
-                    players.filter((p) => p.team === "B").length >= 3
-                      ? "bg-dark-tertiary/30 border border-text-muted/30 cursor-not-allowed opacity-50"
-                      : "bg-gradient-secondary/30 hover:bg-gradient-secondary/40 border border-accent-rose/30 hover:shadow-glow-rose"
-                  }`}
-                  onClick={() => {
-                    if (players.filter((p) => p.team === "B").length < 3) {
-                      send(useStore.getState().ws, "select_team", { player_id: useStore.getState().me.id, team: "B" });
-                    }
-                  }}
-                  disabled={players.filter((p) => p.team === "B").length >= 3}
-                >
-                  {players.filter((p) => p.team === "B").length >= 3 ? "Team B Full" : "Join Team B"}
-                </button>
-              </div>
+          <div className="flex-1 flex flex-col space-y-3 overflow-hidden">
+            {/* Seat Selection */}
+            <div className="flex-1 overflow-hidden">
+              <SeatSelector players={players} state={state} me={me} />
             </div>
 
-            {players.length >= 6 && players.filter((p) => p.team).length < 6 && (
-              <div className="mt-4 p-3 bg-gradient-warm/20 border border-accent-amber/40 rounded-lg shadow-glow-amber">
-                <div className="text-sm text-accent-amber">
-                  <span className="font-semibold">⚠️ Team Selection Required:</span> Some connected players need to select a team before starting the game.
+            {/* Game Controls */}
+            <div className="bg-dark-card/50 backdrop-blur-sm rounded-xl p-4 border border-accent-purple/20 shadow-glow-purple flex-shrink-0">
+              <div className="text-center mb-3">
+                <h2 className="text-lg font-bold text-text-primary mb-1">Game Controls</h2>
+                <div className="text-xs text-text-muted">
+                  {players.length}/6 players connected
                 </div>
               </div>
-            )}
 
-            <button
-              className={`w-full mt-4 px-4 py-3 rounded-lg transition-all duration-200 font-medium ${
-                (!roomId || (!TEST_MODE_ENABLED && players.filter((p)=>p.connected!==false).length !== 6))
-                  ? "bg-dark-tertiary cursor-not-allowed border border-text-muted/30"
-                  : "bg-gradient-warm hover:shadow-glow-amber border border-accent-amber/30"
-              }`}
-              onClick={startGame}
-              disabled={!roomId || (!TEST_MODE_ENABLED && players.filter((p)=>p.connected!==false).length !== 6)}
-            >
-              {!roomId 
-                ? "No Room Connected"
-                : TEST_MODE_ENABLED
-                  ? (players.filter((p)=>p.connected!==false).length < 6
-                      ? `Start Game (${players.filter((p)=>p.connected!==false).length} + ${6 - players.filter((p)=>p.connected!==false).length} AI)`
-                      : `Start Game (${players.length} players)`)
-                  : "Start Game"}
-            </button>
-          </div>
-          {/* Players */}
-          <div className="bg-dark-card/50 backdrop-blur-sm rounded-xl p-4 border border-accent-emerald/20 shadow-glow-emerald">
-            <h2 className="font-semibold mb-4 text-lg flex items-center gap-2">
-              <span className="text-accent-emerald">🎮</span>
-              <span className="text-text-primary">Players ({players.length}/6 connected)</span>
-            </h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {players.map((p) => (
-                <div key={p.id} className="px-3 py-2 bg-dark-tertiary/50 border border-accent-purple/20 rounded-lg flex items-center gap-2 shadow-glow-purple/10">
-                  <div className="relative">
-                    {typeof p.avatar === "string" && p.avatar.startsWith("http") ? (
-                      <img src={p.avatar} alt="" className="h-8 w-8 rounded-full border border-accent-purple/30" referrerPolicy="no-referrer" />
-                    ) : (
-                      <span className="text-xl">{p.avatar}</span>
-                    )}
-                    {speakingUsers?.[p.id] && (
-                      <span className="pointer-events-none absolute -inset-0.5 rounded-full ring-2 ring-accent-emerald shadow-glow-emerald" />
-                    )}
+              {players.length >= 6 && players.filter((p) => p.team).length < 6 && (
+                <div className="mb-3 p-2 bg-gradient-warm/20 border border-accent-amber/40 rounded-lg shadow-glow-amber">
+                  <div className="text-xs text-accent-amber">
+                    <span className="font-semibold">⚠️ Seat Selection Required:</span> Some connected players need to select a seat before starting the game.
                   </div>
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium truncate max-w-[9rem] text-text-primary">{p.name}</div>
-                    <div className="text-xs text-text-muted">{p.team ? `Team ${p.team}` : 'No Team'}</div>
-                  </div>
-                </div>
-              ))}
-              {!players.length && (
-                <div className="col-span-full text-center py-8">
-                  <div className="text-4xl mb-2">🎯</div>
-                  <div className="text-text-muted">No players yet. Create or join a room to appear here.</div>
                 </div>
               )}
+
+              <button
+                className={`w-full px-4 py-2 rounded-lg transition-all duration-200 font-medium text-sm ${
+                  (!roomId || (!TEST_MODE_ENABLED && players.filter((p)=>p.connected!==false).length !== 6))
+                    ? "bg-dark-tertiary cursor-not-allowed border border-text-muted/30"
+                    : "bg-gradient-warm hover:shadow-glow-amber border border-accent-amber/30"
+                }`}
+                onClick={startGame}
+                disabled={!roomId || (!TEST_MODE_ENABLED && players.filter((p)=>p.connected!==false).length !== 6)}
+              >
+                {!roomId 
+                  ? "No Room Connected"
+                  : TEST_MODE_ENABLED
+                    ? (players.filter((p)=>p.connected!==false).length < 6
+                        ? `Start Game (${players.filter((p)=>p.connected!==false).length} + ${6 - players.filter((p)=>p.connected!==false).length} AI)`
+                        : `Start Game (${players.length} players)`)
+                    : "Start Game"}
+              </button>
             </div>
           </div>
-        </div>
         ) : null}
       </div>
 
