@@ -349,8 +349,13 @@ export default function Table() {
       {/* Back to Lobby Button - Top Left */}
       <div className="fixed top-2 left-2 md:top-3 md:left-3 z-40">
           <button 
-            className="group bg-gradient-primary hover:shadow-glow-blue text-white px-3 py-2 md:px-4 md:py-2 rounded-lg md:rounded-xl shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center gap-2 border border-accent-blue/30"
-            onClick={() => send(ws, 'request_back_to_lobby', { requester_id: me.id })}
+            className={`group px-3 py-2 md:px-4 md:py-2 rounded-lg md:rounded-xl shadow-lg transition-all duration-200 transform flex items-center gap-2 border ${
+              selectedCardsToPass.length > 0 
+                ? 'bg-gray-500 cursor-not-allowed text-gray-300 border-gray-400/30' 
+                : 'bg-gradient-primary hover:shadow-glow-blue text-white hover:scale-105 active:scale-95 border-accent-blue/30'
+            }`}
+            onClick={() => selectedCardsToPass.length === 0 && send(ws, 'request_back_to_lobby', { requester_id: me.id })}
+            disabled={selectedCardsToPass.length > 0}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -366,8 +371,13 @@ export default function Table() {
       {state.phase === 'playing' && (
         <div className="fixed top-2 right-2 md:top-3 md:right-3 z-40">
           <button 
-            className="group bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg md:rounded-xl shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center gap-2 border border-purple-500/30"
-            onClick={() => setRequestAbortOpen(true)}
+            className={`group px-3 py-2 md:px-4 md:py-2 rounded-lg md:rounded-xl shadow-lg transition-all duration-200 transform flex items-center gap-2 border ${
+              selectedCardsToPass.length > 0 
+                ? 'bg-gray-500 cursor-not-allowed text-gray-300 border-gray-400/30' 
+                : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white hover:scale-105 active:scale-95 border-purple-500/30'
+            }`}
+            onClick={() => selectedCardsToPass.length === 0 && setRequestAbortOpen(true)}
+            disabled={selectedCardsToPass.length > 0}
           >
             <svg className="w-4 h-4 transition-transform group-hover:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -384,9 +394,14 @@ export default function Table() {
       {/* Emoji Settings Button - Top Right Corner */}
       <div className="fixed top-14 right-2 md:top-16 md:right-3 z-40">
         <button 
-          className="group bg-dark-card/80 hover:bg-dark-tertiary/80 text-text-secondary hover:text-text-primary p-2 rounded-lg shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 border border-accent-purple/20 hover:border-accent-purple/40 hover:shadow-glow-purple"
-          onClick={() => setEmojiSettingsOpen(true)}
-          title="Emoji Settings"
+          className={`group p-2 rounded-lg shadow-lg transition-all duration-200 transform border ${
+            selectedCardsToPass.length > 0 
+              ? 'bg-gray-500 cursor-not-allowed text-gray-300 border-gray-400/30' 
+              : 'bg-dark-card/80 hover:bg-dark-tertiary/80 text-text-secondary hover:text-text-primary hover:scale-105 active:scale-95 border-accent-purple/20 hover:border-accent-purple/40 hover:shadow-glow-purple'
+          }`}
+          onClick={() => selectedCardsToPass.length === 0 && setEmojiSettingsOpen(true)}
+          disabled={selectedCardsToPass.length > 0}
+          title={selectedCardsToPass.length > 0 ? "Clear card selection first" : "Emoji Settings"}
         >
           <svg className="w-4 h-4 transition-transform group-hover:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -453,7 +468,7 @@ export default function Table() {
 
 
        <MessageBubbles seatEls={seatEls} seatVersion={seatVersion} hideLaydownBubbles={layOpen} />
-       <ChatBubble />
+       <ChatBubble selectedCardsToPass={selectedCardsToPass} />
        <EmojiPassAnimation />
        
        {/* Main game area - takes up most of the viewport */}
@@ -760,9 +775,14 @@ export default function Table() {
        {(state.phase === 'playing' || state.phase === 'ready') && (
          <div className="fixed bottom-4 right-4 z-50">
            <button
-             onClick={() => setLayOpen(true)}
-             className="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white shadow-lg border border-amber-500/30"
-             title="Laydown cards"
+             onClick={() => selectedCardsToPass.length === 0 && setLayOpen(true)}
+             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-lg border ${
+               selectedCardsToPass.length > 0 
+                 ? 'bg-gray-500 cursor-not-allowed text-gray-300 border-gray-400/30' 
+                 : 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white border-amber-500/30'
+             }`}
+             disabled={selectedCardsToPass.length > 0}
+             title={selectedCardsToPass.length > 0 ? "Clear card selection first" : "Laydown cards"}
            >
              <span className="hidden sm:inline">Laydown</span>
              <span className="sm:hidden">Lay</span>

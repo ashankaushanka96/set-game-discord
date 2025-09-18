@@ -67,7 +67,7 @@ const EMOJIS = [
   { emoji: '💘', name: 'Heart Arrow', category: 'heart' }
 ];
 
-export default function ChatBubble() {
+export default function ChatBubble({ selectedCardsToPass = [] }) {
   const { me, state } = useStore();
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState('');
@@ -298,6 +298,7 @@ export default function ChatBubble() {
       <ReactionTray 
         isOpen={reactionTrayOpen}
         onClose={() => setReactionTrayOpen(false)}
+        selectedCardsToPass={selectedCardsToPass}
       />
     </div>
   );

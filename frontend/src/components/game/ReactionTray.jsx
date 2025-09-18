@@ -59,7 +59,7 @@ const QUICK_EMOJIS = [
   { emoji: '👍', name: 'Thumbs Up', category: 'gesture', cooldown: 2000 }
 ];
 
-export default function ReactionTray({ isOpen, onClose }) {
+export default function ReactionTray({ isOpen, onClose, selectedCardsToPass = [] }) {
   const { me, state, ws } = useStore();
   const [selectedEmoji, setSelectedEmoji] = useState(null);
   const [showPlayerSelection, setShowPlayerSelection] = useState(false);
@@ -72,6 +72,13 @@ export default function ReactionTray({ isOpen, onClose }) {
 
   // Handle emoji selection
   const handleEmojiSelect = (emojiData) => {
+    // Check if cards are selected - disable emoji sending
+    if (selectedCardsToPass.length > 0) {
+      setIsAnimating(true);
+      setTimeout(() => setIsAnimating(false), 200);
+      return;
+    }
+
     const now = Date.now();
     const lastUsed = cooldowns[emojiData.emoji] || 0;
     const timeLeft = emojiData.cooldown - (now - lastUsed);
@@ -178,21 +185,22 @@ export default function ReactionTray({ isOpen, onClose }) {
                   const timeLeft = emojiData.cooldown - (now - lastUsed);
                   const isOnCooldown = timeLeft > 0;
                   const cooldownPercent = isOnCooldown ? (timeLeft / emojiData.cooldown) * 100 : 0;
+                  const cardsSelected = selectedCardsToPass.length > 0;
 
                   return (
                     <button
                       key={index}
                       onClick={() => handleEmojiSelect(emojiData)}
-                      disabled={isOnCooldown}
+                      disabled={isOnCooldown || cardsSelected}
                       className={`
                         relative p-3 rounded-xl transition-all duration-200 transform
-                        ${isOnCooldown 
+                        ${isOnCooldown || cardsSelected
                           ? 'opacity-50 cursor-not-allowed' 
                           : 'hover:scale-110 hover:bg-zinc-800/50 active:scale-95'
                         }
-                        ${isAnimating && isOnCooldown ? 'animate-pulse' : ''}
+                        ${isAnimating && (isOnCooldown || cardsSelected) ? 'animate-pulse' : ''}
                       `}
-                      title={`${emojiData.name}${isOnCooldown ? ` (${Math.ceil(timeLeft/1000)}s)` : ''}`}
+                      title={`${emojiData.name}${isOnCooldown ? ` (${Math.ceil(timeLeft/1000)}s)` : cardsSelected ? ' (Clear card selection first)' : ''}`}
                     >
                       {/* Emoji */}
                       <div className="text-2xl mb-1">
@@ -226,9 +234,15 @@ export default function ReactionTray({ isOpen, onClose }) {
 
               {/* Quick Target Hint */}
               <div className="mt-4 p-3 bg-zinc-800/30 rounded-lg">
-                <p className="text-xs text-zinc-400 text-center">
-                  💡 Tip: Select an emoji, then choose a target player to send it flying across the screen!
-                </p>
+                {selectedCardsToPass.length > 0 ? (
+                  <p className="text-xs text-yellow-400 text-center">
+                    ⚠️ Clear card selection first to send emojis
+                  </p>
+                ) : (
+                  <p className="text-xs text-zinc-400 text-center">
+                    💡 Tip: Select an emoji, then choose a target player to send it flying across the screen!
+                  </p>
+                )}
               </div>
             </div>
           </>
