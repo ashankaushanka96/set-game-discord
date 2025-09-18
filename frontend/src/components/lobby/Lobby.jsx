@@ -17,6 +17,61 @@ import { isMobileDevice, getMobileInfo } from "../../utils/mobileDetection";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? ""; // set in .env for prod; leave empty for Vite proxy in dev
 
+async function resolveDisplayNameWithGuildNickname(userId, fallbackName, discordSdk) {
+  if (!userId) return fallbackName;
+  try {
+    let sdk = discordSdk;
+    if (!sdk) {
+      const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID || '1416307116918181931';
+      if (!clientId) return fallbackName;
+      sdk = await readyDiscordSDK(clientId);
+    }
+    const canGetChannel = typeof sdk?.commands?.getChannel === 'function';
+    const channelId = sdk?.channelId;
+    console.debug('[Discord] Resolving guild nickname', {
+      userId,
+      providedSdk: Boolean(discordSdk),
+      readySdk: Boolean(sdk),
+      canGetChannel,
+      guildId: sdk?.guildId,
+      channelId,
+    });
+    if (!canGetChannel) {
+      return fallbackName;
+    }
+    const channelInfo = await sdk.commands.getChannel(channelId ? { channel_id: channelId } : undefined);
+    const voiceStates = channelInfo?.voice_states || [];
+    console.debug('[Discord] Voice states for nickname check', {
+      count: voiceStates.length,
+      ids: voiceStates.map((vs) => vs?.user?.id).filter(Boolean),
+    });
+    const meState = voiceStates.find((vs) => vs?.user?.id === userId);
+    if (meState?.nick) {
+      console.debug('[Discord] Using guild nickname for player', {
+        userId,
+        nickname: meState.nick,
+      });
+      return meState.nick;
+    }
+    if (channelInfo?.member?.user?.id === userId && channelInfo.member.nick) {
+      console.debug('[Discord] Using guild nickname from channel member record', {
+        userId,
+        nickname: channelInfo.member.nick,
+      });
+      return channelInfo.member.nick;
+    }
+    console.debug('[Discord] Guild nickname not found in voice state; falling back to default name', { userId });
+  } catch (err) {
+    console.debug('[Discord] Guild nickname lookup failed', {
+      code: err?.code,
+      message: err?.message,
+      data: err?.data,
+      name: err?.name,
+    });
+  }
+  return fallbackName;
+}
+
 export default function Lobby() {
   console.debug("[Lobby] Component loaded");
   const navigate = useNavigate();
@@ -136,7 +191,8 @@ export default function Lobby() {
       }
       
       const meUser = result;
-      const displayName = meUser.global_name || meUser.username || '';
+      let displayName = meUser.global_name || meUser.username || '';
+      displayName = await resolveDisplayNameWithGuildNickname(meUser.id, displayName);
       const avatarUrl = discordAvatarUrl(meUser.id, meUser.avatar, 128);
       
       setUsingDiscordProfile(Boolean(avatarUrl));
@@ -445,7 +501,8 @@ export default function Lobby() {
               }
               meUser = await meRes.json();
             }
-            const displayName = meUser.global_name || meUser.username || '';
+            let displayName = meUser.global_name || meUser.username || '';
+            displayName = await resolveDisplayNameWithGuildNickname(meUser.id, displayName, discordSdk);
             const avatarUrl = discordAvatarUrl(meUser.id, meUser.avatar, 128);
             setUsingDiscordProfile(Boolean(avatarUrl));
             setName(displayName);
@@ -544,7 +601,8 @@ export default function Lobby() {
           discriminator: user.discriminator
         });
         
-        const displayName = user.global_name || user.username || `Player ${Math.random().toString(16).slice(2, 6)}`;
+        let displayName = user.global_name || user.username || `Player ${Math.random().toString(16).slice(2, 6)}`;
+        displayName = await resolveDisplayNameWithGuildNickname(user.id, displayName, discordSdk);
         const avatarUrl = discordAvatarUrl(user.id, user.avatar, 128);
 
         console.debug("[Discord] Setting profile:", { displayName, avatarUrl });
@@ -674,7 +732,8 @@ export default function Lobby() {
         const user = await userRes.json();
         if (cancelled) return;
 
-        const displayName = user.global_name || user.username || name;
+        let displayName = user.global_name || user.username || name;
+        displayName = await resolveDisplayNameWithGuildNickname(user.id, displayName);
         const avatarUrl = discordAvatarUrl(user.id, user.avatar, 128);
         setUsingDiscordProfile(Boolean(avatarUrl));
         setName(displayName);
