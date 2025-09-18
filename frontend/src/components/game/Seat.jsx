@@ -48,35 +48,44 @@ export default function Seat({ seatIndex, player, highlight, selectable, onSelec
         
         {/* Content Overlay */}
         <div className="relative z-10 flex flex-col items-center justify-center">
-          <div className="text-[10px] sm:text-xs mt-1 opacity-90 line-clamp-1 bg-black/50 px-1 rounded backdrop-blur-sm">
+          <div className="text-[11px] sm:text-sm mt-1 font-bold line-clamp-1 transition-all duration-300 text-white" 
+          style={{
+            textShadow: '0 2px 4px rgba(0,0,0,0.9), 0 0 8px rgba(255,255,255,0.4)',
+            filter: 'drop-shadow(0 0 6px rgba(255,255,255,0.3))'
+          }}>
             {player?.name || 'Empty'}
           </div>
-          <div className="text-[8px] sm:text-[10px] opacity-60 bg-black/50 px-1 rounded backdrop-blur-sm">
+          <div className="text-[8px] sm:text-[10px] opacity-70 bg-black/60 px-1.5 py-0.5 rounded backdrop-blur-sm mt-0.5 font-medium">
             {player ? `Seat ${player.seat+1}` : `Seat ${seatIndex+1}`}
           </div>
           {selectable && (
-            <div className="text-[8px] sm:text-[10px] text-amber-300 font-bold bg-amber-500/20 px-1 rounded backdrop-blur-sm animate-pulse">
+            <div className="text-[8px] sm:text-[10px] font-bold text-amber-300 animate-pulse" 
+                 style={{textShadow: '0 2px 4px rgba(0,0,0,0.9), 0 0 8px rgba(251,191,36,0.6)'}}>
               CLICK TO PASS
             </div>
           )}
         </div>
         {isMe && (
-          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[10px] bg-cyan-600/90 px-2 py-[2px] rounded-full">
-            You
+          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[10px] font-bold bg-gradient-to-r from-cyan-600 to-blue-600 text-white px-3 py-1 rounded-full shadow-lg border border-cyan-400/50" 
+               style={{textShadow: '0 1px 2px rgba(0,0,0,0.8)'}}>
+            YOU
           </div>
         )}
         {isDealer && (
-          <div className="absolute -top-1 left-1/2 -translate-x-1/2 text-[10px] bg-purple-600/90 px-2 py-[2px] rounded-full">
-            Dealer
+          <div className="absolute -top-1 left-1/2 -translate-x-1/2 text-[10px] font-bold bg-gradient-to-r from-purple-600 to-violet-600 text-white px-3 py-1 rounded-full shadow-lg border border-purple-400/50" 
+               style={{textShadow: '0 1px 2px rgba(0,0,0,0.8)'}}>
+            DEALER
           </div>
         )}
         {isLaydownPlayer && (
-          <div className="absolute -top-1 left-1/2 -translate-x-1/2 text-[10px] bg-amber-500/90 px-2 py-[2px] rounded-full font-semibold animate-pulse">
+          <div className="absolute -top-1 left-1/2 -translate-x-1/2 text-[10px] font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white px-3 py-1 rounded-full shadow-lg border border-amber-400/50 animate-pulse" 
+               style={{textShadow: '0 1px 2px rgba(0,0,0,0.8)', filter: 'drop-shadow(0 0 4px rgba(251,191,36,0.6))'}}>
             LAYDOWN
           </div>
         )}
         {highlight && !isLaydownPlayer && (
-          <div className="absolute -top-1 left-1/2 -translate-x-1/2 text-[10px] bg-emerald-500/90 px-2 py-[2px] rounded-full font-semibold">
+          <div className="absolute -top-1 left-1/2 -translate-x-1/2 text-[10px] font-bold bg-gradient-to-r from-emerald-500 to-green-500 text-white px-3 py-1 rounded-full shadow-lg border border-emerald-400/50" 
+               style={{textShadow: '0 1px 2px rgba(0,0,0,0.8)', filter: 'drop-shadow(0 0 4px rgba(16,185,129,0.6))'}}>
             TURN
           </div>
         )}
@@ -93,7 +102,8 @@ export default function Seat({ seatIndex, player, highlight, selectable, onSelec
           </div>
         )}
         {player && !player.connected && (
-          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[9px] bg-red-600/95 px-2 py-1 rounded-full font-bold text-white shadow-lg">
+          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[9px] font-bold bg-gradient-to-r from-red-600 to-red-700 text-white px-3 py-1 rounded-full shadow-lg border border-red-400/50" 
+               style={{textShadow: '0 1px 2px rgba(0,0,0,0.8)', filter: 'drop-shadow(0 0 4px rgba(239,68,68,0.6))'}}>
             OFFLINE
           </div>
         )}
