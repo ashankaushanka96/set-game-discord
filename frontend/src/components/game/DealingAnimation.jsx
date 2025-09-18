@@ -221,7 +221,7 @@ const DealingAnimation = () => {
       while (baseSequence.length < FULL_DEAL_CARD_COUNT) {
         const cycleTarget = fillerCycle[fillerIndex % cycleSize] || fillerCycle[0];
         const targetSeat = cycleTarget && cycleTarget.seat !== undefined && cycleTarget.seat !== null ? cycleTarget.seat : dealingAnimation.dealerSeat;
-        const targetFromSeat = cycleTarget && cycleTarget.fromSeat !== undefined && cycleTarget.fromSeat !== null ? cycleTarget.fromSeat : dealingAnimation.dealerSeat;
+        const targetFromSeat = cycleTarget && cycleTarget.fromSeat !== undefined && cycleTarget.fromSeat !== null ? cycleTarget.fromSeat : TABLE_CENTER_KEY;
         const targetPlayerId = cycleTarget ? cycleTarget.playerId ?? null : null;
         baseSequence.push({
           id: `deal-filler-${baseSequence.length}`,
@@ -281,7 +281,8 @@ const DealingAnimation = () => {
                     id: cardData.id,
                     seat: cardData.seat,
                     round: cardData.round,
-                    phantom: cardData.phantom || false
+                    phantom: cardData.phantom || false,
+                    card: cardData.card || null
                   }
                 ]
               }));
@@ -368,6 +369,8 @@ const DealingAnimation = () => {
               const isMyHand = playerId === me?.id;
               const cardOffset = (index - 3.5) * 15; // Spread cards horizontally
               const actualCard = playerHand[index]; // Get the actual card from player's hand
+              const overlayCard = card.card;
+              const displayCard = isMyHand && overlayCard ? overlayCard : actualCard;
 
               return (
                 <div
@@ -381,8 +384,8 @@ const DealingAnimation = () => {
                     animationFillMode: 'forwards',
                   }}
                 >
-                  {isMyHand && actualCard ? (
-                    <Card suit={actualCard.suit} rank={actualCard.rank} size="sm" />
+                  {isMyHand && displayCard && !card.phantom ? (
+                    <Card suit={displayCard.suit} rank={displayCard.rank} size="sm" />
                   ) : (
                     <CardBack size="sm" />
                   )}
@@ -454,3 +457,4 @@ const DealingAnimation = () => {
 };
 
 export default DealingAnimation;
+
