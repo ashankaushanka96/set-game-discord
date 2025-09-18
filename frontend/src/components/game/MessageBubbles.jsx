@@ -136,17 +136,15 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
           );
         } else if (m.variant === "laydown_start") {
           content = (
-            <div className="text-sm">
-              <span className="font-semibold">{asker?.name || "Player"}</span>
-              <span className="opacity-80">: Going to Laydown</span>
+            <div className="text-sm font-medium">
+              Going to Laydown
             </div>
           );
         } else if (m.variant === "laydown_set") {
           content = (
-            <div className="text-sm">
-              <span className="font-semibold">{asker?.name || "Player"}</span>
-              <span className="opacity-80">: Selected</span>{" "}
-              <span className="capitalize font-medium">{m.suit} {m.set_type}</span>
+            <div className="text-sm font-medium">
+              Selected{" "}
+              <span className="capitalize font-semibold text-blue-200">{m.suit} {m.set_type}</span>
             </div>
           );
         } else if (m.variant === "laydown_cards") {
@@ -199,10 +197,10 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
           m.variant === "ask" ? "bg-sky-600/90 border-sky-500" :
           m.variant === "yes" ? "bg-emerald-600/90 border-emerald-500" :
           m.variant === "no"  ? "bg-rose-600/90 border-rose-500" :
-          m.variant === "laydown_start" ? "bg-purple-600/90 border-purple-500" :
-          m.variant === "laydown_set" ? "bg-indigo-600/90 border-indigo-500" :
-          m.variant === "laydown_cards" ? "bg-blue-600/90 border-blue-500" :
-          m.variant === "laydown_teammate" ? "bg-cyan-600/90 border-cyan-500" :
+          m.variant === "laydown_start" ? "bg-gradient-to-br from-purple-600/20 to-violet-600/20 backdrop-blur-md border border-purple-400/30 shadow-[0_8px_32px_rgba(147,51,234,0.3)]" :
+          m.variant === "laydown_set" ? "bg-gradient-to-br from-indigo-600/20 to-blue-600/20 backdrop-blur-md border border-indigo-400/30 shadow-[0_8px_32px_rgba(79,70,229,0.3)]" :
+          m.variant === "laydown_cards" ? "bg-gradient-to-br from-blue-600/20 to-cyan-600/20 backdrop-blur-md border border-blue-400/30 shadow-[0_8px_32px_rgba(37,99,235,0.3)]" :
+          m.variant === "laydown_teammate" ? "bg-gradient-to-br from-cyan-600/20 to-teal-600/20 backdrop-blur-md border border-cyan-400/30 shadow-[0_8px_32px_rgba(8,145,178,0.3)]" :
           m.variant === "chat" ? "bg-yellow-600/90 border-yellow-500" :
           "bg-zinc-700/90 border-zinc-600";
 
@@ -211,10 +209,10 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
           m.variant === "ask" ? "rgb(2 132 199 / 0.9)" :
           m.variant === "yes" ? "rgb(5 150 105 / 0.9)" :
           m.variant === "no"  ? "rgb(225 29 72 / 0.9)" :
-          m.variant === "laydown_start" ? "rgb(147 51 234 / 0.9)" :
-          m.variant === "laydown_set" ? "rgb(79 70 229 / 0.9)" :
-          m.variant === "laydown_cards" ? "rgb(37 99 235 / 0.9)" :
-          m.variant === "laydown_teammate" ? "rgb(8 145 178 / 0.9)" :
+          m.variant === "laydown_start" ? "rgb(147 51 234 / 0.6)" :
+          m.variant === "laydown_set" ? "rgb(79 70 229 / 0.6)" :
+          m.variant === "laydown_cards" ? "rgb(37 99 235 / 0.6)" :
+          m.variant === "laydown_teammate" ? "rgb(8 145 178 / 0.6)" :
           m.variant === "chat" ? "rgb(234 179 8 / 0.9)" :
           "rgb(63 63 70 / 0.9)";
 
@@ -223,7 +221,9 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
         return (
           <div
             key={m.id}
-            className={`fixed z-[120] pointer-events-none rounded-xl border ${theme} text-white px-3 py-2 shadow-lg`}
+            className={`fixed z-[120] pointer-events-none rounded-2xl border ${theme} text-white px-4 py-3 transition-all duration-300 ${
+              m.variant?.startsWith('laydown_') ? 'hover:scale-105' : 'shadow-lg'
+            }`}
             style={{
               left: xy.x,
               top: xy.y,
