@@ -224,7 +224,7 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
         
         <div 
           ref={el => scrollRefs.current.desktop = el}
-          className="flex items-center justify-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent pb-2"
+          className="flex items-center justify-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent py-2 px-1"
           onScroll={handleScroll('desktop')}
           style={{ 
             scrollbarWidth: 'none', 
@@ -274,7 +274,7 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
               
               <div 
                 ref={el => scrollRefs.current.mobileRow1 = el}
-                className="flex items-center justify-center gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent pb-1"
+                className="flex items-center justify-center gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent py-1 px-0.5"
                 onScroll={handleScroll('mobileRow1')}
                 style={{ 
                   scrollbarWidth: 'none', 
@@ -322,7 +322,7 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
               
               <div 
                 ref={el => scrollRefs.current.mobileRow2 = el}
-                className="flex items-center justify-center gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent pb-1"
+                className="flex items-center justify-center gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent py-1 px-0.5"
                 onScroll={handleScroll('mobileRow2')}
                 style={{ 
                   scrollbarWidth: 'none', 
@@ -370,7 +370,7 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
               
               <div 
                 ref={el => scrollRefs.current.mobileRow3 = el}
-                className="flex items-center justify-center gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent pb-1"
+                className="flex items-center justify-center gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent py-1 px-0.5"
                 onScroll={handleScroll('mobileRow3')}
                 style={{ 
                   scrollbarWidth: 'none', 
