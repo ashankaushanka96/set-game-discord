@@ -1004,25 +1004,26 @@ class Game:
         original_dealer_id = self.state.current_dealer
         original_dealer_seat = current_dealer_seat
         
-        # For the first game (ready phase), use current dealer (seat 0)
-        # For subsequent games (ended phase), rotate to next dealer (seat 1, then 2, etc.)
-        if self.state.phase == "ready":
-            next_dealer_seat = current_dealer_seat  # Should be seat 0 for first game
-        else:
-            # Next dealer is clockwise (seat + 1, wrapping 0-5)
-            next_dealer_seat = (current_dealer_seat + 1) % 6
-        
-        next_dealer_id = self.state.seats.get(next_dealer_seat)
-        
-        if not next_dealer_id:
+        # Determine the next dealer clockwise from the player who clicked
+        def find_next_occupied_seat(start_seat):
+            for offset in range(1, 7):
+                seat = (start_seat + offset) % 6
+                player_id = self.state.seats.get(seat)
+                if player_id:
+                    return seat, player_id
+            return None, None
+
+        next_dealer_seat, next_dealer_id = find_next_occupied_seat(current_dealer_seat)
+
+        if next_dealer_seat is None or not next_dealer_id:
             return {"success": False, "reason": "no_dealer"}
-        
-        # Turn starts from the next player after dealer (dealer + 1)
-        next_turn_seat = (next_dealer_seat + 1) % 6
-        next_turn_id = self.state.seats.get(next_turn_seat)
-        
-        if not next_turn_id:
+
+        # Turn starts from the player clockwise from the new dealer
+        next_turn_seat, next_turn_id = find_next_occupied_seat(next_dealer_seat)
+
+        if next_turn_seat is None or not next_turn_id:
             return {"success": False, "reason": "no_turn_player"}
+
         
         # Reset game state
         self.state.phase = "playing"
@@ -1034,7 +1035,7 @@ class Game:
         # Build deck and deal starting from the seat clockwise from the dealer
         self.build_deck()
 
-        deal_start_seat = (next_dealer_seat + 1) % 6
+        deal_start_seat = next_dealer_seat
 
         # Create dealing sequence for animation to mirror real dealing order
         dealing_sequence = []
