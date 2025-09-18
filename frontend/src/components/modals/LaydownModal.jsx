@@ -476,13 +476,15 @@ export default function LaydownModal({ onClose }) {
         <div className="mt-5 flex items-center justify-between">
           <button 
             className={`px-3 py-2 rounded transition-all duration-200 border ${
-              step > 0 
-                ? 'bg-gray-500 cursor-not-allowed text-gray-300 border-gray-400/30' 
-                : 'bg-dark-tertiary/80 hover:bg-dark-tertiary text-text-primary border-accent-purple/20 hover:border-accent-purple/40'
+              step === 0
+                ? 'bg-dark-tertiary/80 hover:bg-dark-tertiary text-text-primary border-accent-purple/20 hover:border-accent-purple/40'
+                : step === 3
+                ? 'bg-dark-tertiary/80 hover:bg-dark-tertiary text-text-primary border-accent-purple/20 hover:border-accent-purple/40'
+                : 'bg-gray-500 cursor-not-allowed text-gray-300 border-gray-400/30'
             }`}
-            onClick={step === 0 ? handleClose : prevStep}
-            disabled={step > 0}
-            title={step > 0 ? "Complete laydown process to go back" : (step === 0 ? "Close" : "Back")}
+            onClick={step === 0 ? handleClose : (step === 3 ? prevStep : undefined)}
+            disabled={step > 0 && step < 3}
+            title={step === 0 ? "Close" : (step === 3 ? "Back" : "Cannot go back from this step")}
           >
             {step === 0 ? "Close" : "Back"}
           </button>
