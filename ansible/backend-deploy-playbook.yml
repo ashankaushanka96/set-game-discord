@@ -6,6 +6,7 @@
     component_path: /home/ashan/app/discord/set-game-backend
     _date: "{{ansible_date_time.iso8601}}"
     venv_path: "{{ component_path }}/.venv"
+    create_logs_directory: true
   roles:
     - backup-files
     - create-directories
