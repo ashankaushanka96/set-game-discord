@@ -112,7 +112,7 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
           // Remove highlight after 10 seconds
           setTimeout(() => {
             setNewCards(new Set());
-          }, 10000);
+          }, 15000);
         }, 50);
       }
     }
