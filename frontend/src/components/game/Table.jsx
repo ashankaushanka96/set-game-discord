@@ -705,7 +705,7 @@ export default function Table() {
          {/* Game Controls */}
          <div className="flex items-center justify-center gap-3">
          {/* Debug: Show current phase */}
-         <div className="text-xs text-text-muted ml-4">
+         <div className="text-xs text-text-muted">
            Phase: {state.phase}
          </div>
          </div>
