@@ -17,59 +17,156 @@ import { isMobileDevice, getMobileInfo } from "../../utils/mobileDetection";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? ""; // set in .env for prod; leave empty for Vite proxy in dev
 
+const guildNicknameCache = new Map();
+const guildNicknameRetryTimers = new Map();
+
+
 async function resolveDisplayNameWithGuildNickname(userId, fallbackName, discordSdk) {
   if (!userId) return fallbackName;
+  const cached = guildNicknameCache.get(userId);
+
   try {
     let sdk = discordSdk;
     if (!sdk) {
       const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID || '1416307116918181931';
-      if (!clientId) return fallbackName;
+      if (!clientId) return cached || fallbackName;
       sdk = await readyDiscordSDK(clientId);
     }
+
+    const tokenData = getStoredDiscordToken();
+    const accessToken = tokenData?.access_token;
+    if (accessToken) {
+      try {
+        await sdk.commands.authenticate({ access_token: accessToken });
+      } catch (authError) {
+        console.warn('[Discord] SDK authenticate for nickname lookup failed', authError);
+      }
+    }
+
     const canGetChannel = typeof sdk?.commands?.getChannel === 'function';
     const channelId = sdk?.channelId;
-    console.debug('[Discord] Resolving guild nickname', {
+    console.log('[Discord] Resolving guild nickname', {
       userId,
       providedSdk: Boolean(discordSdk),
       readySdk: Boolean(sdk),
       canGetChannel,
       guildId: sdk?.guildId,
       channelId,
+      cachedNickname: cached,
+      hadToken: Boolean(accessToken),
     });
-    if (!canGetChannel) {
-      return fallbackName;
+    let channelInfo = null;
+    if (canGetChannel) {
+      try {
+        channelInfo = await sdk.commands.getChannel(channelId ? { channel_id: channelId } : undefined);
+      } catch (channelErr) {
+        console.warn('[Discord] getChannel for nickname lookup failed', channelErr);
+      }
     }
-    const channelInfo = await sdk.commands.getChannel(channelId ? { channel_id: channelId } : undefined);
+
     const voiceStates = channelInfo?.voice_states || [];
-    console.debug('[Discord] Voice states for nickname check', {
-      count: voiceStates.length,
-      ids: voiceStates.map((vs) => vs?.user?.id).filter(Boolean),
-    });
+    if (voiceStates.length || channelInfo) {
+      console.log('[Discord] Voice states for nickname check', {
+        count: voiceStates.length,
+        ids: voiceStates.map((vs) => vs?.user?.id).filter(Boolean),
+      });
+    }
+
     const meState = voiceStates.find((vs) => vs?.user?.id === userId);
     if (meState?.nick) {
-      console.debug('[Discord] Using guild nickname for player', {
+      console.info('[Discord] Using guild nickname for player', {
         userId,
         nickname: meState.nick,
       });
+      guildNicknameCache.set(userId, meState.nick);
       return meState.nick;
     }
     if (channelInfo?.member?.user?.id === userId && channelInfo.member.nick) {
-      console.debug('[Discord] Using guild nickname from channel member record', {
+      console.info('[Discord] Using guild nickname from channel member record', {
         userId,
         nickname: channelInfo.member.nick,
       });
+      guildNicknameCache.set(userId, channelInfo.member.nick);
       return channelInfo.member.nick;
     }
-    console.debug('[Discord] Guild nickname not found in voice state; falling back to default name', { userId });
+
+    let guildIdForRest = channelInfo?.guild_id || sdk?.guildId;
+    if (!guildIdForRest && channelInfo?.id && typeof sdk?.commands?.getChannel === 'function') {
+      try {
+        const channelDetails = await sdk.commands.getChannel({ channel_id: channelInfo.id });
+        guildIdForRest = channelDetails?.guild_id || guildIdForRest;
+      } catch (restChannelErr) {
+        console.warn('[Discord] getChannel guild lookup failed', restChannelErr);
+      }
+    }
+
+    if (guildIdForRest && accessToken) {
+      try {
+        const memberRes = await fetch(`https://discord.com/api/v10/users/@me/guilds/${guildIdForRest}/member`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (memberRes.ok) {
+          const member = await memberRes.json();
+          const restNickname = member?.nick || member?.user?.global_name || member?.user?.username;
+          if (restNickname) {
+            console.info('[Discord] Using guild nickname from REST member lookup', {
+              userId,
+              guildId: guildIdForRest,
+              nickname: restNickname,
+            });
+            guildNicknameCache.set(userId, restNickname);
+            return restNickname;
+          }
+        } else {
+          console.warn('[Discord] Guild member REST lookup failed', {
+            status: memberRes.status,
+            guildId: guildIdForRest,
+          });
+        }
+      } catch (restError) {
+        console.error('[Discord] Guild member REST lookup threw', restError);
+      }
+    }
+
+    if (cached) {
+      console.log('[Discord] Reusing cached guild nickname', { userId, nickname: cached });
+      return cached;
+    }
+    console.log('[Discord] Guild nickname not found in voice state; falling back to default name', { userId });
   } catch (err) {
-    console.debug('[Discord] Guild nickname lookup failed', {
+    console.error('[Discord] Guild nickname lookup failed', {
       code: err?.code,
       message: err?.message,
       data: err?.data,
       name: err?.name,
     });
+    if (cached) {
+      console.log('[Discord] Returning cached guild nickname after error', { userId, nickname: cached });
+      return cached;
+    }
   }
   return fallbackName;
+}
+
+
+
+function scheduleGuildNicknameRetry({ userId, fallbackName, discordSdk, guard, apply, delay = 1200, retries = 2 }) {
+  if (typeof window === 'undefined') return;
+  if (!userId) return;
+  if (guildNicknameCache.has(userId)) return;
+  if (guildNicknameRetryTimers.has(userId)) return;
+  const timer = window.setTimeout(async () => {
+    guildNicknameRetryTimers.delete(userId);
+    if (guard?.()) return;
+    const resolved = await resolveDisplayNameWithGuildNickname(userId, fallbackName, discordSdk);
+    if (guard?.()) return;
+    if (resolved && resolved !== fallbackName) {
+      apply?.(resolved);
+    } else if (!guildNicknameCache.has(userId) && retries > 0) {
+      scheduleGuildNicknameRetry({ userId, fallbackName, discordSdk, guard, apply, delay, retries: retries - 1 });
+    }
+  }, delay);
+  guildNicknameRetryTimers.set(userId, timer);
 }
 
 export default function Lobby() {
@@ -87,6 +184,13 @@ export default function Lobby() {
   const [unassignModal, setUnassignModal] = useState({ open: false, player: null });
   const autoJoinGuardRef = useRef(false);
   const isDiscordUA = /Discord/i.test(navigator.userAgent || "");
+
+  useEffect(() => {
+    return () => {
+      guildNicknameRetryTimers.forEach((timer) => clearTimeout(timer));
+      guildNicknameRetryTimers.clear();
+    };
+  }, []);
 
   // Ensure we have voice scope and subscribe to speaking events once profile is loaded
   useEffect(() => {
@@ -150,7 +254,7 @@ export default function Lobby() {
             client_id: import.meta.env.VITE_DISCORD_CLIENT_ID,
             response_type: 'code',
             state: crypto.randomUUID(),
-            scope: ['identify', 'rpc.voice.read'],
+            scope: ['identify', 'rpc.voice.read', 'guilds.members.read'],
             prompt: 'consent',
           });
           const tokenRes = await fetch(`/api/v1/discord/exchange`, {
@@ -191,7 +295,8 @@ export default function Lobby() {
       }
       
       const meUser = result;
-      let displayName = meUser.global_name || meUser.username || '';
+      const fallbackDisplayName = meUser.global_name || meUser.username || '';
+      let displayName = fallbackDisplayName;
       displayName = await resolveDisplayNameWithGuildNickname(meUser.id, displayName);
       const avatarUrl = discordAvatarUrl(meUser.id, meUser.avatar, 128);
       
@@ -203,6 +308,18 @@ export default function Lobby() {
       const updatedMe = { ...cur, id: meUser.id, name: displayName, avatar: avatarUrl };
       setMe(updatedMe);
       console.debug('[Discord] Updated profile from stored token with Discord ID:', updatedMe);
+      if (displayName === fallbackDisplayName && !guildNicknameCache.has(meUser.id)) {
+        scheduleGuildNicknameRetry({
+          userId: meUser.id,
+          fallbackName: fallbackDisplayName,
+          discordSdk: undefined,
+          apply: (nickname) => {
+            setName(nickname);
+            const current = useStore.getState().me || {};
+            setMe({ ...current, name: nickname, avatar: avatarUrl });
+          },
+        });
+      }
       return true;
     } catch (error) {
       console.error("[Discord] Failed to fetch user with stored token:", error);
@@ -247,7 +364,7 @@ export default function Lobby() {
         console.debug("[Discord] Browser OAuth - Mobile info:", mobileInfo);
         
         const redirectUri = encodeURIComponent(`${window.location.origin}${window.location.pathname}?from=discord`);
-        const scopes = encodeURIComponent('identify rpc.voice.read');
+        const scopes = encodeURIComponent('identify rpc.voice.read guilds.members.read');
         const authUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&response_type=code&scope=${scopes}&redirect_uri=${redirectUri}`;
         
         if (mobileInfo.isMobile) {
@@ -436,7 +553,7 @@ export default function Lobby() {
             console.debug("[Discord] OAuth parameters:", {
               client_id: clientId,
               response_type: "code",
-              scope: ["identify", "rpc.voice.read"],
+              scope: ["identify", "rpc.voice.read", "guilds.members.read"],
               prompt: "consent"
             });
             
@@ -444,7 +561,7 @@ export default function Lobby() {
               client_id: clientId,
               response_type: "code",
               state: crypto.randomUUID(),
-              scope: ["identify", "rpc.voice.read"],
+              scope: ["identify", "rpc.voice.read", "guilds.members.read"],
               prompt: "consent",
             });
             console.debug("[Discord] OAuth authorization successful, got code:", code);
@@ -501,7 +618,8 @@ export default function Lobby() {
               }
               meUser = await meRes.json();
             }
-            let displayName = meUser.global_name || meUser.username || '';
+            const fallbackDisplayName = meUser.global_name || meUser.username || '';
+            let displayName = fallbackDisplayName;
             displayName = await resolveDisplayNameWithGuildNickname(meUser.id, displayName, discordSdk);
             const avatarUrl = discordAvatarUrl(meUser.id, meUser.avatar, 128);
             setUsingDiscordProfile(Boolean(avatarUrl));
@@ -512,6 +630,20 @@ export default function Lobby() {
             const updatedMe = { ...cur, id: meUser.id, name: displayName, avatar: avatarUrl };
             setMe(updatedMe);
             console.debug('[Discord] Updated profile from REST with Discord ID:', updatedMe);
+            if (!cancelled && displayName === fallbackDisplayName && !guildNicknameCache.has(meUser.id)) {
+              scheduleGuildNicknameRetry({
+                userId: meUser.id,
+                fallbackName: fallbackDisplayName,
+                discordSdk,
+                guard: () => cancelled,
+                apply: (nickname) => {
+                  if (cancelled) return;
+                  setName(nickname);
+                  const current = useStore.getState().me || {};
+                  setMe({ ...current, name: nickname, avatar: avatarUrl });
+                },
+              });
+            }
 
             // SDK is already authenticated above (best-effort). Proceed to subscriptions.
 
@@ -601,7 +733,8 @@ export default function Lobby() {
           discriminator: user.discriminator
         });
         
-        let displayName = user.global_name || user.username || `Player ${Math.random().toString(16).slice(2, 6)}`;
+        const fallbackDisplayName = user.global_name || user.username || `Player ${Math.random().toString(16).slice(2, 6)}`;
+        let displayName = fallbackDisplayName;
         displayName = await resolveDisplayNameWithGuildNickname(user.id, displayName, discordSdk);
         const avatarUrl = discordAvatarUrl(user.id, user.avatar, 128);
 
@@ -629,6 +762,20 @@ export default function Lobby() {
         const updatedMe = { ...cur, id: user.id, name: displayName, avatar: avatarUrl };
         setMe(updatedMe);
         console.debug("[Discord] Store updated with Discord ID:", updatedMe);
+        if (!cancelled && displayName === fallbackDisplayName && !guildNicknameCache.has(user.id)) {
+          scheduleGuildNicknameRetry({
+            userId: user.id,
+            fallbackName: fallbackDisplayName,
+            discordSdk,
+            guard: () => cancelled,
+            apply: (nickname) => {
+              if (cancelled) return;
+              setName(nickname);
+              const current = useStore.getState().me || {};
+              setMe({ ...current, name: nickname, avatar: avatarUrl });
+            },
+          });
+        }
 
         // If already in a room, upsert profile on server and optionally via WS
         try {
@@ -732,12 +879,27 @@ export default function Lobby() {
         const user = await userRes.json();
         if (cancelled) return;
 
-        let displayName = user.global_name || user.username || name;
+        const fallbackDisplayName = user.global_name || user.username || name;
+        let displayName = fallbackDisplayName;
         displayName = await resolveDisplayNameWithGuildNickname(user.id, displayName);
         const avatarUrl = discordAvatarUrl(user.id, user.avatar, 128);
         setUsingDiscordProfile(Boolean(avatarUrl));
         setName(displayName);
         setAvatar(avatarUrl);
+        if (!cancelled && displayName === fallbackDisplayName && !guildNicknameCache.has(user.id)) {
+          scheduleGuildNicknameRetry({
+            userId: user.id,
+            fallbackName: fallbackDisplayName,
+            discordSdk: undefined,
+            guard: () => cancelled,
+            apply: (nickname) => {
+              if (cancelled) return;
+              setName(nickname);
+              const current = useStore.getState().me || {};
+              setMe({ ...current, name: nickname, avatar: avatarUrl });
+            },
+          });
+        }
         setProfileLoaded(true);
 
         // Clean the URL
