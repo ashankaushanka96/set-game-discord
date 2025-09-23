@@ -7,9 +7,6 @@ export default function ColorCodedFannedCards({
   maxCards = 10,
   className = ""
 }) {
-  // Debug logging
-  console.log('ColorCodedFannedCards - claimedCards:', claimedCards);
-  console.log('ColorCodedFannedCards - actualCards:', actualCards);
   // Get border radius based on card size
   const getBorderRadius = (size) => {
     const sizes = {
@@ -42,8 +39,6 @@ export default function ColorCodedFannedCards({
     const wasClaimed = claimedCards.some(c => c.suit === card.suit && c.rank === card.rank);
     const wasActual = actualCards.some(c => c.suit === card.suit && c.rank === card.rank);
     
-    console.log(`Card ${card.suit}-${card.rank}: wasClaimed=${wasClaimed}, wasActual=${wasActual}`);
-    
     let borderColor = 'rgba(255, 255, 255, 0.2)';
     let shadowColor = 'transparent';
     let isCorrect = false;
@@ -55,13 +50,11 @@ export default function ColorCodedFannedCards({
       borderColor = 'rgb(74, 222, 128)'; // green-400
       shadowColor = 'rgba(74, 222, 128, 0.5)';
       isCorrect = true;
-      console.log(`Card ${card.suit}-${card.rank}: GREEN (correct)`);
     } else if (wasClaimed && !wasActual) {
       // Card was claimed but NOT actually held - wrong (red)
       borderColor = 'rgb(248, 113, 113)'; // red-400
       shadowColor = 'rgba(248, 113, 113, 0.5)';
       isWrong = true;
-      console.log(`Card ${card.suit}-${card.rank}: RED (wrong/missing)`);
     }
     
     return {

@@ -9,10 +9,6 @@ export default function LaydownResultModal({
 }) {
   if (!open || !laydownData) return null;
 
-  // Debug logging
-  console.log('LaydownResultModal - laydownData:', laydownData);
-  console.log('LaydownResultModal - claimedCards:', laydownData.claimedCards);
-  console.log('LaydownResultModal - actualCards:', laydownData.actualCards);
 
   const players = state?.players || {};
 

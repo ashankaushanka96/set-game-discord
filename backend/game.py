@@ -700,9 +700,13 @@ class Game:
             for rank in needed_ranks:
                 claimed_cards.append({"suit": suit, "rank": rank})
             
-            # Get all actual cards (what players actually had and laid down)
-            for contributor in contributors:
-                actual_cards.extend(contributor["cards"])
+            # For failed laydowns, actual_cards should only contain what was actually declared
+            # (not what was collected from everyone)
+            actual_declared_cards = []
+            for rank in declared:
+                actual_declared_cards.append({"suit": suit, "rank": rank})
+            
+            actual_cards = actual_declared_cards
             
             return {
                 "success": False,
