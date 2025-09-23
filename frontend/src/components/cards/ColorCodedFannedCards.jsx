@@ -39,21 +39,18 @@ export default function ColorCodedFannedCards({
     const wasClaimed = claimedCards.some(c => c.suit === card.suit && c.rank === card.rank);
     const wasActual = actualCards.some(c => c.suit === card.suit && c.rank === card.rank);
     
-    let borderColor = 'rgba(255, 255, 255, 0.2)';
-    let shadowColor = 'transparent';
+    let overlayColor = 'transparent';
     let isCorrect = false;
     let isWrong = false;
     
     // Since we only show claimed cards, we need to check if they were actually held
     if (wasClaimed && wasActual) {
-      // Card was claimed AND actually held - correct (green)
-      borderColor = 'rgb(74, 222, 128)'; // green-400
-      shadowColor = 'rgba(74, 222, 128, 0.5)';
+      // Card was claimed AND actually held - correct (green overlay)
+      overlayColor = 'rgba(74, 222, 128, 0.3)'; // green-400 with transparency
       isCorrect = true;
     } else if (wasClaimed && !wasActual) {
-      // Card was claimed but NOT actually held - wrong (red)
-      borderColor = 'rgb(248, 113, 113)'; // red-400
-      shadowColor = 'rgba(248, 113, 113, 0.5)';
+      // Card was claimed but NOT actually held - wrong (red overlay)
+      overlayColor = 'rgba(248, 113, 113, 0.3)'; // red-400 with transparency
       isWrong = true;
     }
     
@@ -61,10 +58,16 @@ export default function ColorCodedFannedCards({
       ...card,
       isCorrect,
       isWrong,
-      borderStyle: {
-        border: `2px solid ${borderColor}`,
+      overlayStyle: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: overlayColor,
         borderRadius: `${borderRadius}px`,
-        boxShadow: shadowColor !== 'transparent' ? `0 0 0 2px ${shadowColor}` : 'none'
+        pointerEvents: 'none',
+        zIndex: 10
       }
     };
   });

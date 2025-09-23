@@ -30,24 +30,28 @@ export default function FannedCards({ cards, size = "sm", maxCards = 6 }) {
           (index - (totalCards - 1) / 2) * 16 : 0;
         
         return (
-          <div
-            key={`${card.suit}-${card.rank}-${index}`}
-            className="absolute transform"
-            style={{
-              transform: `translateX(${offsetX}px) rotate(${rotation}deg)`,
-              zIndex: index + 1,
-              left: '50%',
-              marginLeft: size === 'sm' ? '-22px' : '-19px', // Half of card width
-              filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))',
-              transformOrigin: 'center center'
-            }}
-            title={`${card.rank} of ${card.suit}`}
-          >
-            {/* Apply color-coded border wrapper */}
-            <div style={card.borderStyle || {}}>
-              <Card suit={card.suit} rank={card.rank} size={size} />
-            </div>
-          </div>
+                  <div
+                    key={`${card.suit}-${card.rank}-${index}`}
+                    className="absolute transform"
+                    style={{
+                      transform: `translateX(${offsetX}px) rotate(${rotation}deg)`,
+                      zIndex: index + 1,
+                      left: '50%',
+                      marginLeft: size === 'sm' ? '-22px' : '-19px', // Half of card width
+                      filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))',
+                      transformOrigin: 'center center'
+                    }}
+                    title={`${card.rank} of ${card.suit}`}
+                  >
+                    {/* Card with overlay wrapper */}
+                    <div className="relative">
+                      <Card suit={card.suit} rank={card.rank} size={size} />
+                      {/* Color-coded overlay */}
+                      {card.overlayStyle && (
+                        <div style={card.overlayStyle}></div>
+                      )}
+                    </div>
+                  </div>
         );
       })}
       {hasMore && (
