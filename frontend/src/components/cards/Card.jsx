@@ -21,7 +21,7 @@ export default function Card({ suit="spades", rank="A", size="md" }) {
         {/* Corners */}
         <div
           style={{
-            position: "absolute", top: 6, left: 6,
+            position: "absolute", top: 2, left: 2,
             fontSize: S.f, lineHeight: "1.1em",
             color: red ? "#dc2626" : "#111827",
             textAlign: "center", fontWeight: 700, width: S.w/3,
@@ -32,7 +32,7 @@ export default function Card({ suit="spades", rank="A", size="md" }) {
         </div>
         <div
           style={{
-            position: "absolute", bottom: 6, right: 6,
+            position: "absolute", bottom: 2, right: 2,
             transform: "rotate(180deg)",
             fontSize: S.f, lineHeight: "1.1em",
             color: red ? "#dc2626" : "#111827",
