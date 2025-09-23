@@ -36,21 +36,23 @@ export default function ColorCodedFannedCards({
 
   // Create cards with color coding information
   const colorCodedCards = uniqueCards.map(card => {
+    // Check if this card was part of the claimed set
     const wasClaimed = claimedCards.some(c => c.suit === card.suit && c.rank === card.rank);
+    // Check if this card was actually held by the team
     const wasActual = actualCards.some(c => c.suit === card.suit && c.rank === card.rank);
     
     let overlayColor = 'transparent';
     let isCorrect = false;
     let isWrong = false;
     
-    // Since we only show claimed cards, we need to check if they were actually held
+    // Color coding logic: green for correctly claimed, red for wrongly claimed
     if (wasClaimed && wasActual) {
-      // Card was claimed AND actually held - correct (green overlay)
-      overlayColor = 'rgba(74, 222, 128, 0.3)'; // green-400 with transparency
+      // Card was claimed AND actually held - correctly claimed (green)
+      overlayColor = 'rgba(74, 222, 128, 0.3)'; // green
       isCorrect = true;
     } else if (wasClaimed && !wasActual) {
-      // Card was claimed but NOT actually held - wrong (red overlay)
-      overlayColor = 'rgba(248, 113, 113, 0.3)'; // red-400 with transparency
+      // Card was claimed but NOT actually held - wrongly claimed (red)
+      overlayColor = 'rgba(248, 113, 113, 0.3)'; // red
       isWrong = true;
     }
     
