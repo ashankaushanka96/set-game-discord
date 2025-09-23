@@ -293,7 +293,7 @@ export default function LaydownModal({ onClose }) {
                 }}
               >
                 <div className="flex flex-col items-center gap-3">
-                  <div className="bg-dark-secondary/30 rounded-lg p-3">
+                  <div className="p-3">
                     <FannedCards 
                       cards={SETS[type].map(rank => ({ suit, rank }))} 
                       size="xs" 
@@ -342,7 +342,7 @@ export default function LaydownModal({ onClose }) {
             <div className="flex items-center gap-2 flex-wrap mb-2">
               <span className="text-xs text-white/80">Remaining:</span>
               {remainingNeeded.length > 0 ? (
-                <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg p-2">
+                <div className="p-2">
                   <FannedCards 
                     cards={remainingNeeded.map(rank => ({ suit: pick.suit, rank }))} 
                     size="xs" 
@@ -406,7 +406,7 @@ export default function LaydownModal({ onClose }) {
                     {assigned.size > 0 && (
                       <div className="mt-2 text-xs text-white/80 flex items-center gap-2 flex-wrap">
                         <span>Selected:</span>
-                        <div className="bg-accent-emerald/10 rounded-lg p-2">
+                        <div className="p-2">
                           <FannedCards 
                             cards={Array.from(assigned).map(rank => ({ suit: pick.suit, rank }))} 
                             size="xs" 
@@ -437,7 +437,7 @@ export default function LaydownModal({ onClose }) {
             <div className="text-xs text-white">
               <span className="text-white/70 mr-1">You:</span>
               {myRanks.length ? (
-                <div className="inline-block bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg p-2">
+                <div className="inline-block p-2">
                   <FannedCards 
                     cards={myRanks.map(rank => ({ suit: pick.suit, rank }))} 
                     size="xs" 
@@ -452,7 +452,7 @@ export default function LaydownModal({ onClose }) {
               {Object.entries(collabRanks).map(([pid, set]) => (
                 <div key={pid} className="flex items-center gap-2">
                   <span className="text-white/70">{players[pid]?.name}:</span>
-                  <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg p-2">
+                  <div className="p-2">
                     <FannedCards 
                       cards={Array.from(set || []).map(rank => ({ suit: pick.suit, rank }))} 
                       size="xs" 
