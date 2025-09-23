@@ -365,6 +365,10 @@ export const useStore = create((set, get) => ({
       const allCards = [];
       const cardsByPlayer = {};
       
+      // Debug logging
+      console.log('LAYDOWN RESULT - msg.payload:', msg.payload);
+      console.log('LAYDOWN RESULT - claimed_cards:', msg.payload.claimed_cards);
+      console.log('LAYDOWN RESULT - actual_cards:', msg.payload.actual_cards);
       
       // Extract all cards and organize by player
       contributors.forEach(contributor => {

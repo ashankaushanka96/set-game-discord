@@ -667,47 +667,11 @@ class Game:
                 p.hand = keep
                 return take
 
-            # Collect only the cards that were actually claimed by players
-            claimed_actual_cards: List[Card] = []
-            
-            # Get cards from declarer (what they actually claimed)
-            my_claimed = [c for c in my.hand if c.suit == suit and c.rank in declared]
-            for card in my_claimed:
-                claimed_actual_cards.append(card)
-            
-            # Get cards from collaborators (what they actually claimed)
-            for pid, ranks in coll_map.items():
-                if pid not in self.state.players:
-                    continue
-                p = self.state.players[pid]
-                teammate_hand_ranks = {c.rank for c in p.hand if c.suit == suit and c.rank in needed_ranks}
-                
-                # Only include cards that were both claimed AND actually held
-                for r in ranks:
-                    if r in needed_ranks and r in teammate_hand_ranks:
-                        card = next(c for c in p.hand if c.suit == suit and c.rank == r)
-                        claimed_actual_cards.append(card)
-
-            # Add contributors for display (what was actually held and claimed)
-            for card in claimed_actual_cards:
-                # Find which player had this card
-                for pid in list(self.state.players.keys()):
-                    p = self.state.players[pid]
-                    if any(c.suit == card.suit and c.rank == card.rank for c in p.hand):
-                        # Check if this player already has a contributor entry
-                        existing_contributor = next((c for c in contributors if c["player_id"] == pid), None)
-                        if existing_contributor:
-                            if not any(c["suit"] == card.suit and c["rank"] == card.rank for c in existing_contributor["cards"]):
-                                existing_contributor["cards"].append(card.model_dump())
-                        else:
-                            contributors.append({"player_id": pid, "cards": [card.model_dump()]})
-                        break
-
-            # Collect all cards for the table (opponent gets all cards in the suit/set)
             collected: List[Card] = []
             for pid in list(self.state.players.keys()):
                 got = pull_from(pid)
                 if got:
+                    contributors.append({"player_id": pid, "cards": [g.model_dump() for g in got]})
                     collected.extend(got)
 
             if not self._table_has_set(suit, set_type):
@@ -736,9 +700,9 @@ class Game:
             for rank in needed_ranks:
                 claimed_cards.append({"suit": suit, "rank": rank})
             
-            # Get actual cards (only the cards that were claimed AND actually held)
-            for card in claimed_actual_cards:
-                actual_cards.append(card.model_dump())
+            # Get all actual cards (what players actually had and laid down)
+            for contributor in contributors:
+                actual_cards.extend(contributor["cards"])
             
             return {
                 "success": False,

@@ -7,6 +7,9 @@ export default function ColorCodedFannedCards({
   maxCards = 10,
   className = ""
 }) {
+  // Debug logging
+  console.log('ColorCodedFannedCards - claimedCards:', claimedCards);
+  console.log('ColorCodedFannedCards - actualCards:', actualCards);
   // Get border radius based on card size
   const getBorderRadius = (size) => {
     const sizes = {
@@ -39,6 +42,8 @@ export default function ColorCodedFannedCards({
     const wasClaimed = claimedCards.some(c => c.suit === card.suit && c.rank === card.rank);
     const wasActual = actualCards.some(c => c.suit === card.suit && c.rank === card.rank);
     
+    console.log(`Card ${card.suit}-${card.rank}: wasClaimed=${wasClaimed}, wasActual=${wasActual}`);
+    
     let borderColor = 'rgba(255, 255, 255, 0.2)';
     let shadowColor = 'transparent';
     let isCorrect = false;
@@ -50,11 +55,13 @@ export default function ColorCodedFannedCards({
       borderColor = 'rgb(74, 222, 128)'; // green-400
       shadowColor = 'rgba(74, 222, 128, 0.5)';
       isCorrect = true;
+      console.log(`Card ${card.suit}-${card.rank}: GREEN (correct)`);
     } else if (wasClaimed && !wasActual) {
       // Card was claimed but NOT actually held - wrong (red)
       borderColor = 'rgb(248, 113, 113)'; // red-400
       shadowColor = 'rgba(248, 113, 113, 0.5)';
       isWrong = true;
+      console.log(`Card ${card.suit}-${card.rank}: RED (wrong/missing)`);
     }
     
     return {
@@ -62,9 +69,9 @@ export default function ColorCodedFannedCards({
       isCorrect,
       isWrong,
       borderStyle: {
-        border: `1px solid ${borderColor}`,
+        border: `2px solid ${borderColor}`,
         borderRadius: `${borderRadius}px`,
-        boxShadow: shadowColor !== 'transparent' ? `0 0 0 1px ${shadowColor}` : 'none'
+        boxShadow: shadowColor !== 'transparent' ? `0 0 0 2px ${shadowColor}` : 'none'
       }
     };
   });
@@ -82,37 +89,19 @@ export default function ColorCodedFannedCards({
       
       {/* Legend for color coding */}
       {(correctCount > 0 || wrongCount > 0) && (
-        <div className="mt-3">
-          <div className="flex gap-4 text-xs text-white/70 justify-center mb-2">
-            {correctCount > 0 && (
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 border border-green-400 rounded bg-green-400/20"></div>
-                <span>Correct ({correctCount})</span>
-              </div>
-            )}
-            {wrongCount > 0 && (
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 border border-red-400 rounded bg-red-400/20"></div>
-                <span>Wrong ({wrongCount})</span>
-              </div>
-            )}
-          </div>
-          
-          {/* Show card details */}
-          <div className="text-xs text-white/60 text-center">
-            {correctCount > 0 && (
-              <div className="mb-1">
-                <span className="text-green-400">✓ Correct: </span>
-                {colorCodedCards.filter(c => c.isCorrect).map(c => `${c.rank}${c.suit === 'hearts' ? '♥' : c.suit === 'diamonds' ? '♦' : c.suit === 'clubs' ? '♣' : '♠'}`).join(', ')}
-              </div>
-            )}
-            {wrongCount > 0 && (
-              <div>
-                <span className="text-red-400">✗ Missing: </span>
-                {colorCodedCards.filter(c => c.isWrong).map(c => `${c.rank}${c.suit === 'hearts' ? '♥' : c.suit === 'diamonds' ? '♦' : c.suit === 'clubs' ? '♣' : '♠'}`).join(', ')}
-              </div>
-            )}
-          </div>
+        <div className="flex gap-4 mt-2 text-xs text-white/70 justify-center">
+          {correctCount > 0 && (
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 border-2 border-green-400 rounded bg-green-400/20"></div>
+              <span>Correct ({correctCount})</span>
+            </div>
+          )}
+          {wrongCount > 0 && (
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 border-2 border-red-400 rounded bg-red-400/20"></div>
+              <span>Wrong ({wrongCount})</span>
+            </div>
+          )}
         </div>
       )}
     </div>
