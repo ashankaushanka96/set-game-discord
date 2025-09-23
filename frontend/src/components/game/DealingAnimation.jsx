@@ -44,6 +44,7 @@ const DealingAnimation = () => {
   useEffect(() => {
     const updateSeatPositions = () => {
       const seats = document.querySelectorAll('[data-seat]');
+      console.log('DealingAnimation: Found seats in DOM:', Array.from(seats).map(s => s.getAttribute('data-seat')));
       seats.forEach(seat => {
         const seatNumber = seat.getAttribute('data-seat');
         const rect = seat.getBoundingClientRect();
@@ -53,6 +54,8 @@ const DealingAnimation = () => {
         };
       });
       seatRefs.current[TABLE_CENTER_KEY] = getTableCenterPosition();
+      console.log('DealingAnimation: Seat positions stored:', Object.keys(seatRefs.current));
+      
     };
 
     updateSeatPositions();
@@ -114,6 +117,7 @@ const DealingAnimation = () => {
       setHandCards({});
       return;
     }
+    
 
     // Update seat positions when dealing animation starts
     const updateSeatPositions = () => {
@@ -257,6 +261,7 @@ const DealingAnimation = () => {
           const seatPos = seatRefs.current[cardData.seat];
           const originSeat = cardData.fromSeat !== undefined && cardData.fromSeat !== null ? cardData.fromSeat : TABLE_CENTER_KEY;
           const fromPos = seatRefs.current[originSeat] || seatRefs.current[TABLE_CENTER_KEY];
+          
 
           if (seatPos && fromPos) {
             animateCard(cardKey, fromPos, seatPos, CARD_FLIGHT_DURATION);
@@ -332,6 +337,10 @@ const DealingAnimation = () => {
         // Only show real cards for the current player, card backs for others
         const isMyCard = card.playerId === me?.id;
         const showRealCard = isMyCard && card.card;
+        
+        
+        
+        
 
         // Get current position from state, fallback to fromPos
         const currentPos = cardPositions[card.key] || fromPos;

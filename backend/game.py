@@ -64,7 +64,8 @@ class Game:
                     break
                 pid = self.state.seats.get(seat)
                 if pid:
-                    hands_by_pid[pid].append(self._deck.pop())
+                    card = self._deck.pop()
+                    hands_by_pid[pid].append(card)
         for pid, cards in hands_by_pid.items():
             self.state.players[pid].hand = cards
         self.state.deck_count = 0
@@ -1126,9 +1127,11 @@ class Game:
 
         # Create dealing sequence for animation to mirror real dealing order
         dealing_sequence = []
-        temp_deck = self._deck.copy()  # Copy for animation purposes
+        # Use the same deck order for both animation and actual dealing
         order = [(deal_start_seat + i) % 6 for i in range(6)]
-
+        # Create animation sequence using the same deck that will be used for actual dealing
+        # We'll create the sequence by simulating the actual dealing process
+        temp_deck = self._deck.copy()  # This should be the same deck used in deal_all
         round_num = 0
         while temp_deck:
             dealt_this_round = False
@@ -1138,7 +1141,7 @@ class Game:
                 player_id = self.state.seats.get(seat)
                 if not player_id:
                     continue
-                card = temp_deck.pop(0)
+                card = temp_deck.pop()  # Use pop() to match deal_all behavior (removes from end)
                 dealt_this_round = True
                 dealing_sequence.append({
                     "seat": seat,
