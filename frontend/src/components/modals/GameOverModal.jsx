@@ -1,5 +1,6 @@
 import { useStore } from "../../store";
 import { send } from "../../ws";
+import GlassmorphismModal from "../ui/GlassmorphismModal";
 
 export default function GameOverModal({ open, onClose, gameResult }) {
   const { state, me, ws } = useStore();
@@ -35,47 +36,45 @@ export default function GameOverModal({ open, onClose, gameResult }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-zinc-800 rounded-lg p-8 max-w-md w-full mx-4 border border-zinc-700">
-        <div className="text-center">
-          <h2 className={`text-3xl font-bold mb-4 ${winnerInfo.color}`}>
-            {winnerInfo.title}
-          </h2>
-          
-          <p className="text-zinc-300 mb-6">
-            {winnerInfo.message}
-          </p>
+    <GlassmorphismModal isOpen={open} onClose={onClose} size="md">
+      <div className="text-center">
+        <h2 className={`text-3xl font-bold mb-4 ${winnerInfo.color}`}>
+          {winnerInfo.title}
+        </h2>
+        
+        <p className="text-white/80 mb-6">
+          {winnerInfo.message}
+        </p>
 
-          <div className="grid grid-cols-2 gap-4 mb-6">
-            <div className="bg-zinc-700 rounded-lg p-4">
-              <div className="text-blue-400 font-semibold mb-2">Team A</div>
-              <div className="text-2xl font-bold text-white">{team_a_score} pts</div>
-              <div className="text-sm text-zinc-400">{team_a_sets} sets</div>
-            </div>
-            
-            <div className="bg-zinc-700 rounded-lg p-4">
-              <div className="text-red-400 font-semibold mb-2">Team B</div>
-              <div className="text-2xl font-bold text-white">{team_b_score} pts</div>
-              <div className="text-sm text-zinc-400">{team_b_sets} sets</div>
-            </div>
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-4">
+            <div className="text-blue-400 font-semibold mb-2">Team A</div>
+            <div className="text-2xl font-bold text-white">{team_a_score} pts</div>
+            <div className="text-sm text-white/70">{team_a_sets} sets</div>
           </div>
-
-          <div className="flex gap-3 justify-center">
-            <button
-              onClick={onClose}
-              className="bg-zinc-600 hover:bg-zinc-500 text-white px-6 py-2 rounded-lg transition-colors"
-            >
-              Close
-            </button>
-            <button
-              onClick={handleStartNewRound}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2 rounded-lg transition-colors"
-            >
-              Start New Round
-            </button>
+          
+          <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-4">
+            <div className="text-red-400 font-semibold mb-2">Team B</div>
+            <div className="text-2xl font-bold text-white">{team_b_score} pts</div>
+            <div className="text-sm text-white/70">{team_b_sets} sets</div>
           </div>
         </div>
+
+        <div className="flex gap-3 justify-center">
+          <button
+            onClick={onClose}
+            className="px-6 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 rounded-xl text-white transition-all duration-200 hover:shadow-lg"
+          >
+            Close
+          </button>
+          <button
+            onClick={handleStartNewRound}
+            className="px-6 py-2 bg-gradient-to-r from-accent-emerald to-accent-cyan hover:shadow-glow-emerald rounded-xl text-white transition-all duration-200"
+          >
+            Start New Round
+          </button>
+        </div>
       </div>
-    </div>
+    </GlassmorphismModal>
   );
 }

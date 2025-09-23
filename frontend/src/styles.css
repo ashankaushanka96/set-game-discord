@@ -3,3 +3,58 @@
 @tailwind utilities;
 
 .card-shadow { box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+
+/* Glassmorphism animations */
+@keyframes liquid-flow {
+  0%, 100% {
+    transform: translateX(-10%) translateY(-10%) rotate(0deg);
+  }
+  25% {
+    transform: translateX(10%) translateY(-5%) rotate(90deg);
+  }
+  50% {
+    transform: translateX(5%) translateY(10%) rotate(180deg);
+  }
+  75% {
+    transform: translateX(-5%) translateY(5%) rotate(270deg);
+  }
+}
+
+@keyframes glass-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.glassmorphism-modal {
+  position: relative;
+  overflow: hidden;
+}
+
+.glassmorphism-modal::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    45deg,
+    transparent,
+    rgba(255, 255, 255, 0.1),
+    transparent
+  );
+  animation: glass-shimmer 3s infinite;
+  pointer-events: none;
+}
+
+.liquid-bg-1 {
+  animation: liquid-flow 20s ease-in-out infinite;
+}
+
+.liquid-bg-2 {
+  animation: liquid-flow 25s ease-in-out infinite reverse;
+}

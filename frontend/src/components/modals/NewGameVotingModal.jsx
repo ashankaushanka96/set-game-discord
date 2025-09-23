@@ -1,5 +1,6 @@
 import { useStore } from "../../store";
 import { send } from "../../ws";
+import GlassmorphismModal from "../ui/GlassmorphismModal";
 
 export default function NewGameVotingModal({ open, onClose, votingData, gameState }) {
   const { me, ws } = useStore();
@@ -34,39 +35,38 @@ export default function NewGameVotingModal({ open, onClose, votingData, gameStat
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-zinc-800 rounded-lg p-6 max-w-md w-full mx-4 border border-zinc-700">
-        <div className="text-center">
-          <div className="mb-4">
-            <svg className="w-12 h-12 mx-auto text-emerald-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-          </div>
-          
-          <h2 className="text-2xl font-bold text-white mb-4">
-            New Game Vote
-          </h2>
-          
-          <p className="text-zinc-300 mb-4">
-            {requester?.name || "A player"} wants to start a new game with fresh cards.
-          </p>
+    <GlassmorphismModal isOpen={open} onClose={onClose} size="md">
+      <div className="text-center">
+        <div className="mb-4">
+          <svg className="w-12 h-12 mx-auto text-emerald-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </div>
+        
+        <h2 className="text-2xl font-bold text-white mb-4">
+          New Game Vote
+        </h2>
+        
+        <p className="text-white/80 mb-4">
+          {requester?.name || "A player"} wants to start a new game with fresh cards.
+        </p>
 
           <div className="mb-4">
-            <div className="text-sm text-zinc-300 mb-2">
+            <div className="text-sm text-white/80 mb-2">
               Team A: {team_a_yes || 0}/1 needed
             </div>
-            <div className="w-full bg-zinc-700 rounded-full h-2 mb-2">
+            <div className="w-full bg-white/10 backdrop-blur-sm border border-white/20 rounded-full h-2 mb-2">
               <div 
-                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                className="bg-gradient-to-r from-accent-blue to-blue-500 h-2 rounded-full transition-all duration-300"
                 style={{ width: `${Math.min(((team_a_yes || 0) / 1) * 100, 100)}%` }}
               ></div>
             </div>
-            <div className="text-sm text-zinc-300 mb-2">
+            <div className="text-sm text-white/80 mb-2">
               Team B: {team_b_yes || 0}/1 needed
             </div>
-            <div className="w-full bg-zinc-700 rounded-full h-2">
+            <div className="w-full bg-white/10 backdrop-blur-sm border border-white/20 rounded-full h-2">
               <div 
-                className="bg-red-600 h-2 rounded-full transition-all duration-300"
+                className="bg-gradient-to-r from-accent-rose to-red-500 h-2 rounded-full transition-all duration-300"
                 style={{ width: `${Math.min(((team_b_yes || 0) / 1) * 100, 100)}%` }}
               ></div>
             </div>
@@ -74,11 +74,11 @@ export default function NewGameVotingModal({ open, onClose, votingData, gameStat
 
           {/* Player votes */}
           <div className="mb-6">
-            <h3 className="text-sm font-semibold text-zinc-400 mb-2">Player Votes:</h3>
+            <h3 className="text-sm font-semibold text-white/70 mb-2">Player Votes:</h3>
             <div className="space-y-1">
               {Object.values(players).map((player) => (
                 <div key={player.id} className="flex justify-between items-center text-sm">
-                  <span className="text-zinc-300">{player.name}</span>
+                  <span className="text-white/80">{player.name}</span>
                   <span className={`font-semibold ${getVoteColor(player.id)}`}>
                     {getVoteStatus(player.id)}
                   </span>
@@ -92,7 +92,7 @@ export default function NewGameVotingModal({ open, onClose, votingData, gameStat
             <div className="flex gap-3 justify-center mb-4">
               <button
                 onClick={() => handleVote(true)}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2 rounded-lg transition-colors flex items-center gap-2"
+                className="bg-gradient-to-r from-accent-emerald to-accent-cyan hover:shadow-glow-emerald text-white px-6 py-2 rounded-xl transition-all duration-200 flex items-center gap-2 border border-accent-cyan/30"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -101,7 +101,7 @@ export default function NewGameVotingModal({ open, onClose, votingData, gameStat
               </button>
               <button
                 onClick={() => handleVote(false)}
-                className="bg-red-600 hover:bg-red-500 text-white px-6 py-2 rounded-lg transition-colors flex items-center gap-2"
+                className="bg-gradient-to-r from-accent-rose to-red-500 hover:shadow-glow-rose text-white px-6 py-2 rounded-xl transition-all duration-200 flex items-center gap-2 border border-accent-rose/30"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -113,18 +113,17 @@ export default function NewGameVotingModal({ open, onClose, votingData, gameStat
 
           {hasVoted && (
             <div className="mb-4">
-              <p className="text-zinc-400">
+              <p className="text-white/70">
                 You voted: <span className={`font-semibold ${getVoteColor(me.id)}`}>
                   {myVote ? "YES" : "NO"}
                 </span>
               </p>
-              <p className="text-xs text-zinc-500 mt-2">
+              <p className="text-xs text-white/60 mt-2">
                 Waiting for other players to vote...
               </p>
             </div>
           )}
-        </div>
       </div>
-    </div>
+    </GlassmorphismModal>
   );
 }

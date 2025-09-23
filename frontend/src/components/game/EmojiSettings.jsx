@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useStore } from '../../store';
 import emojiSoundManager from '../../utils/sounds';
 import { setTTSEnabled, isTTSAvailable } from '../../utils/tts';
+import GlassmorphismModal from '../ui/GlassmorphismModal';
 
 async function safeForceInitAudio() {
   try {
@@ -110,39 +111,38 @@ export default function EmojiSettings({ isOpen, onClose }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[130] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-dark-card/95 backdrop-blur-md rounded-2xl shadow-2xl border border-accent-purple/20 max-w-md w-full">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-accent-purple/20">
-          <h3 className="text-lg font-semibold text-text-primary">Emoji Settings</h3>
-          <button
-            onClick={onClose}
-            className="text-text-muted hover:text-text-primary transition-colors p-1"
-          >
-            ✕
-          </button>
-        </div>
+    <GlassmorphismModal isOpen={isOpen} onClose={onClose} size="md">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-white">Emoji Settings</h3>
+        <button
+          onClick={onClose}
+          className="text-white/70 hover:text-white transition-colors p-1"
+        >
+          ✕
+        </button>
+      </div>
 
-        {/* Settings Content */}
-        <div className="p-4 space-y-4">
-          {/* Sound Settings */}
-          <div className="space-y-3">
-            <h4 className="text-sm font-medium text-text-secondary">Sound Effects</h4>
-            
-            <div className="flex items-center justify-between p-3 bg-dark-tertiary/30 rounded-lg">
+      {/* Settings Content */}
+      <div className="space-y-4">
+        {/* Sound Settings */}
+        <div className="space-y-3">
+          <h4 className="text-sm font-medium text-white/80">Sound Effects</h4>
+          
+          <div className="flex items-center justify-between p-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl">
               <div className="flex items-center gap-3">
                 <div className="text-xl">🔊</div>
                 <div>
-                  <div className="text-sm font-medium text-text-primary">Enable Sounds</div>
-                  <div className="text-xs text-text-muted">Play sound effects for emoji animations</div>
+                  <div className="text-sm font-medium text-white">Enable Sounds</div>
+                  <div className="text-xs text-white/70">Play sound effects for emoji animations</div>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleSoundToggle}
-                  className={`
+                    className={`
                     relative w-12 h-6 rounded-full transition-colors
-                    ${settings.soundEnabled ? 'bg-blue-600' : 'bg-zinc-600'}
+                    ${settings.soundEnabled ? 'bg-gradient-to-r from-accent-blue to-blue-500' : 'bg-white/20'}
                   `}
                 >
                   <div
@@ -155,7 +155,7 @@ export default function EmojiSettings({ isOpen, onClose }) {
                 {settings.soundEnabled && (
                   <button
                     onClick={() => emojiSoundManager.playSound('🔨')}
-                    className="text-xs px-2 py-1 bg-gradient-primary hover:shadow-glow-blue text-white rounded transition-all duration-200 border border-accent-blue/30"
+                    className="text-xs px-2 py-1 bg-gradient-to-r from-accent-blue to-accent-purple hover:shadow-glow-blue text-white rounded-xl transition-all duration-200 border border-accent-blue/30"
                     title="Test sound"
                   >
                     🔊 Test
@@ -165,23 +165,23 @@ export default function EmojiSettings({ isOpen, onClose }) {
             </div>
           </div>
 
-          {/* Animation Settings */}
-          <div className="space-y-3">
-            <h4 className="text-sm font-medium text-text-secondary">Animations</h4>
-            
-            <div className="flex items-center justify-between p-3 bg-dark-tertiary/30 rounded-lg">
+        {/* Animation Settings */}
+        <div className="space-y-3">
+          <h4 className="text-sm font-medium text-white/80">Animations</h4>
+          
+          <div className="flex items-center justify-between p-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl">
               <div className="flex items-center gap-3">
                 <div className="text-xl">✨</div>
                 <div>
-                  <div className="text-sm font-medium text-text-primary">Enable Animations</div>
-                  <div className="text-xs text-text-muted">Show emoji flying animations</div>
+                  <div className="text-sm font-medium text-white">Enable Animations</div>
+                  <div className="text-xs text-white/70">Show emoji flying animations</div>
                 </div>
               </div>
               <button
                 onClick={handleAnimationToggle}
                 className={`
                   relative w-12 h-6 rounded-full transition-colors
-                  ${settings.animationsEnabled ? 'bg-blue-600' : 'bg-zinc-600'}
+                  ${settings.animationsEnabled ? 'bg-gradient-to-r from-accent-blue to-blue-500' : 'bg-white/20'}
                 `}
               >
                 <div
@@ -193,20 +193,20 @@ export default function EmojiSettings({ isOpen, onClose }) {
               </button>
             </div>
 
-            <div className="flex items-center justify-between p-3 bg-dark-tertiary/30 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="text-xl">♿</div>
-                <div>
-                  <div className="text-sm font-medium text-text-primary">Reduce Motion</div>
-                  <div className="text-xs text-text-muted">Minimize animations for accessibility</div>
-                </div>
+          <div className="flex items-center justify-between p-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl">
+            <div className="flex items-center gap-3">
+              <div className="text-xl">♿</div>
+              <div>
+                <div className="text-sm font-medium text-white">Reduce Motion</div>
+                <div className="text-xs text-white/70">Minimize animations for accessibility</div>
               </div>
-              <button
-                onClick={handleReduceMotionToggle}
-                className={`
-                  relative w-12 h-6 rounded-full transition-colors
-                  ${settings.reduceMotion ? 'bg-blue-600' : 'bg-zinc-600'}
-                `}
+            </div>
+            <button
+              onClick={handleReduceMotionToggle}
+              className={`
+                relative w-12 h-6 rounded-full transition-colors
+                ${settings.reduceMotion ? 'bg-gradient-to-r from-accent-blue to-blue-500' : 'bg-white/20'}
+              `}
               >
                 <div
                   className={`
@@ -217,22 +217,22 @@ export default function EmojiSettings({ isOpen, onClose }) {
               </button>
             </div>
 
-            {/* TTS Settings */}
-            {isTTSAvailable() && (
-              <div className="flex items-center justify-between p-3 bg-dark-tertiary/30 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="text-xl">🗣️</div>
-                  <div>
-                  <div className="text-sm font-medium text-text-primary">Voice Announcements</div>
-                  <div className="text-xs text-text-muted">Announce game over results</div>
-                  </div>
+          {/* TTS Settings */}
+          {isTTSAvailable() && (
+            <div className="flex items-center justify-between p-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl">
+              <div className="flex items-center gap-3">
+                <div className="text-xl">🗣️</div>
+                <div>
+                <div className="text-sm font-medium text-white">Voice Announcements</div>
+                <div className="text-xs text-white/70">Announce game over results</div>
                 </div>
-                <button
-                  onClick={handleTTSToggle}
-                  className={`
-                    relative w-12 h-6 rounded-full transition-colors
-                    ${settings.ttsEnabled ? 'bg-blue-600' : 'bg-zinc-600'}
-                  `}
+              </div>
+              <button
+                onClick={handleTTSToggle}
+                className={`
+                  relative w-12 h-6 rounded-full transition-colors
+                  ${settings.ttsEnabled ? 'bg-gradient-to-r from-accent-blue to-blue-500' : 'bg-white/20'}
+                `}
                 >
                   <div
                     className={`
@@ -245,28 +245,27 @@ export default function EmojiSettings({ isOpen, onClose }) {
             )}
           </div>
 
-          {/* Info Section */}
-          <div className="p-3 bg-accent-blue/10 border border-accent-blue/30 rounded-lg">
-            <div className="flex items-start gap-2">
-              <div className="text-accent-blue text-sm">ℹ️</div>
-              <div className="text-xs text-accent-blue">
-                <p className="font-medium mb-1">Accessibility Note:</p>
-                <p>These settings help make the game more accessible. Reduced motion settings will minimize animations while keeping the core gameplay intact.</p>
-              </div>
+        {/* Info Section */}
+        <div className="p-3 bg-accent-blue/10 backdrop-blur-sm border border-accent-blue/30 rounded-xl">
+          <div className="flex items-start gap-2">
+            <div className="text-accent-blue text-sm">ℹ️</div>
+            <div className="text-xs text-accent-blue">
+              <p className="font-medium mb-1">Accessibility Note:</p>
+              <p>These settings help make the game more accessible. Reduced motion settings will minimize animations while keeping the core gameplay intact.</p>
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-accent-purple/20">
+        <div className="pt-4">
           <button
             onClick={onClose}
-            className="w-full py-2 px-4 bg-gradient-primary hover:shadow-glow-blue text-white rounded-lg transition-all duration-200 border border-accent-blue/30"
+            className="w-full py-2 px-4 bg-gradient-to-r from-accent-blue to-accent-purple hover:shadow-glow-blue text-white rounded-xl transition-all duration-200 border border-accent-blue/30"
           >
             Done
           </button>
         </div>
       </div>
-    </div>
+    </GlassmorphismModal>
   );
 }

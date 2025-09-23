@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useStore } from '../../store';
 import { send } from '../../ws';
 import { RANKS_LOWER, RANKS_UPPER, SUITS } from '../../lib/deck';
+import GlassmorphismModal from '../ui/GlassmorphismModal';
 
 export default function AskModal({ onClose }){
   const { state, me, ws } = useStore();
@@ -43,41 +44,58 @@ export default function AskModal({ onClose }){
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
-      <div className="bg-zinc-900 p-6 rounded-xl space-y-3 w-96">
-        <h2 className="text-lg font-bold">Ask Card</h2>
+    <GlassmorphismModal isOpen={true} onClose={onClose} size="sm">
+      <div className="space-y-4">
+        <h2 className="text-xl font-bold text-white text-center">Ask Card</h2>
 
-        <select className="w-full bg-zinc-800 px-2 py-1 rounded" value={target} onChange={e=>setTarget(e.target.value)}>
+        <select 
+          className="w-full bg-white/10 backdrop-blur-sm border border-white/20 px-3 py-2 rounded-xl text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-accent-blue/50 focus:border-accent-blue/50 transition-all duration-200" 
+          value={target} 
+          onChange={e=>setTarget(e.target.value)}
+        >
           <option value="">Select Opponent</option>
           {opponents.map(p => (
-            <option key={p.id} value={p.id}>{p.avatar} {p.name}</option>
+            <option key={p.id} value={p.id} className="bg-dark-card text-white">{p.avatar} {p.name}</option>
           ))}
         </select>
 
         <select
-          className="w-full bg-zinc-800 px-2 py-1 rounded"
+          className="w-full bg-white/10 backdrop-blur-sm border border-white/20 px-3 py-2 rounded-xl text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-accent-blue/50 focus:border-accent-blue/50 transition-all duration-200"
           value={`${suit}-${setType}`}
           onChange={e => { const [s,t] = e.target.value.split('-'); setSuit(s); setSetType(t); setRank(''); }}
         >
           {eligibleSets.map(es => (
-            <option key={`${es.suit}-${es.type}`} value={`${es.suit}-${es.type}`}>
+            <option key={`${es.suit}-${es.type}`} value={`${es.suit}-${es.type}`} className="bg-dark-card text-white">
               {es.suit} {es.type}
             </option>
           ))}
         </select>
 
-        <select className="w-full bg-zinc-800 px-2 py-1 rounded" value={rank} onChange={e=>setRank(e.target.value)}>
+        <select 
+          className="w-full bg-white/10 backdrop-blur-sm border border-white/20 px-3 py-2 rounded-xl text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-accent-blue/50 focus:border-accent-blue/50 transition-all duration-200" 
+          value={rank} 
+          onChange={e=>setRank(e.target.value)}
+        >
           <option value="">Select Rank</option>
-          {askableRanks.map(r => <option key={r} value={r}>{r}</option>)}
+          {askableRanks.map(r => <option key={r} value={r} className="bg-dark-card text-white">{r}</option>)}
         </select>
 
-        <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="px-3 py-1 bg-zinc-700 rounded">Cancel</button>
-          <button onClick={handleSend} className="px-3 py-1 bg-emerald-600 rounded" disabled={!target || !rank}>
+        <div className="flex justify-end gap-3 pt-2">
+          <button 
+            onClick={onClose} 
+            className="px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 rounded-xl text-white transition-all duration-200 hover:shadow-lg"
+          >
+            Cancel
+          </button>
+          <button 
+            onClick={handleSend} 
+            className="px-4 py-2 bg-gradient-to-r from-accent-emerald to-accent-cyan hover:shadow-glow-emerald rounded-xl text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed" 
+            disabled={!target || !rank}
+          >
             Ask
           </button>
         </div>
       </div>
-    </div>
+    </GlassmorphismModal>
   );
 }

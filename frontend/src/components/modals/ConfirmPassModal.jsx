@@ -1,4 +1,5 @@
 import { Card } from "../cards";
+import GlassmorphismModal from "../ui/GlassmorphismModal";
 
 export default function ConfirmPassModal({
   open,
@@ -16,18 +17,18 @@ export default function ConfirmPassModal({
   const askedRank = ranks?.[0];
 
   return (
-    <div className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-zinc-900 rounded-2xl shadow-xl p-5">
+    <GlassmorphismModal isOpen={open} onClose={onClose} size="sm">
+      <div className="space-y-4">
         <div className="flex items-center justify-between mb-4">
-          <div className="text-lg font-semibold">
+          <div className="text-lg font-semibold text-white">
             {isNoCase ? "Reply: I don't have it" : "Confirm Pass"}
           </div>
-          <button className="text-zinc-300 hover:text-white" onClick={onClose}>✕</button>
+          <button className="text-white/70 hover:text-white" onClick={onClose}>✕</button>
         </div>
 
         {isNoCase ? (
           <div className="space-y-3">
-            <div className="text-sm opacity-80">
+            <div className="text-sm text-white/80">
               <div className="flex items-center gap-2">
                 {typeof target?.avatar === "string" && target.avatar.startsWith("http") ? (
                   <img 
@@ -39,20 +40,20 @@ export default function ConfirmPassModal({
                 ) : (
                   <span>{target?.avatar}</span>
                 )}
-                <strong>{target?.name}</strong>
+                <strong className="text-white">{target?.name}</strong>
               </div>, you were asked for:
             </div>
             <div className="flex items-center gap-2">
               <Card suit={suit} rank={askedRank} size="sm" />
               <div className="text-sm">{askedRank} of {suit}</div>
             </div>
-            <div className="text-xs opacity-70">
-              If you confirm you don’t have this card, the turn will pass to you.
+            <div className="text-xs text-white/70">
+              If you confirm you don't have this card, the turn will pass to you.
             </div>
           </div>
         ) : (
           <div>
-            <div className="text-sm opacity-80 mb-2">
+            <div className="text-sm text-white/80 mb-2">
               <div className="flex items-center gap-2">
                 {typeof target?.avatar === "string" && target.avatar.startsWith("http") ? (
                   <img 
@@ -64,12 +65,12 @@ export default function ConfirmPassModal({
                 ) : (
                   <span>{target?.avatar}</span>
                 )}
-                <strong>{target?.name}</strong>
-              </div>, confirm passing these card(s) to {asker?.name}:
+                <strong className="text-white">{target?.name}</strong>
+              </div>, confirm passing these card(s) to <span className="text-white">{asker?.name}</span>:
             </div>
             <div className="flex flex-wrap gap-2">
               {cards.map((c, i) => (
-                <div key={`${c.suit}-${c.rank}-${i}`} className="rounded bg-zinc-800 p-1">
+                <div key={`${c.suit}-${c.rank}-${i}`} className="rounded bg-white/10 backdrop-blur-sm border border-white/20 p-1">
                   <Card suit={c.suit} rank={c.rank} size="md" />
                 </div>
               ))}
@@ -77,16 +78,16 @@ export default function ConfirmPassModal({
           </div>
         )}
 
-        <div className="mt-5 flex items-center justify-end gap-2">
-          <button className="px-3 py-2 rounded bg-zinc-800 hover:bg-zinc-700" onClick={onClose}>Cancel</button>
+        <div className="mt-5 flex items-center justify-end gap-3">
+          <button className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 text-white transition-all duration-200" onClick={onClose}>Cancel</button>
           <button
-            className={`px-4 py-2 rounded ${isNoCase ? "bg-rose-600 hover:bg-rose-500" : "bg-emerald-600 hover:bg-emerald-500"}`}
+            className={`px-4 py-2 rounded-xl text-white transition-all duration-200 ${isNoCase ? "bg-gradient-to-r from-accent-rose to-red-500 hover:shadow-glow-rose" : "bg-gradient-to-r from-accent-emerald to-accent-cyan hover:shadow-glow-emerald"}`}
             onClick={onConfirm}
           >
             {isNoCase ? "Confirm: I don't have it" : "Confirm Pass"}
           </button>
         </div>
       </div>
-    </div>
+    </GlassmorphismModal>
   );
 }
