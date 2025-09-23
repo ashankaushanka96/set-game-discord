@@ -49,6 +49,7 @@ export const useStore = create((set, get) => ({
   // single game feed (bottom box)
   gameMessage: null,
   gameMessageTimer: null,
+  laydownResult: null,
 
   // toast notifications
   toast: null,
@@ -155,25 +156,29 @@ export const useStore = create((set, get) => ({
   },
 
   // --- bottom message box ---
-  setGameMessage: (title, lines) => {
+  setGameMessage: (title, lines, cards = null) => {
     const text = Array.isArray(lines) ? lines.join("\n") : lines;
     const { gameMessageTimer } = get();
     if (gameMessageTimer) clearTimeout(gameMessageTimer);
     const timer = setTimeout(() => set({ gameMessage: null, gameMessageTimer: null }), 30000);
-    set({ gameMessage: { id: mid(), title, text, ts: Date.now() }, gameMessageTimer: timer });
+    set({ gameMessage: { id: mid(), title, text, ts: Date.now(), cards }, gameMessageTimer: timer });
     
     // Also show as toast notification
     const toastType = get().getToastTypeFromTitle(title);
-    get().showToast(toastType, title, text);
+    get().showToast(toastType, title, text, cards);
   },
 
   closeVotingResult: () => set({ votingResult: null }),
 
-  showToast: (type, title, message) => set({ 
-    toast: { type, title, message, id: mid() } 
+  showToast: (type, title, message, cards = null) => set({ 
+    toast: { type, title, message, cards, id: mid() } 
   }),
 
   clearToast: () => set({ toast: null }),
+  
+  // laydown result modal
+  setLaydownResult: (data) => set({ laydownResult: data }),
+  clearLaydownResult: () => set({ laydownResult: null }),
 
   getToastTypeFromTitle: (title) => {
     const titleLower = title?.toLowerCase() || "";
@@ -355,6 +360,33 @@ export const useStore = create((set, get) => ({
       const pts = msg.payload.set_type === "lower" ? 20 : 30;
       const setName = `${msg.payload.suit} ${setLabel(msg.payload.set_type)}`;
 
+      // Prepare laydown data for display
+      const contributors = msg.payload.contributors || [];
+      const allCards = [];
+      const cardsByPlayer = {};
+      
+      
+      // Extract all cards and organize by player
+      contributors.forEach(contributor => {
+        const playerCards = contributor.cards || [];
+        allCards.push(...playerCards);
+        cardsByPlayer[contributor.player_id] = playerCards;
+      });
+      
+      const laydownData = {
+        success: msg.payload.success,
+        suit: msg.payload.suit,
+        setType: msg.payload.set_type,
+        points: pts,
+        team: msg.payload.owner_team,
+        cards: allCards,
+        contributors: contributors,
+        cardsByPlayer: cardsByPlayer,
+        claimedCards: msg.payload.claimed_cards || [],
+        actualCards: msg.payload.actual_cards || [],
+        handoffEligible: msg.payload.handoff_eligible || []
+      };
+
       if (msg.payload.success) {
         try { window.dispatchEvent(new CustomEvent("celebrate", { detail: { who_id: msg.payload.who_id } })); } catch {}
         // Success sound
@@ -366,9 +398,12 @@ export const useStore = create((set, get) => ({
             } catch {}
           }).catch(()=>{});
         }
-        const contribNames = (msg.payload.handoff_eligible || []).map(id => players[id]?.name).filter(Boolean);
-        const handoffLine = contribNames.length ? `Handoff: available to ${contribNames.join(", ")}` : "Handoff: —";
-        get().setGameMessage("LAYDOWN", [`Who: ${whoName}`, `Set: ${setName}`, `Points: +${pts} to Team ${msg.payload.owner_team}`, handoffLine]);
+        // Show laydown result modal with detailed information
+        get().setLaydownResult(laydownData);
+        
+        // Show simple toast notification
+        get().showToast('success', 'LAYDOWN SUCCESS', `${whoName} successfully laid down ${setName} for ${pts} points!`);
+        
         if (msg.payload?.who_id === get().me?.id && (msg.payload.handoff_eligible || []).length) {
           set({ handoffFor: { who_id: msg.payload.who_id, eligible: msg.payload.handoff_eligible } });
         } else {
@@ -385,9 +420,14 @@ export const useStore = create((set, get) => ({
             } catch {}
           }).catch(()=>{});
         }
+        // Show laydown result modal with detailed information
+        get().setLaydownResult(laydownData);
+        
+        // Show simple toast notification
         const nextId = s.turn_player;
         const nextName = players[nextId]?.name || "next player";
-        get().setGameMessage("LAYDOWN — WRONG", [`Who: ${whoName}`, `Set: ${setName}`, `Points: +${pts} to Team ${msg.payload.owner_team}`, `Next Turn: ${nextName}`]);
+        get().showToast('error', 'LAYDOWN FAILED', `${whoName} failed to lay down ${setName}. Next turn: ${nextName}`);
+        
         set({ handoffFor: null });
       }
     }
@@ -444,7 +484,7 @@ export const useStore = create((set, get) => ({
         `From: ${fromName}`,
         `To: ${toName}`,
         `Cards: ${cardCount}`
-      ]);
+      ], msg.payload.cards);
     }
 
     // PASS CARDS ERROR

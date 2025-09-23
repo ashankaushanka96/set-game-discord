@@ -194,27 +194,27 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
         }
 
         const theme =
-          m.variant === "ask" ? "bg-sky-600/90 border-sky-500" :
-          m.variant === "yes" ? "bg-emerald-600/90 border-emerald-500" :
-          m.variant === "no"  ? "bg-rose-600/90 border-rose-500" :
-          m.variant === "laydown_start" ? "bg-gradient-to-br from-purple-600/20 to-violet-600/20 backdrop-blur-md border border-purple-400/30 shadow-[0_8px_32px_rgba(147,51,234,0.3)]" :
-          m.variant === "laydown_set" ? "bg-gradient-to-br from-indigo-600/20 to-blue-600/20 backdrop-blur-md border border-indigo-400/30 shadow-[0_8px_32px_rgba(79,70,229,0.3)]" :
-          m.variant === "laydown_cards" ? "bg-gradient-to-br from-blue-600/20 to-cyan-600/20 backdrop-blur-md border border-blue-400/30 shadow-[0_8px_32px_rgba(37,99,235,0.3)]" :
-          m.variant === "laydown_teammate" ? "bg-gradient-to-br from-cyan-600/20 to-teal-600/20 backdrop-blur-md border border-cyan-400/30 shadow-[0_8px_32px_rgba(8,145,178,0.3)]" :
-          m.variant === "chat" ? "bg-yellow-600/90 border-yellow-500" :
-          "bg-zinc-700/90 border-zinc-600";
+          m.variant === "ask" ? "bg-white/10 backdrop-blur-xl border-white/20 shadow-[0_8px_32px_rgba(14,165,233,0.3)]" :
+          m.variant === "yes" ? "bg-white/10 backdrop-blur-xl border-white/20 shadow-[0_8px_32px_rgba(16,185,129,0.3)]" :
+          m.variant === "no"  ? "bg-white/10 backdrop-blur-xl border-white/20 shadow-[0_8px_32px_rgba(244,63,94,0.3)]" :
+          m.variant === "laydown_start" ? "bg-gradient-to-br from-purple-600/20 to-violet-600/20 backdrop-blur-xl border border-purple-400/30 shadow-[0_8px_32px_rgba(147,51,234,0.3)]" :
+          m.variant === "laydown_set" ? "bg-gradient-to-br from-indigo-600/20 to-blue-600/20 backdrop-blur-xl border border-indigo-400/30 shadow-[0_8px_32px_rgba(79,70,229,0.3)]" :
+          m.variant === "laydown_cards" ? "bg-gradient-to-br from-blue-600/20 to-cyan-600/20 backdrop-blur-xl border border-blue-400/30 shadow-[0_8px_32px_rgba(37,99,235,0.3)]" :
+          m.variant === "laydown_teammate" ? "bg-gradient-to-br from-cyan-600/20 to-teal-600/20 backdrop-blur-xl border border-cyan-400/30 shadow-[0_8px_32px_rgba(8,145,178,0.3)]" :
+          m.variant === "chat" ? "bg-white/10 backdrop-blur-xl border-white/20 shadow-[0_8px_32px_rgba(251,191,36,0.3)]" :
+          "bg-white/10 backdrop-blur-xl border-white/20 shadow-[0_8px_32px_rgba(255,255,255,0.1)]";
 
         // Tail color
         const tailColor =
-          m.variant === "ask" ? "rgb(2 132 199 / 0.9)" :
-          m.variant === "yes" ? "rgb(5 150 105 / 0.9)" :
-          m.variant === "no"  ? "rgb(225 29 72 / 0.9)" :
+          m.variant === "ask" ? "rgba(255, 255, 255, 0.2)" :
+          m.variant === "yes" ? "rgba(255, 255, 255, 0.2)" :
+          m.variant === "no"  ? "rgba(255, 255, 255, 0.2)" :
           m.variant === "laydown_start" ? "rgb(147 51 234 / 0.6)" :
           m.variant === "laydown_set" ? "rgb(79 70 229 / 0.6)" :
           m.variant === "laydown_cards" ? "rgb(37 99 235 / 0.6)" :
           m.variant === "laydown_teammate" ? "rgb(8 145 178 / 0.6)" :
-          m.variant === "chat" ? "rgb(234 179 8 / 0.9)" :
-          "rgb(63 63 70 / 0.9)";
+          m.variant === "chat" ? "rgba(255, 255, 255, 0.2)" :
+          "rgba(255, 255, 255, 0.2)";
 
         const translate = xy.place === "above" ? "translate(-50%,-100%)" : "translate(-50%,0)";
 

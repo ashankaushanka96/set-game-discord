@@ -6,6 +6,7 @@ export { default as ConfirmPassModal } from './ConfirmPassModal';
 export { default as ConfirmUnassignModal } from './ConfirmUnassignModal';
 export { default as GameOverModal } from './GameOverModal';
 export { default as LaydownModal } from './LaydownModal';
+export { default as LaydownResultModal } from './LaydownResultModal';
 export { default as NewGameModal } from './NewGameModal';
 export { default as NewGameVotingModal } from './NewGameVotingModal';
 export { default as CompletedSetsModal } from './CompletedSetsModal';

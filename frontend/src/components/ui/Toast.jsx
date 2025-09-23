@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useStore } from '../../store';
+import { FannedCards, ColorCodedFannedCards } from '../cards';
 
 export default function Toast() {
-  const { toast } = useStore();
+  const { toast, state } = useStore();
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
@@ -13,7 +14,7 @@ export default function Toast() {
         setTimeout(() => {
           useStore.getState().clearToast();
         }, 300); // Wait for animation to complete
-      }, 4000); // Show for 4 seconds
+      }, 15000); // Show for 15 seconds
 
       return () => clearTimeout(timer);
     }
@@ -85,32 +86,93 @@ export default function Toast() {
     <div className={`fixed top-4 right-4 z-[100] transition-all duration-300 ${
       isVisible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'
     }`}>
-      <div className={`${getToastStyles()} border rounded-lg shadow-lg p-4 max-w-sm`}>
-        <div className="flex items-start gap-3">
-          <div className="flex-shrink-0 text-white">
-            {getIcon()}
-          </div>
-          <div className="flex-1">
-            <h4 className="text-sm font-semibold text-white mb-1">
-              {toast.title}
-            </h4>
-            <p className="text-sm text-white/90">
-              {toast.message}
-            </p>
-          </div>
-          <button
-            onClick={() => {
-              setIsVisible(false);
-              setTimeout(() => {
-                useStore.getState().clearToast();
-              }, 300);
+      <div className="relative max-w-sm">
+        {/* Glassmorphism backdrop */}
+        <div className="absolute inset-0 bg-black/30 backdrop-blur-sm rounded-xl" />
+        
+        {/* Floating liquid effect */}
+        <div className="absolute inset-0 overflow-hidden rounded-xl">
+          <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-gradient-to-br from-accent-blue/10 via-accent-purple/5 to-accent-cyan/10 rounded-full blur-3xl liquid-bg-1" />
+          <div className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-gradient-to-tl from-accent-pink/10 via-accent-emerald/5 to-accent-amber/10 rounded-full blur-3xl liquid-bg-2" />
+        </div>
+
+        {/* Toast container */}
+        <div 
+          className={`
+            relative backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-4
+            glassmorphism-modal
+          `}
+          style={{
+            background: `
+              linear-gradient(135deg, 
+                rgba(255, 255, 255, 0.05) 0%, 
+                rgba(255, 255, 255, 0.02) 50%, 
+                rgba(255, 255, 255, 0.01) 100%
+              ),
+              radial-gradient(circle at 30% 20%, rgba(139, 92, 246, 0.08) 0%, transparent 50%),
+              radial-gradient(circle at 70% 80%, rgba(59, 130, 246, 0.08) 0%, transparent 50%),
+              radial-gradient(circle at 20% 80%, rgba(236, 72, 153, 0.05) 0%, transparent 50%)
+            `,
+            boxShadow: `
+              0 25px 50px -12px rgba(0, 0, 0, 0.15),
+              0 0 0 1px rgba(255, 255, 255, 0.05),
+              inset 0 1px 0 rgba(255, 255, 255, 0.05)
+            `
+          }}
+        >
+          {/* Inner glow effect */}
+          <div 
+            className="absolute inset-0 rounded-xl"
+            style={{
+              background: `
+                radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.05) 0%, transparent 70%),
+                linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, transparent 100%)
+              `
             }}
-            className="flex-shrink-0 text-white/70 hover:text-white transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          />
+          
+          <div className="relative z-10">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 text-white">
+                {getIcon()}
+              </div>
+              <div className="flex-1">
+                <h4 className="text-sm font-semibold text-white mb-1">
+                  {toast.title}
+                </h4>
+                <p className="text-sm text-white/80">
+                  {toast.message}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setIsVisible(false);
+                  setTimeout(() => {
+                    useStore.getState().clearToast();
+                  }, 300);
+                }}
+                className="flex-shrink-0 text-white/70 hover:text-white transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* Show fanned cards if available (only for card passing, not laydown) */}
+            {toast.cards && Array.isArray(toast.cards) && toast.cards.length > 0 && !toast.title.toLowerCase().includes('laydown') && (
+              <div className="mt-3 p-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg">
+                <div className="text-xs text-white/70 mb-2">Cards passed:</div>
+                <div className="flex justify-center">
+                  <FannedCards 
+                    cards={toast.cards} 
+                    size="xs" 
+                    maxCards={8}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

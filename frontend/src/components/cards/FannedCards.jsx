@@ -18,16 +18,16 @@ export default function FannedCards({ cards, size = "sm", maxCards = 6 }) {
 
   return (
     <div className="relative flex justify-center items-center" style={{ 
-      width: `${Math.min(displayCards.length * 16 + 40, 250)}px`,
-      height: '70px'
+      width: `${Math.min(displayCards.length * 35 + 80, 500)}px`,
+      height: '140px'
     }}>
       {displayCards.map((card, index) => {
         const totalCards = displayCards.length;
-        const maxRotation = Math.min(totalCards * 3, 20);
+        const maxRotation = Math.min(totalCards * 1, 8);
         const rotation = totalCards > 1 ? 
           (index - (totalCards - 1) / 2) * (maxRotation / (totalCards - 1)) : 0;
         const offsetX = totalCards > 1 ? 
-          (index - (totalCards - 1) / 2) * 16 : 0;
+          (index - (totalCards - 1) / 2) * 35 : 0;
         
         return (
           <div
@@ -37,13 +37,16 @@ export default function FannedCards({ cards, size = "sm", maxCards = 6 }) {
               transform: `translateX(${offsetX}px) rotate(${rotation}deg)`,
               zIndex: index + 1,
               left: '50%',
-              marginLeft: size === 'sm' ? '-22px' : '-19px', // Half of card width
+              marginLeft: size === 'sm' ? '-22px' : size === 'md' ? '-32px' : size === 'lg' ? '-48px' : '-19px', // Half of card width
               filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))',
               transformOrigin: 'center center'
             }}
             title={`${card.rank} of ${card.suit}`}
           >
-            <Card suit={card.suit} rank={card.rank} size={size} />
+            {/* Apply color-coded border wrapper */}
+            <div style={card.borderStyle || {}}>
+              <Card suit={card.suit} rank={card.rank} size={size} />
+            </div>
           </div>
         );
       })}

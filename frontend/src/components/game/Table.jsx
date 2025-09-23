@@ -14,6 +14,7 @@ import EmojiPassAnimation from './EmojiPassAnimation';
 import EmojiSettings from './EmojiSettings';
 import { 
   LaydownModal, 
+  LaydownResultModal,
   GameOverModal, 
   NewGameVotingModal, 
   NewGameModal, 
@@ -24,8 +25,7 @@ import {
 } from '../modals';
 import { 
   Toast, 
-  Celebration, 
-  MessageBox
+  Celebration
 } from '../ui';
 import { 
   Card, 
@@ -66,7 +66,7 @@ function SetChip({ suit, set_type, owner, expandable=false, cards=[] }) {
 
 export default function Table() {
   const navigate = useNavigate();
-  const { state, me, ws, handoffFor, gameResult, abortVoting, dealingAnimation, pendingLay, votingResult, closeVotingResult, backToLobbyVoting, speakingUsers } = useStore();
+  const { state, me, ws, handoffFor, gameResult, abortVoting, dealingAnimation, pendingLay, votingResult, closeVotingResult, backToLobbyVoting, speakingUsers, laydownResult, clearLaydownResult } = useStore();
   const [layOpen, setLayOpen] = useState(false);
   const [selectedSet, setSelectedSet] = useState({ suit: null, setType: null });
   const [requestAbortOpen, setRequestAbortOpen] = useState(false);
@@ -736,6 +736,14 @@ export default function Table() {
        </div>
 
       {layOpen && <LaydownModal onClose={() => setLayOpen(false)} />}
+
+      {/* Laydown Result Modal */}
+      <LaydownResultModal
+        open={!!laydownResult}
+        onClose={clearLaydownResult}
+        laydownData={laydownResult}
+        state={state}
+      />
 
       {/* Game Over Modal */}
       <GameOverModal
