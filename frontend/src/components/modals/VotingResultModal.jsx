@@ -1,7 +1,20 @@
 import { useStore } from "../../store";
+import { useEffect } from "react";
+import GlassmorphismModal from "../ui/GlassmorphismModal";
 
 export default function VotingResultModal({ open, onClose, result }) {
   const { state } = useStore();
+  
+  // Auto-dismiss after 10 seconds
+  useEffect(() => {
+    if (open && result) {
+      const timer = setTimeout(() => {
+        onClose();
+      }, 10000); // 10 seconds
+
+      return () => clearTimeout(timer);
+    }
+  }, [open, result, onClose]);
   
   if (!open || !result) return null;
 
@@ -79,49 +92,53 @@ export default function VotingResultModal({ open, onClose, result }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-zinc-800 rounded-lg p-6 max-w-md w-full mx-4 border border-zinc-700">
-        <div className="text-center">
-          <div className="mb-4">
-            {getIcon()}
-          </div>
-          
-          <h2 className={`text-2xl font-bold mb-4 ${getTitleColor()}`}>
-            {getTitle()}
-          </h2>
-          
-          <p className="text-zinc-300 mb-4">
-            {message}
-          </p>
+    <GlassmorphismModal isOpen={open} onClose={onClose} size="md">
+      <div className="text-center">
+        <div className="mb-4">
+          {getIcon()}
+        </div>
+        
+        <h2 className={`text-2xl font-bold mb-4 ${getTitleColor()}`}>
+          {getTitle()}
+        </h2>
+        
+        <p className="text-white/80 mb-4">
+          {message}
+        </p>
 
-          {details && (
-            <div className="mb-4 p-3 bg-zinc-700 rounded-lg">
-              <h3 className="text-sm font-semibold text-zinc-400 mb-2">Details:</h3>
-              <div className="text-sm text-zinc-300 space-y-1">
-                {details.map((detail, index) => (
-                  <div key={index}>{detail}</div>
-                ))}
-              </div>
+        {details && (
+          <div className="mb-4 p-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl">
+            <h3 className="text-sm font-semibold text-white/70 mb-2">Details:</h3>
+            <div className="text-sm text-white/80 space-y-1">
+              {details.map((detail, index) => (
+                <div key={index}>{detail}</div>
+              ))}
             </div>
-          )}
+          </div>
+        )}
 
-          {requester && (
-            <p className="text-sm text-zinc-400 mb-4">
-              Requested by: <span className="font-semibold text-zinc-300">{requester.name}</span>
-            </p>
-          )}
+        {requester && (
+          <p className="text-sm text-white/70 mb-4">
+            Requested by: <span className="font-semibold text-white">{requester.name}</span>
+          </p>
+        )}
 
-          <button
-            onClick={onClose}
-            className={`${getButtonColor()} text-white px-6 py-2 rounded-lg transition-colors flex items-center gap-2 mx-auto`}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            Continue
-          </button>
+        {/* Auto-dismiss indicator */}
+        <div className="mt-4">
+          <div className="text-xs text-white/60 mb-2">
+            Auto-dismissing in 10 seconds...
+          </div>
+          <div className="w-full bg-white/20 rounded-full h-1">
+            <div 
+              className="bg-gradient-to-r from-accent-blue to-accent-purple h-1 rounded-full transition-all duration-10000 ease-linear"
+              style={{ 
+                width: '100%',
+                animation: 'shrink 10s linear forwards'
+              }}
+            />
+          </div>
         </div>
       </div>
-    </div>
+    </GlassmorphismModal>
   );
 }

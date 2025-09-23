@@ -58,3 +58,12 @@
 .liquid-bg-2 {
   animation: liquid-flow 25s ease-in-out infinite reverse;
 }
+
+@keyframes shrink {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
