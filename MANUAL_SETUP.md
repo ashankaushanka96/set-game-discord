@@ -33,7 +33,7 @@ pip install -r backend/requirements.txt
 
 # Test that everything works
 cd backend
-python main.py
+python set-game-discord-main.py
 ```
 
 If the test runs successfully, press `Ctrl+C` to stop it.
@@ -201,7 +201,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 └── set-game-backend/
     ├── venv/                    # Virtual environment
     ├── backend/                 # Backend code
-    │   ├── main.py
+    │   ├── set-game-discord-main.py
     │   ├── requirements.txt
     │   └── ...
     ├── frontend/                # Frontend code

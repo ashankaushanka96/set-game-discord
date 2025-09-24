@@ -4,7 +4,7 @@ cd "$DIR"
 
 while true
 do
-numproc=`ps x | grep -ai main.py | grep -v "grep" | wc -l`
+numproc=`ps x | grep -ai set-game-discord-main.py | grep -v "grep" | wc -l`
 if [ $numproc -lt 1 ]
 then
 ./start.sh 
