@@ -350,7 +350,10 @@ export default function Lobby() {
       const ao = window.location.ancestorOrigins;
       const ancestors = ao && ao.length ? Array.from(ao).join(' ').toLowerCase() : '';
       const combined = `${ref} ${ancestors}`;
-      const isEmbedded = combined.includes('discord.com') || combined.includes('ptb.discord.com') || combined.includes('canary.discord.com');
+      // Discord mobile clients don't expose discord.com as referrer/ancestor, so also
+      // detect the Activity proxy host and the frame_id query param Discord always adds.
+      const isActivity = window.location.hostname.endsWith('discordsays.com') || new URLSearchParams(window.location.search).has('frame_id');
+      const isEmbedded = isActivity || combined.includes('discord.com') || combined.includes('ptb.discord.com') || combined.includes('canary.discord.com');
       if (isEmbedded || isDiscordUA) return; // handled by SDK flow below
 
       const url = new URL(window.location.href);
@@ -464,13 +467,7 @@ export default function Lobby() {
         
         console.debug("[Discord] Running in Discord environment:", discordSdk.platform);
         
-        // Add a delay to see if the test values appear in UI first
-        console.debug("[Discord] Waiting 2 seconds before continuing with real Discord auth...");
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        console.debug("[Discord] Continuing with Discord auth after delay...");
-        
-        // No-op: don't override with placeholder values
-        console.debug("[Discord] Continuing with Discord auth without placeholder overrides...");
+        console.debug("[Discord] Continuing with Discord auth...");
 
         // Try different approaches to get user data
         let user = null;
