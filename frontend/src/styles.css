@@ -474,7 +474,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .match-result-scores span,.match-result-scores small { display:block; font-size:12px; color:#b5c7b2; }
 .match-result-scores strong { display:block; font:40px Georgia,serif; color:#e4cc95; margin:8px 0 3px; }
 .match-result-scores p { font-size:10px; color:#a8bba8; margin:13px 0 0; }
-.hand-card { touch-action:pan-x; -webkit-touch-callout:none; user-select:none; }
+.hand-card { touch-action:none; -webkit-touch-callout:none; user-select:none; }
 .hand-card:not(:disabled) { cursor:grab; }
 .hand-card--dragging { opacity:.3; }
 .card-drag-preview { position:fixed; pointer-events:none; z-index:160; transform:translate(-50%,-85%); display:flex; align-items:center; flex-direction:column; gap:8px; }
@@ -498,3 +498,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .game-seat--selectable:not(.game-seat--me) .game-seat__detail { color:#efd18e; }
 .game-seat--drop-target:not(.game-seat--me) { border-style:solid; border-color:#ffe2a0; box-shadow:0 0 0 3px #e2c58477,0 0 25px #e2c58444; background:linear-gradient(145deg,#515237,#30412a); }
 .game-seat--me.game-seat--speaking { border-color:#76d4ca; box-shadow:0 0 0 2px #8bcaa566,0 0 16px #8bcaa51a,0 8px 20px #0004; }
+
+.player-hand__scroll { overscroll-behavior-x:contain; }
+.passed-cards-overlay { position:fixed; inset:0; z-index:90; pointer-events:none; }
+.passed-card-flight { position:absolute; left:0; top:0; will-change:transform; }
+.received-card-stack { position:absolute; }
+.received-card-fan { position:relative; width:0; height:0; }
+.received-card-fan > div { position:absolute; left:0; top:0; transition:transform 180ms ease-out; filter:drop-shadow(0 3px 3px #0004); }
+.received-card-fan__count { position:absolute; left:15px; top:-40px; min-width:20px; height:20px; display:grid; place-items:center; padding:0 4px; background:#d9bf83; color:#23372a; border-radius:10px; font-size:11px; font-weight:600; z-index:8; }

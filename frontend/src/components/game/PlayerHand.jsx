@@ -30,7 +30,7 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
   return <div className="player-hand">
     <div className="player-hand__heading">
       <span>Your hand <span className="player-hand__count">{cards.length}</span></span>
-      <span aria-live="polite">{selected.size ? `${selected.size} selected · drag to an opponent` : selectable ? 'Drag up to pass · swipe sideways to browse' : 'Sorted by suit'}</span>
+      <span aria-live="polite">{selected.size ? `${selected.size} selected · drag to an opponent` : selectable ? 'Drag up to pass · swipe unselected cards to browse' : 'Sorted by suit'}</span>
     </div>
     <div className="player-hand__scroll" tabIndex={0} aria-label="Your cards, scroll to see more">
       <div className="player-hand__cards">

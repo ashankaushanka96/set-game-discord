@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { nearestPlayerAt } from './cardDropTarget';
+import { cardGestureMode } from './cardGesture';
 
 export default function useCardDrag({ enabled, cards, selectedCards, resolveTarget, onStart, onHover, onEnd, onDrop }) {
   const gesture = useRef(null);
@@ -20,6 +21,7 @@ export default function useCardDrag({ enabled, cards, selectedCards, resolveTarg
     frame.current = null;
     hovered.current = null;
     release(current);
+    if (current.scrolling) suppressClickUntil.current = Date.now() + 500;
     if (!current.active) return;
     suppressClickUntil.current = Date.now() + 500;
     setPreview(null);
@@ -62,21 +64,27 @@ export default function useCardDrag({ enabled, cards, selectedCards, resolveTarg
         if (!enabled || !resolveTarget || !event.isPrimary || event.button !== 0) return;
         const isSelected = selectedCards.some(c => c.suit === card.suit && c.rank === card.rank);
         const payload = (isSelected ? selectedCards : [card]).map(({suit,rank}) => ({suit,rank}));
-        gesture.current = { pointerId:event.pointerId, element:event.currentTarget, x:event.clientX, y:event.clientY, pointerType:event.pointerType, cards:payload, active:false, scrolling:false };
+        const scrollElement = event.currentTarget.closest('.player-hand__scroll');
+        gesture.current = { pointerId:event.pointerId, element:event.currentTarget, x:event.clientX, y:event.clientY, pointerType:event.pointerType, cards:payload, isSelected, scrollElement, scrollLeft:scrollElement?.scrollLeft || 0, active:false, scrolling:false };
         event.currentTarget.setPointerCapture(event.pointerId);
       },
       onPointerMove: event => {
         const current = gesture.current;
-        if (!current || event.pointerId !== current.pointerId || current.scrolling) return;
-        if (!current.active) {
-          const dx=Math.abs(event.clientX-current.x),dy=Math.abs(event.clientY-current.y);
-          if (Math.hypot(dx,dy)<9) return;
-          // Leave sideways touch swipes available for scrolling through the hand.
-          if (current.pointerType === 'touch' && dx>dy*1.2) { current.scrolling=true; return; }
-          current.active=true;
-          onStart?.(current.cards);
+        if (!current || event.pointerId !== current.pointerId) return;
+        if (!current.active && !current.scrolling) {
+          const mode = cardGestureMode(event.clientX-current.x,event.clientY-current.y,current.pointerType,current.isSelected);
+          if (mode === 'pending') return;
+          if (mode === 'scroll') current.scrolling = true;
+          else {
+            current.active = true;
+            onStart?.(current.cards);
+          }
         }
         event.preventDefault();
+        if (current.scrolling) {
+          if (current.scrollElement) current.scrollElement.scrollLeft = current.scrollLeft - (event.clientX-current.x);
+          return;
+        }
         latestPoint.current = { x:event.clientX,y:event.clientY };
         if (frame.current !== null) return;
         frame.current = requestAnimationFrame(() => {

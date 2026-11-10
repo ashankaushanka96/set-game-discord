@@ -9,6 +9,7 @@ import {
   MessageBubbles 
 } from '../';
 import SpectatorView from './SpectatorView';
+import PassedCardsAnimation from './PassedCardsAnimation';
 import ChatBubble from './ChatBubble';
 import EmojiPassAnimation from './EmojiPassAnimation';
 import EmojiSettings from './EmojiSettings';
@@ -77,7 +78,6 @@ export default function Table() {
   const [emojiSettingsOpen, setEmojiSettingsOpen] = useState(false);
   const [spectatorRequestsOpen, setSpectatorRequestsOpen] = useState(false);
 
-  const [anim, setAnim] = useState(null);
   const [lays, setLays] = useState([]);
   const tableCenterRef = useRef(null);
 
@@ -124,115 +124,6 @@ export default function Table() {
 
 
 
-
-  // PASS anim
-  useEffect(() => {
-    function onAnim(e) {
-      const { asker_id, target_id, card, from_player, to_player, cards } = e.detail || {};
-      
-      // Clear any existing animation first to prevent conflicts
-      setAnim(null);
-      
-      // Handle new card passing (multiple cards) - animate fanned deck flying
-      if (from_player && to_player && cards) {
-        
-        const fromWrapper = seatEls.current[from_player];
-        const fromEl = fromWrapper?.querySelector('.game-seat') || fromWrapper;
-        const toWrapper = seatEls.current[to_player];
-        const toEl = toWrapper?.querySelector('.game-seat') || toWrapper;
-        if (!fromEl || !toEl) {
-          console.warn('Card pass animation failed: missing DOM elements', { 
-            from_player, 
-            to_player, 
-            fromEl: !!fromEl, 
-            toEl: !!toEl,
-            availableSeatEls: Object.keys(seatEls.current),
-            availablePlayers: Object.keys(players)
-          });
-          return;
-        }
-        
-        // Add small delay to ensure DOM elements are properly positioned
-        setTimeout(() => {
-          const from = fromEl.getBoundingClientRect();
-          const to = toEl.getBoundingClientRect();
-          
-          
-          // Create flying fanned deck animation
-          const animationData = {
-            cards: cards,
-            from: { x: from.left + from.width/2, y: from.top + from.height/2 },
-            to: { x: to.left + to.width/2, y: to.top + to.height/2 },
-            go: false,
-            type: 'fanned_deck'
-          };
-          
-          setAnim(animationData);
-          
-          // Start animation after a brief delay
-          setTimeout(() => {
-            setAnim(a => a ? { ...a, go: true } : a);
-          }, 100);
-        }, 50);
-        
-        // After animation completes, keep deck on target player for 15 seconds
-        setTimeout(() => {
-          // Keep the animation in place but mark it as landed
-          setAnim(prev => prev ? { ...prev, landed: true } : null);
-          
-          // Remove deck after 15 seconds
-          setTimeout(() => {
-            setAnim(null);
-          }, 15000);
-        }, 1050); // Increased to account for the 50ms + 100ms delays
-        
-        return;
-      }
-      
-      // Handle single card passing (if only one card is passed)
-      if (from_player && to_player && cards && cards.length === 1) {
-        const fromWrapper = seatEls.current[from_player];
-        const fromEl = fromWrapper?.querySelector('.game-seat') || fromWrapper;
-        const toWrapper = seatEls.current[to_player];
-        const toEl = toWrapper?.querySelector('.game-seat') || toWrapper;
-        if (!fromEl || !toEl) {
-          console.warn('Single card pass animation failed: missing DOM elements', { from_player, to_player, fromEl: !!fromEl, toEl: !!toEl });
-          return;
-        }
-        
-        const from = fromEl.getBoundingClientRect();
-        const to = toEl.getBoundingClientRect();
-        
-        // Create flying single card animation
-        setAnim({
-          suit: cards[0].suit, 
-          rank: cards[0].rank,
-          from: { x: from.left + from.width/2, y: from.top + from.height/2 },
-          to: { x: to.left + to.width/2, y: to.top + to.height/2 },
-          go: false,
-          type: 'single_card'
-        });
-        
-        // Start animation
-        requestAnimationFrame(() => requestAnimationFrame(() => setAnim(a=>a?{...a,go:true}:a)));
-        
-        // After animation completes, keep card on target player for 15 seconds
-        setTimeout(() => {
-          // Keep the animation in place but mark it as landed
-          setAnim(prev => prev ? { ...prev, landed: true } : null);
-          
-          // Remove card after 15 seconds
-          setTimeout(() => {
-            setAnim(null);
-          }, 15000);
-        }, 900);
-        
-        return;
-      }
-    }
-    window.addEventListener('pass_anim', onAnim);
-    return () => window.removeEventListener('pass_anim', onAnim);
-  }, []);
 
   // LAY anim
   useEffect(() => {
@@ -312,12 +203,7 @@ export default function Table() {
   const handleSeatClick = player => passCards(selectedCardsToPass,player.id);
 
 
-  const handleTableClick = () => {
-    // Clear any landed animation when clicking on table
-    if (anim && anim.landed) {
-      setAnim(null);
-    }
-  };
+  const handleTableClick = () => window.dispatchEvent(new Event('dismiss_passed_cards'));
 
   // Show spectator view if player is a spectator
   if (isSpectator) {
@@ -347,6 +233,7 @@ export default function Table() {
       <div className="game-room-heading"><span className="club-eyebrow">SET CLUB</span><span>{state.phase === 'playing' ? 'Round in play' : state.phase === 'ready' ? 'Waiting for the deal' : 'Round complete'}</span></div>
       <Celebration tableCenterRef={tableCenterRef} />
       <DealingAnimation />
+      <PassedCardsAnimation seatEls={seatEls} phase={state.phase} />
       
       {/* Back to Lobby Button - Top Left */}
       <div className="game-top-control fixed top-2 left-2 md:top-3 md:left-3 z-40">
@@ -589,62 +476,6 @@ export default function Table() {
                 </div>
               );
             })}
-
-            {anim && (
-              <div className="fixed z-[90] pointer-events-none" style={{ 
-                left: anim.from.x, 
-                top: anim.from.y, 
-                transform: 'translate(-50%,-50%)' 
-              }}>
-                <div style={{ 
-                  position: 'relative', 
-                  left: anim.go ? (anim.to.x - anim.from.x) : 0, 
-                  top: anim.go ? (anim.to.y - anim.from.y) : 0,
-                  transition: anim.landed ? 'none' : 'left 0.8s cubic-bezier(.2,.8,.2,1), top 0.8s cubic-bezier(.2,.8,.2,1)' 
-                }}>
-                  {anim.type === 'fanned_deck' ? (
-                    // Render fanned deck animation
-                    <div className={`relative flex justify-center items-center ${anim.landed ? 'animate-pulse' : ''}`} style={{ 
-                      width: `${Math.min(anim.cards.length * 20 + 60, 350)}px`,
-                      height: '80px'
-                    }}>
-                      {anim.cards.map((card, index) => {
-                        const totalCards = anim.cards.length;
-                        const maxRotation = Math.min(totalCards * 6, 45);
-                        const rotation = totalCards > 1 ? 
-                          (index - (totalCards - 1) / 2) * (maxRotation / (totalCards - 1)) : 0;
-                        const offsetX = totalCards > 1 ? 
-                          (index - (totalCards - 1) / 2) * 20 : 0;
-                        
-                        return (
-                          <div
-                            key={`${card.suit}-${card.rank}-${index}`}
-                            className="absolute transform"
-                            style={{
-                              transform: `translate(-50%, -50%) translateX(${offsetX}px) rotate(${rotation}deg)`,
-                              zIndex: index + 1,
-                              left: '50%',
-                              top: '50%',
-                              filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))'
-                            }}
-                          >
-                            <Card suit={card.suit} rank={card.rank} size="sm" />
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : anim.type === 'single_card' ? (
-                    // Render single card animation with landing effects
-                    <div className={`relative flex justify-center items-center ${anim.landed ? 'animate-pulse' : ''}`}>
-                      <Card suit={anim.suit} rank={anim.rank} size={anim.landed ? "sm" : "sm"} />
-                    </div>
-                  ) : (
-                    // Fallback for old single card animation (should not happen anymore)
-                    <Card suit={anim.suit} rank={anim.rank} size="sm" />
-                  )}
-                </div>
-              </div>
-            )}
 
             {lays.map((a, idx)=>(
               <div key={`lay-${idx}`} className="fixed z-[88] pointer-events-none" style={{ left: a.from.x, top: a.from.y, transform: 'translate(-50%,-50%)' }}>
