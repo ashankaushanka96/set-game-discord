@@ -1,21 +1,14 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 
-// Lazy sound loader with caching to avoid repeated dynamic imports
-let _playKeyCached = null;
-async function playSfxKeyOnce(key) {
-  try {
-    if (!_playKeyCached) {
-      const mod = await import('../../utils/sounds');
-      _playKeyCached = mod.playKey || (mod.default && mod.default.playKey && ((k)=>mod.default.playKey(k)));
-    }
-    if (typeof _playKeyCached === 'function') _playKeyCached(key);
-  } catch (_) {}
-}
+import { playCardFoley, stopCardFoley } from '../../utils/sounds';
 import { useStore } from '../../store';
+import { send } from '../../ws';
+import ShuffleDeck from './ShuffleDeck';
+import { SHUFFLE_DURATION, DEAL_DURATION } from './dealTiming';
 import { Card, CardBack } from '../cards';
 
 const CARD_FLIGHT_DURATION = 800;
-const FULL_DEAL_DURATION = 27000;
+const FULL_DEAL_DURATION = DEAL_DURATION;
 const FULL_DEAL_CARD_COUNT = 52;
 const TABLE_CENTER_KEY = 'table-center';
 
@@ -32,7 +25,7 @@ const getTableCenterPosition = () => {
 };
 
 const DealingAnimation = () => {
-  const { dealingAnimation, me } = useStore();
+  const { dealingAnimation, me, ws } = useStore();
   const [phase, setPhase] = useState('idle'); // 'idle', 'dealing', 'complete'
   const [flyingCards, setFlyingCards] = useState([]);
   const [handCards, setHandCards] = useState({}); // Track cards appearing in hands
@@ -112,12 +105,26 @@ const DealingAnimation = () => {
 
   useEffect(() => {
     if (!dealingAnimation) {
+      stopCardFoley();
       setPhase('idle');
       setFlyingCards([]);
       setHandCards({});
       return;
     }
     
+
+    const timers = new Set();
+    const schedule = (callback, delay) => {
+      const timer = setTimeout(() => { timers.delete(timer); callback(); }, delay);
+      timers.add(timer);
+      return timer;
+    };
+    setPhase('shuffling');
+    // Match the split, individual riffle releases, bridge and final squaring.
+    schedule(() => playCardFoley('slide'), SHUFFLE_DURATION * .18);
+    for (let i = 0; i < 12; i++) schedule(() => playCardFoley('riffle'), SHUFFLE_DURATION * .4 + i * 35);
+    schedule(() => playCardFoley('slide'), SHUFFLE_DURATION * .76);
+    schedule(() => playCardFoley('square'), SHUFFLE_DURATION * .96);
 
     // Update seat positions when dealing animation starts
     const updateSeatPositions = () => {
@@ -134,7 +141,7 @@ const DealingAnimation = () => {
     };
     
     // Small delay to ensure DOM is ready
-    setTimeout(updateSeatPositions, 100);
+    schedule(updateSeatPositions, 100);
 
     const { dealerSeat, players, seats, dealingSequence } = dealingAnimation;
     
@@ -154,15 +161,12 @@ const DealingAnimation = () => {
       }
     }
 
-    // No visual shuffle; just proceed to dealing
-
-    // Skip shuffle animation, go directly to dealing
-    // Add a small delay to ensure seat positions are updated
-    setTimeout(() => {
+    // Square the shuffled deck before distributing cards from the table centre.
+    schedule(() => {
       setPhase('dealing');
       setFlyingCards([]);
       setHandCards({});
-      playSfxKeyOnce('deal');
+
       
       // Create dealing sequence - one card at a time
       const baseSequence = [];
@@ -177,7 +181,7 @@ const DealingAnimation = () => {
             playerId: dealData.player_id,
             round: dealData.round,
             card: dealData.card,
-            fromSeat: dealData.from_seat !== undefined && dealData.from_seat !== null ? dealData.from_seat : TABLE_CENTER_KEY // Use the from_seat for animation origin
+            fromSeat: TABLE_CENTER_KEY
           });
         });
       } else {
@@ -248,7 +252,8 @@ const DealingAnimation = () => {
 
       // Process each card in sequence
       dealSequence.forEach((cardData) => {
-        setTimeout(() => {
+        schedule(() => {
+          playCardFoley('slide');
           const cardKey = `${cardData.id}-${Date.now()}`;
 
           // Add flying card
@@ -268,7 +273,7 @@ const DealingAnimation = () => {
           }
 
           // Remove flying card after animation and add to hand
-          setTimeout(() => {
+          schedule(() => {
             setFlyingCards(prev => prev.filter(c => c.key !== cardKey));
             setCardPositions(prev => {
               const newPositions = { ...prev };
@@ -299,18 +304,20 @@ const DealingAnimation = () => {
 
       // Complete animation after all cards are dealt
       const totalDealingTime = FULL_DEAL_DURATION;
-      setTimeout(() => {
+      schedule(() => {
         setPhase('complete');
-        setTimeout(() => {
+        schedule(() => {
           setPhase('idle');
           setFlyingCards([]);
           setHandCards({});
         }, 500);
       }, totalDealingTime);
 
-    }, 200); // Small delay to ensure seat positions are updated
+    }, SHUFFLE_DURATION); // Shuffle, square the deck, then deal.
 
     return () => {
+      timers.forEach(clearTimeout);
+      stopCardFoley();
       // Cleanup animations
       Object.values(animationRefs.current).forEach(animationId => {
         cancelAnimationFrame(animationId);
@@ -326,6 +333,14 @@ const DealingAnimation = () => {
   return (
     <div className="fixed inset-0 pointer-events-none z-50">
 
+      {(phase === 'shuffling' || phase === 'dealing') && <ShuffleDeck shuffling={phase === 'shuffling'} position={getTableCenterPosition()} />}
+      {dealingAnimation.dealerId === me?.id && <button type="button" className="deal-skip-button" onClick={() => {
+        if (ws?.readyState !== 1) return;
+        send(ws,'skip_deal_animation',{animation_id:dealingAnimation.id});
+        // Stop this dealer's timers immediately; the server broadcasts to everyone else.
+        stopCardFoley();
+        useStore.setState({dealingAnimation:null});
+      }}>Skip for everyone ↗</button>}
       {/* Flying Cards */}
       {flyingCards.map((card) => {
         const seatPos = seatRefs.current[card.seat];

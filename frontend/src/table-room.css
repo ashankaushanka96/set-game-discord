@@ -244,3 +244,17 @@
   .spectator-heading h1 { font-size:23px; }
   .spectator-guide { gap:8px; }
 }
+.deal-skip-button { pointer-events:auto; position:fixed; bottom:calc(env(safe-area-inset-bottom,0px) + 22px); left:50%; transform:translateX(-50%); padding:11px 18px; border-radius:12px; border:1px solid #d7ba76; background:#263d2f; color:#f5e1ae; box-shadow:0 4px 16px #0008; }
+/* Keep the dealer control above the hand dock and safe-area overlays. */
+.deal-skip-button { z-index:180; }
+
+/* Individually released leaves, paper edges, and a grounded bridge shuffle. */
+.riffle-scene { position:fixed; width:0; height:0; perspective:650px; }
+.riffle-deck { position:absolute; width:44px; height:60px; left:-22px; top:-30px; transform:rotateX(26deg) rotateZ(90deg); transform-style:preserve-3d; }
+.riffle-card { position:absolute; inset:0; transform-origin:center; backface-visibility:hidden; will-change:transform; }
+.riffle-card .card-back { box-shadow:0 1px 0 #b7ab8d,0 2px 0 #eee5cf,0 3px 2px #0003; }
+.riffle-shadow { position:absolute; width:106px; height:64px; left:-53px; top:-22px; background:#0007; filter:blur(11px); border-radius:50%; }
+.riffle-scene--active .riffle-shadow { animation:riffle-shadow 3.2s ease-in-out both; }
+.riffle-scene > span { position:absolute; top:76px; left:0; transform:translateX(-50%); white-space:nowrap; color:#f2d99d; background:#173025ed; border:1px solid #c8aa6b66; border-radius:20px; padding:7px 13px; font:14px Georgia,serif; }
+@keyframes riffle-shadow { 0%,100% { transform:scaleX(1); opacity:.65; } 25%,50% { transform:scaleX(1.9); opacity:.45; } 76% { transform:scaleX(1.1); opacity:.3; } }
+@media(prefers-reduced-motion:reduce) { .riffle-scene--active .riffle-shadow { animation:none; } }

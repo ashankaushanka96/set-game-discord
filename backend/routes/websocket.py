@@ -1,5 +1,7 @@
 from __future__ import annotations
 import json
+import time
+from uuid import uuid4
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from loguru import logger
 
@@ -206,7 +208,10 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                 if game.state.phase in ["ready", "ended", "lobby"]:
                     res = game.shuffle_deal_new_game(p.get("dealer_id", player_id))
                     if res.get("success"):
-                        await WebSocketService.broadcast(room_id, "new_game_started", {**res, "state": game.state.model_dump()})
+                        game.deal_animation_id = uuid4().hex
+                        game.deal_animation_dealer = res.get("original_dealer_id") or res.get("dealer_id") or game.state.current_dealer
+                        game.deal_animation_until = time.monotonic() + 33
+                        await WebSocketService.broadcast(room_id, "new_game_started", {**res, "animation_id": game.deal_animation_id, "state": game.state.model_dump()})
                     else:
                         await ws.send_text(json.dumps({"type": "error", "payload": {"message": res["reason"]}}))
                 else:
@@ -215,6 +220,19 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                         "reason": "game_in_progress",
                         "message": "Cannot shuffle and deal during active game. Use abort game first."
                     })
+
+            elif t == "skip_deal_animation":
+                if (player_id == getattr(game, "deal_animation_dealer", None)
+                    and p.get("animation_id") == getattr(game, "deal_animation_id", None)
+                    and time.monotonic() < getattr(game, "deal_animation_until", 0)):
+                    game.deal_animation_until = 0
+                    await WebSocketService.broadcast(room_id, "deal_animation_skipped", {
+                        "animation_id": game.deal_animation_id
+                    })
+                else:
+                    await ws.send_text(json.dumps({"type": "error", "payload": {
+                        "message": "Only the dealer can skip the current shuffle and deal."
+                    }}))
 
             elif t == "ask":
                 # announce start (for bubbles)
@@ -318,7 +336,10 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
             elif t == "shuffle_deal_new_game":
                 res = game.shuffle_deal_new_game(p["dealer_id"])
                 if res.get("success"):
-                    await WebSocketService.broadcast(room_id, "new_game_started", {**res, "state": game.state.model_dump()})
+                    game.deal_animation_id = uuid4().hex
+                    game.deal_animation_dealer = res.get("original_dealer_id") or res.get("dealer_id") or game.state.current_dealer
+                    game.deal_animation_until = time.monotonic() + 33
+                    await WebSocketService.broadcast(room_id, "new_game_started", {**res, "animation_id": game.deal_animation_id, "state": game.state.model_dump()})
                 else:
                     await ws.send_text(json.dumps({"type": "error", "payload": {"message": res["reason"]}}))
 

@@ -1,3 +1,5 @@
+import { stopCardFoley } from './utils/sounds';
+import { SHUFFLE_DURATION, DEAL_DURATION, DEAL_COMPLETE_BUFFER } from './components/game/dealTiming';
 import { createSpeakingActions } from './utils/speaking';
 import { create } from "zustand";
 
@@ -10,8 +12,7 @@ function setMeInSession(me) { sessionStorage.setItem("me", JSON.stringify(me)); 
 let uid = 0;
 const mid = () => `${Date.now()}-${uid++}`;
 
-const DEAL_ANIMATION_DURATION = 27000;
-const DEAL_ANIMATION_BUFFER = 1000;
+
 
 const setLabel = (t) => (t === "lower" ? "Lower (2–7)" : "Upper (8–A)");
 const cardLabel = (c) => (c ? `${c.rank} of ${c.suit}` : "card");
@@ -292,11 +293,11 @@ export const useStore = create((set, get) => ({
         } catch {}
       }
 
-      // Check for game end after animation
+      // Keep the final declaration on the same success/failure path as every other set.
       if (msg.payload.game_end?.game_ended) {
-        // Delay ALL state updates to allow animation to show
+        set({ gameResult: msg.payload.game_end });
+        // Announce the round after the laydown reveal.
         setTimeout(() => {
-          set({ state: s, phase: s.phase, pendingLay: null, gameResult: msg.payload.game_end });
           // Play game over sound
           if (typeof window !== 'undefined') {
             import('./utils/sounds').then((m) => {
@@ -318,10 +319,9 @@ export const useStore = create((set, get) => ({
             }).catch(()=>{});
           }
         }, 1500); // Wait for laydown animation to complete (1000ms + 500ms buffer)
-        return; // Don't process other laydown logic if game ended
       }
 
-      // Normal laydown (not game ending) - update state immediately
+      // Every laydown, including the final set, gets its declaration result.
       set({ state: s, phase: s.phase, pendingLay: null });
 
       const players = s.players || {};
@@ -482,7 +482,8 @@ export const useStore = create((set, get) => ({
       
       // Trigger dealing animation
       const dealingData = {
-        dealerSeat: msg.payload.original_dealer_seat || msg.payload.dealer_seat,
+        id: msg.payload.animation_id,
+        dealerSeat: msg.payload.original_dealer_seat ?? msg.payload.dealer_seat,
         dealerId: msg.payload.original_dealer_id || msg.payload.dealer_id,
         players: s.players || {},
         seats: s.seats || {},
@@ -492,9 +493,15 @@ export const useStore = create((set, get) => ({
       
       // Clear animation after it completes
       setTimeout(() => {
+        if (get().dealingAnimation !== dealingData) return;
         set({ dealingAnimation: null });
         get().setGameMessage("NEW GAME", [`Dealt by: ${originalDealerName}`, "Cards dealt to all players"]);
-      }, DEAL_ANIMATION_DURATION + DEAL_ANIMATION_BUFFER);
+      }, SHUFFLE_DURATION + DEAL_DURATION + DEAL_COMPLETE_BUFFER);
+    }
+
+    if (msg.type === "deal_animation_skipped" && msg.payload.animation_id === get().dealingAnimation?.id) {
+      stopCardFoley();
+      set({ dealingAnimation: null });
     }
 
     // ABORT REQUESTED

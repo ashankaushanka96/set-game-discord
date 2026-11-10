@@ -17,6 +17,7 @@ const localServer = {
     '/api': { target: 'http://localhost:8001', changeOrigin: true, ws: true }
   },
   headers: {
+    "Cache-Control": "no-store",
     // CSP: allow Vite's inline preamble + HMR
     "Content-Security-Policy":
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data: https://static.cloudflareinsights.com; " +
@@ -38,7 +39,7 @@ export default defineConfig({
   },
   // Lighter for phones: `npm run build && npm run preview`.
   // No CSP here, matching production nginx (which works in the Discord iOS client).
-  preview: { ...localServer, headers: {}, strictPort: true },
+  preview: { ...localServer, headers: { "Cache-Control": "no-store" }, strictPort: true },
   build: {
     rollupOptions: {
       output: {

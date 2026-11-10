@@ -1,4 +1,4 @@
-﻿const EMOJI_TO_SOUND = {
+const EMOJI_TO_SOUND = {
   '\u{1F528}': 'bonk', // hammer
   '\u{1F345}': 'splat', // tomato
   '\u{1F4A3}': 'explosion', // bomb
@@ -30,8 +30,7 @@ const SOUND_FILE_MAP = {
   lay_success: 'sounds/laydown/success.mp3',
   lay_unsuccess: 'sounds/laydown/unsuccess.mp3',
   game_over: 'sounds/gameover/gameover.mp3',
-  shuffle: 'sounds/shuffle/shuffle.mp3',
-  deal: 'sounds/deal/deal.mp3'
+
 };
 
 function ensureSuffix(value) {
@@ -48,6 +47,10 @@ class EmojiSoundManager {
     this._pending = [];
     this._templateCache = new Map();
     this.audioContext = null;
+    this._active = new Map();
+    this._stopped = new WeakSet();
+    this._cardSources = new Set();
+    this._generations = new Map();
   }
 
   getBasePrefix() {
@@ -140,10 +143,18 @@ class EmojiSoundManager {
 
   playKey(key) {
     if (!key) return;
+    // Legacy callers must never restart the old full-length recordings.
+    if (key === 'deal' || key === 'shuffle') {
+      this.playCardFoley(key === 'shuffle' ? 'riffle' : 'slide');
+      return;
+    }
     const url = this.getSoundUrl(key);
     if (!url) return;
 
-    const action = () => this._playUrl(url);
+    const generation = this._generations.get(key) || 0;
+    const action = () => {
+      if ((this._generations.get(key) || 0) === generation) this._playUrl(url, key);
+    };
     if (!this._unlocked) {
       this._pending.push(action);
       return;
@@ -151,7 +162,57 @@ class EmojiSoundManager {
     action();
   }
 
-  _playUrl(url) {
+  playCardFoley(kind = 'slide') {
+    if (this.isMuted || !this._unlocked) return;
+    try {
+      const Context = globalThis.window?.AudioContext || globalThis.window?.webkitAudioContext;
+      if (!this.audioContext && Context) this.audioContext = new Context();
+      const ctx = this.audioContext;
+      // Never queue old card sounds for a later browser audio unlock.
+      if (!ctx || ctx.state !== 'running') return;
+      const duration = kind === 'riffle' ? .055 : kind === 'square' ? .10 : .075;
+      const buffer = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * duration), ctx.sampleRate);
+      const samples = buffer.getChannelData(0);
+      for (let i = 0; i < samples.length; i++) samples[i] = Math.random() * 2 - 1;
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.value = kind === 'square' ? 650 : kind === 'riffle' ? 2200 : 1400;
+      filter.Q.value = .65;
+      const gain = ctx.createGain();
+      const now = ctx.currentTime;
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(this.volume * (kind === 'square' ? .24 : .12), now + .004);
+      gain.gain.exponentialRampToValueAtTime(.0001, now + duration);
+      source.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+      this._cardSources.add(source);
+      source.onended = () => { this._cardSources.delete(source); source.disconnect(); filter.disconnect(); gain.disconnect(); };
+      source.start(now);
+    } catch (_) {}
+  }
+
+  stopCardFoley() {
+    for (const source of this._cardSources) {
+      try { source.stop(); source.disconnect(); } catch (_) {}
+    }
+    this._cardSources.clear();
+    this.stopKey('deal');
+    this.stopKey('shuffle');
+  }
+
+  stopKey(key) {
+    // Invalidate queued playback as well as stopping already playing clones.
+    this._generations.set(key, (this._generations.get(key) || 0) + 1);
+    for (const audio of this._active.get(key) || []) {
+      this._stopped.add(audio);
+      audio.pause();
+      try { audio.currentTime = 0; audio.removeAttribute?.("src"); audio.load?.(); } catch (_) {}
+    }
+    this._active.delete(key);
+  }
+
+  _playUrl(url, key) {
     if (this.isMuted) return;
 
     try {
@@ -167,7 +228,18 @@ class EmojiSoundManager {
       if (typeof audio.setSinkId === 'function' && this.outputDeviceId && this.outputDeviceId !== 'default') {
         audio.setSinkId(this.outputDeviceId).catch(() => {});
       }
-      audio.play().catch(() => {});
+      const active = this._active.get(key) || new Set();
+      this._active.set(key, active);
+      active.add(audio);
+      const release = () => {
+        active.delete(audio);
+        if (!active.size && this._active.get(key) === active) this._active.delete(key);
+      };
+      audio.addEventListener('ended', release, { once: true });
+      audio.addEventListener('error', release, { once: true });
+      audio.play().then(() => {
+        if (this._stopped.has(audio)) audio.pause();
+      }).catch(release);
     } catch (_) {}
   }
 }
@@ -182,6 +254,11 @@ export const playEmojiSound = (emoji) => {
 };
 export const playKey = (key) => {
   try { emojiSoundManager.playKey(key); } catch (_) {}
+};
+export const playCardFoley = kind => emojiSoundManager.playCardFoley(kind);
+export const stopCardFoley = () => emojiSoundManager.stopCardFoley();
+export const stopKey = (key) => {
+  try { emojiSoundManager.stopKey(key); } catch (_) {}
 };
 export const setEmojiSoundVolume = (value) => {
   try { emojiSoundManager.setVolume(value); } catch (_) {}

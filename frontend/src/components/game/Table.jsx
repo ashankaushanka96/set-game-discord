@@ -49,11 +49,11 @@ function SetChip({ suit, set_type, owner }) {
 
 export default function Table() {
   const navigate = useNavigate();
-  const { state, me, ws, handoffFor, gameResult, abortVoting, dealingAnimation, pendingLay, votingResult, closeVotingResult, backToLobbyVoting, speakingUsers, laydownResult, clearLaydownResult } = useStore();
+  const { state, me, ws, gameResult, abortVoting, dealingAnimation, pendingLay, votingResult, closeVotingResult, backToLobbyVoting, speakingUsers, laydownResult, clearLaydownResult } = useStore();
   const [layOpen, setLayOpen] = useState(false);
   const [resultsOpen, setResultsOpen] = useState(false);
   const [resultsReady, setResultsReady] = useState(false);
-  const pendingResult = gameResult || laydownResult;
+  const pendingResult = laydownResult || gameResult;
   useEffect(() => {
     setResultsOpen(false);
     setResultsReady(false);
@@ -138,11 +138,6 @@ export default function Table() {
   const setsB = tableSets.filter(ts => ts.owner_team === 'B');
   const scoreA = state.team_scores?.A ?? 0;
   const scoreB = state.team_scores?.B ?? 0;
-
-  const doHandoff = (toId) => {
-    send(ws, 'handoff_after_laydown', { who_id: me.id, to_id: toId });
-  };
-
 
   const handleHandCardClick = (card) => {
     setSelectedCardsToPass(prev => {
@@ -288,33 +283,6 @@ export default function Table() {
         </div>
       )}
 
-      {handoffFor && handoffFor.who_id === me.id && (
-        <div className="game-top-control fixed top-2 md:top-4 left-1/2 -translate-x-1/2 z-[95] bg-dark-card/90 backdrop-blur px-2 md:px-4 py-1 md:py-2 rounded-xl card-shadow flex flex-col sm:flex-row items-center gap-1 md:gap-2 border border-accent-emerald/20">
-          <span className="text-xs md:text-sm text-text-secondary">Pass turn to teammate:</span>
-          <div className="flex flex-wrap gap-1 md:gap-2">
-            {handoffFor.eligible.map(pid => (
-              <button key={pid} className="text-xs md:text-sm bg-gradient-accent hover:shadow-glow-emerald px-2 md:px-3 py-1 rounded border border-accent-emerald/30"
-                onClick={() => doHandoff(pid)}>
-                <div className="flex items-center gap-2">
-                  {typeof players[pid]?.avatar === "string" && players[pid].avatar.startsWith("http") ? (
-                    <img 
-                      src={players[pid].avatar} 
-                      alt={players[pid]?.name || 'Player'} 
-                      className="h-5 w-5 rounded-full border border-white/30" 
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <span>{players[pid]?.avatar}</span>
-                  )}
-                  <span>{players[pid]?.name}</span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-
        <MessageBubbles seatEls={seatEls} seatVersion={seatVersion} hideLaydownBubbles={layOpen} />
        <ChatBubble selectedCardsToPass={selectedCardsToPass} />
        <EmojiPassAnimation />
@@ -363,7 +331,7 @@ export default function Table() {
             </div>
 
             {pendingResult && resultsReady && <div className="laydown-results-prompt" role="status">
-              <span>{gameResult ? 'Round complete' : laydownResult.success ? 'Set complete' : 'Declaration checked'}</span>
+              <span>{laydownResult ? (laydownResult.success ? 'Set complete' : 'Declaration checked') : 'Round complete'}</span>
               <button type="button" className="club-primary" onClick={event => {event.stopPropagation();setResultsOpen(true);}}>View results</button>
             </div>}
 
@@ -505,7 +473,7 @@ export default function Table() {
 
       {/* Laydown Result Modal */}
       <LaydownResultModal
-        open={!!laydownResult && !gameResult && resultsOpen}
+        open={!!laydownResult && resultsOpen}
         onClose={() => { setResultsOpen(false); clearLaydownResult(); }}
         laydownData={laydownResult}
         state={state}
@@ -513,7 +481,7 @@ export default function Table() {
 
       {/* Game Over Modal */}
       <GameOverModal
-        open={!!gameResult && resultsOpen}
+        open={!!gameResult && !laydownResult && resultsOpen}
         onClose={() => setResultsOpen(false)}
         gameResult={gameResult}
       />
