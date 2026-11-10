@@ -258,3 +258,25 @@
 .riffle-scene > span { position:absolute; top:76px; left:0; transform:translateX(-50%); white-space:nowrap; color:#f2d99d; background:#173025ed; border:1px solid #c8aa6b66; border-radius:20px; padding:7px 13px; font:14px Georgia,serif; }
 @keyframes riffle-shadow { 0%,100% { transform:scaleX(1); opacity:.65; } 25%,50% { transform:scaleX(1.9); opacity:.45; } 76% { transform:scaleX(1.1); opacity:.3; } }
 @media(prefers-reduced-motion:reduce) { .riffle-scene--active .riffle-shadow { animation:none; } }
+/* Reactions arrive from their sender, then settle according to their weight. */
+.directional-hammer { position:absolute; inset:0; transform-origin:center; }
+.directional-hammer .card-hammer { left:auto; right:-8%; top:-24%; width:66px; height:66px; transform-origin:20% 85%; animation:directional-hammer-strike 650ms ease-out both; }
+.card-hammer svg { width:100%; height:100%; filter:drop-shadow(2px 4px 3px #0005); }
+@keyframes directional-hammer-strike { 0% { transform:rotate(-60deg) translateY(-12px); opacity:1; } 30% { transform:rotate(14deg) translateY(10px); } 52% { transform:rotate(-24deg) translateY(-5px); } 72% { transform:rotate(4deg); opacity:1; } 100% { transform:rotate(-12deg) translateY(-12px); opacity:0; } }
+.reaction-on-card--crown .card-reaction-hero { top:-25%; animation:crown-settle 2.7s ease both; }
+.reaction-on-card--trophy .card-reaction-hero { animation:trophy-lift 2.7s ease both; }
+.reaction-on-card--heart .card-reaction-hero { animation:heart-float 2.7s ease both; }
+.reaction-on-card--clap .card-reaction-hero { animation:clap-beat 650ms ease-in-out 3 both; }
+.reaction-on-card--thumb .card-reaction-hero { animation:thumb-approve 2.7s ease both; }
+.reaction-on-card--laugh .card-reaction-hero { animation:laugh-wobble 550ms ease-in-out 4 both; }
+@keyframes crown-settle { 0% { transform:translate(-50%,-30px) rotate(-12deg); opacity:0; } 18% { transform:translate(-50%,5px) rotate(4deg); opacity:1; } 30%,80% { transform:translate(-50%,0); opacity:1; } 100% { transform:translate(-50%,-8px); opacity:0; } }
+@keyframes trophy-lift { 0% { transform:translate(-50%,35px) scale(.6); opacity:0; } 25%,75% { transform:translate(-50%,-12px) scale(1.15); opacity:1; } 100% { transform:translate(-50%,-25px); opacity:0; } }
+@keyframes heart-float { 0% { transform:translate(-50%,18px) scale(.5); opacity:0; } 20% { opacity:1; } 45% { transform:translate(-50%,-16px) scale(1.15); } 75% { opacity:1; } 100% { transform:translate(-50%,-65px) scale(.8); opacity:0; } }
+@keyframes clap-beat { 0%,100% { transform:translateX(-50%) rotate(-8deg) scale(.9); } 50% { transform:translateX(-50%) rotate(8deg) scale(1.12); } }
+@keyframes thumb-approve { 0% { transform:translate(-50%,25px) rotate(-25deg) scale(.5); opacity:0; } 25%,80% { transform:translate(-50%,0) rotate(0) scale(1); opacity:1; } 100% { transform:translate(-50%,-8px); opacity:0; } }
+@keyframes laugh-wobble { 0%,100% { transform:translateX(-50%) rotate(-12deg); } 50% { transform:translateX(-50%) rotate(12deg) translateY(-5px); } }
+@media(prefers-reduced-motion:reduce) { .directional-hammer .card-hammer { animation:none; } }
+.reaction-on-card--fire .card-impact-particles span { color:#ffb25a; text-shadow:0 0 7px #fa541c; }
+.reaction-on-card--bomb .card-impact-particles span { color:#e2aa62; }
+.reaction-on-card--lightning .card-impact-particles span { color:#fff2a5; text-shadow:0 0 8px #fff; }
+.reaction-scene--reduced .card-reaction-hero,.reaction-scene--reduced .directional-hammer .card-hammer { animation:none !important; }
