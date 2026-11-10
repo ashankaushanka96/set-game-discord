@@ -24,6 +24,7 @@ app.add_middleware(
         "http://127.0.0.1:5173",
         "https://set-game-test.ashankaushanka.com",
         "https://set-game-discord.ashankaushanka.com",
+        "https://set-game.ashankaushanka.dev",
         "*"  # Keep wildcard for development
     ],
     allow_credentials=True,
