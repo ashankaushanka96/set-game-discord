@@ -1209,11 +1209,11 @@ export default function Lobby() {
   // Early return: show only loading screen until profile retrieval completes
   if (!profileLoaded) {
     return (
-      <div className="h-screen overflow-hidden bg-gradient-vibrant p-4">
+      <div className="club-lobby club-loading min-h-screen bg-gradient-vibrant p-4">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-4">
             <h1 className="text-3xl font-bold bg-gradient-accent bg-clip-text text-transparent mb-1">
-              Card Set Collection
+              Set Club
             </h1>
             <p className="text-text-muted">Loading...</p>
           </div>
@@ -1237,11 +1237,11 @@ export default function Lobby() {
   // Show loading screen while checking reconnection
   if (checkingReconnection) {
     return (
-      <div className="h-screen overflow-hidden bg-gradient-vibrant p-4">
+      <div className="club-lobby club-loading min-h-screen bg-gradient-vibrant p-4">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-4">
             <h1 className="text-3xl font-bold bg-gradient-accent bg-clip-text text-transparent mb-1">
-              Card Set Collection
+              Set Club
             </h1>
             <p className="text-text-muted">Checking game status...</p>
           </div>
@@ -1263,12 +1263,11 @@ export default function Lobby() {
   }
 
   return (
-    <div className="h-screen bg-gradient-vibrant p-2 overflow-hidden">
-      <div className="max-w-6xl mx-auto h-full flex flex-col">
-        <div className="text-center mb-4 flex-shrink-0">
-          <h1 className="text-2xl md:text-3xl font-bold bg-gradient-accent bg-clip-text text-transparent mb-1">
-            Card Set Collection
-          </h1>
+    <div className="club-lobby bg-gradient-vibrant">
+      <div className="lobby-shell">
+        <div className="lobby-header">
+          <div className="club-brand"><span className="club-brand__mark" aria-hidden="true">♠</span><div><span className="club-eyebrow">GOOD COMPANY. GREAT CARDS.</span><h1>Set Club</h1></div></div>
+          <div className="lobby-connection"><i className={roomId ? 'status-dot' : 'status-dot status-dot--offline'} />{roomId ? 'Room connected' : 'Connecting to room'}</div>
           {state?.admin_player_id === me?.id && (
             <div className="flex justify-center mt-1">
               <span className="text-xs bg-gradient-warm/20 border border-accent-amber/40 px-2 py-1 rounded-full text-accent-amber flex items-center gap-1 shadow-glow-amber">
@@ -1355,16 +1354,17 @@ export default function Lobby() {
             </div>
           </div>
         ) : profileLoaded && !checkingReconnection && !redirectingToGame && !(me && state?.players[me.id] && (typeof state.players[me.id].seat === 'number' && state.players[me.id].seat >= 0 || (state.players[me.id].is_spectator && !state.players[me.id].spectator_request_pending)) && (state?.phase === "ready" || state?.phase === "playing" || state?.phase === "ended")) ? (
-          <div className="flex-1 flex flex-col space-y-3 overflow-hidden">
+          <div className="lobby-content">
+            <section className="lobby-welcome"><div><span className="club-eyebrow">THE LOUNGE</span><h2>A seat for everyone.<br />A set worth chasing.</h2><p>Gather your six, pick a side, and bring your best memory to the table.</p></div><div className="lobby-card-art" aria-hidden="true"><span>♠<small>A</small></span><span>♥<small>K</small></span><span>♣<small>Q</small></span></div></section>
             {/* Seat Selection */}
-            <div className="flex-1 overflow-hidden">
+            <div className="lobby-seating">
               <SeatSelector players={players} state={state} me={me} speakingUsers={speakingUsers} />
             </div>
 
             {/* Game Controls */}
-            <div className="bg-dark-card/50 backdrop-blur-sm rounded-xl p-4 border border-accent-purple/20 shadow-glow-purple flex-shrink-0">
+            <div className="lobby-start-panel">
               <div className="text-center mb-3">
-                <h2 className="text-lg font-bold text-text-primary mb-1">Game Controls</h2>
+                <h2 className="text-lg font-bold text-text-primary mb-1">Ready for a round?</h2><p className="lobby-start-copy">Two teams. Eight sets. One great card night.</p>
                 <div className="text-xs text-text-muted">
                   {players.length}/6 players connected
                 </div>
@@ -1379,7 +1379,7 @@ export default function Lobby() {
               )}
 
               <button
-                className={`w-full px-4 py-2 rounded-lg transition-all duration-200 font-medium text-sm ${
+                className={`club-primary w-full px-4 py-2 rounded-lg transition-all duration-200 font-medium text-sm ${
                   (!roomId || (!TEST_MODE_ENABLED && players.filter((p)=>p.connected!==false).length !== 6))
                     ? "bg-dark-tertiary cursor-not-allowed border border-text-muted/30"
                     : "bg-gradient-warm hover:shadow-glow-amber border border-accent-amber/30"

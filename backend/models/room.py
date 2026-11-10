@@ -21,6 +21,11 @@ class RoomState(BaseModel):
     ask_chain_from: Optional[str] = None
     deck_count: int = 0
     current_dealer: Optional[str] = None
+    round_wins: Dict[str, int] = Field(default_factory=lambda: {"A": 0, "B": 0})
+    completed_rounds: int = 0
+    tied_rounds: int = 0
+    round_result: Optional[dict] = None
+    match_finished: bool = False
     abort_votes: Dict[str, bool] = Field(default_factory=dict)
     lobby_locked: bool = False  # True when game is active, prevents new players from joining
     back_to_lobby_votes: Dict[str, bool] = Field(default_factory=dict)  # Votes for returning to lobby

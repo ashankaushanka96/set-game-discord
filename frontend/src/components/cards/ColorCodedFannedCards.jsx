@@ -83,19 +83,20 @@ export default function ColorCodedFannedCards({
         cards={colorCodedCards} 
         size={size} 
         maxCards={maxCards}
+        reserveFanSpace
       />
       
       {/* Legend for color coding */}
       {(correctCount > 0 || wrongCount > 0) && (
-        <div className="flex gap-4 mt-2 text-xs text-white/70 justify-center">
+        <div className="flex flex-wrap gap-x-4 gap-y-2 mt-3 text-xs text-white/80 justify-center">
           {correctCount > 0 && (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 whitespace-nowrap">
               <div className="w-3 h-3 border-2 border-green-400 rounded bg-green-400/20"></div>
               <span>Correct ({correctCount})</span>
             </div>
           )}
           {wrongCount > 0 && (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 whitespace-nowrap">
               <div className="w-3 h-3 border-2 border-red-400 rounded bg-red-400/20"></div>
               <span>Wrong ({wrongCount})</span>
             </div>

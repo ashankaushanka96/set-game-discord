@@ -1,4 +1,5 @@
 import { FannedCards, ColorCodedFannedCards } from '../cards';
+import LaydownComparison from './LaydownComparison';
 import GlassmorphismModal from '../ui/GlassmorphismModal';
 
 export default function LaydownResultModal({ 
@@ -11,6 +12,7 @@ export default function LaydownResultModal({
 
 
   const players = state?.players || {};
+  const hasComparison = !laydownData.success && laydownData.declarationComparison?.length > 0;
 
   return (
     <GlassmorphismModal 
@@ -30,6 +32,9 @@ export default function LaydownResultModal({
           </div>
         </div>
 
+        {hasComparison && <LaydownComparison comparisons={laydownData.declarationComparison} players={players} declaredBy={laydownData.declaredBy} />}
+
+        {!hasComparison && <>
           {/* Player Contributions */}
           <div className="space-y-4 mb-6">
             <h3 className="text-lg font-semibold text-white">Player Contributions</h3>
@@ -127,6 +132,8 @@ export default function LaydownResultModal({
             </div>
           </div>
         )}
+
+        </>}
 
         {/* Handoff Information (for successful laydowns) */}
         {laydownData.success && laydownData.handoffEligible && laydownData.handoffEligible.length > 0 && (

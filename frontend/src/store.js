@@ -110,12 +110,12 @@ export const useStore = create((set, get) => ({
       const next = [...existing, withId];
       return { emojiAnimations: next };
     });
-    // Auto-remove after animation completes
+    // Keep the impact/decal visible after the throw has landed.
     setTimeout(() => {
       set((state) => ({
         emojiAnimations: (state.emojiAnimations || []).filter((a) => a.id !== withId.id),
       }));
-    }, 2000);
+    }, 4200);
     return withId.id;
   },
 
@@ -193,6 +193,9 @@ export const useStore = create((set, get) => ({
   applyServer: (msg) => {
     if (msg.type === "state" || msg.type === "dealt") {
       set({ state: msg.payload, phase: msg.payload.phase });
+      if (msg.payload.phase === "ended" && msg.payload.round_result) {
+        set({ gameResult: msg.payload.round_result });
+      }
       
       // Auto-navigate to game room if game has started and we're not already there
       if (msg.payload.phase === "ready" || msg.payload.phase === "playing") {
@@ -384,6 +387,8 @@ export const useStore = create((set, get) => ({
         cardsByPlayer: cardsByPlayer,
         claimedCards: msg.payload.claimed_cards || [],
         actualCards: msg.payload.actual_cards || [],
+        declarationComparison: msg.payload.declaration_comparison || [],
+        declaredBy: msg.payload.who_id,
         handoffEligible: msg.payload.handoff_eligible || []
       };
 
@@ -596,6 +601,10 @@ export const useStore = create((set, get) => ({
     }
 
     // NEW ROUND STARTED
+    if (msg.type === "match_finished") {
+      set({ state: msg.payload.state, gameResult: msg.payload.result });
+    }
+
     if (msg.type === "new_round_started") {
       const s = msg.payload.state;
       set({ state: s, phase: s.phase, gameResult: null });

@@ -1,6 +1,45 @@
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState, useRef } from "react";
 import { useStore } from "../../store";
 import { Card, FannedCards } from "../cards";
+
+// Attach the tail to the outer border, with its tip aligned to the seat even
+// when the bubble has been shifted inward to fit a narrow screen.
+function SeatMessageBubble({ message, anchor, theme, ownerName, children }) {
+  const bubbleRef = useRef(null);
+  const [tail, setTail] = useState({ base: 0, tip: 0 });
+  useLayoutEffect(() => {
+    const el = bubbleRef.current;
+    const update = () => {
+      const rect = el.getBoundingClientRect();
+      const tip = anchor.seatX - rect.left;
+      setTail({ tip, base: Math.max(18, Math.min(rect.width - 18, tip)) });
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [anchor.x, anchor.y, anchor.seatX, anchor.place]);
+  const above = anchor.place === 'above';
+  const edge = above ? 0 : 14;
+  const tipY = above ? 14 : 0;
+  return <div ref={bubbleRef}
+    className={`fixed z-[120] pointer-events-none rounded-2xl border ${theme} text-white px-4 py-3 shadow-lg`}
+    aria-label={message.variant?.startsWith('laydown_') ? `Laydown from ${ownerName}` : undefined}
+    style={{ left: anchor.x, top: anchor.y,
+      transform: above ? 'translate(-50%,-100%)' : 'translate(-50%,0)',
+      whiteSpace: 'normal', width: 'max-content',
+      maxWidth: 'min(280px, calc(100vw - 32px))', overflowWrap: 'anywhere',
+      animation: message.sticky === false ? 'bubbleFadeOut 0.6s ease forwards' : undefined,
+      animationDelay: message.sticky === false ? '5s' : undefined,
+    }}>
+    <svg className="seat-bubble-tail" aria-hidden="true" width="100%" height="14"
+      style={{ position: 'absolute', left: 0, overflow: 'visible', ...(above ? { top: '100%' } : { bottom: '100%' }) }}>
+      <path d={`M ${tail.base - 8} ${edge} L ${tail.tip} ${tipY} L ${tail.base + 8} ${edge}`}
+        fill="#253b30" stroke="var(--bubble-border)" strokeWidth="1" strokeLinejoin="round" />
+    </svg>
+    {children}
+  </div>;
+}
 
 /**
  * Seat bubbles with auto-flip:
@@ -33,12 +72,12 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
         const place = r.top < 120 ? "below" : "above";
         // Position base point
         let x = r.left + r.width / 2;
-        let y = place === "above" ? r.top - 8 : r.bottom + 8;
+        let y = place === "above" ? r.top - 16 : r.bottom + 16;
         // Clamp X so the bubble never leaves viewport
-        const pad = 16;
+        const pad = Math.min(156, viewportW / 2);
         if (x < pad) x = pad;
         if (x > viewportW - pad) x = viewportW - pad;
-        next[m.id] = { x, y, place };
+        next[m.id] = { x, y, place, seatX: r.left + r.width / 2 };
       });
       setPos(next);
     };
@@ -46,10 +85,10 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
     const onResize = () => compute();
     const onScroll = () => compute();
     window.addEventListener("resize", onResize);
-    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("scroll", onScroll, { passive: true, capture: true });
     return () => {
       window.removeEventListener("resize", onResize);
-      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("scroll", onScroll, true);
     };
   }, [messages, seatVersion, seatEls]);
 
@@ -149,7 +188,7 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
           );
         } else if (m.variant === "laydown_cards") {
           content = (
-            <div className="flex justify-center">
+            <div className="laydown-bubble-cards flex justify-center">
               <FannedCards 
                 cards={m.cards || []} 
                 size="xs" 
@@ -159,7 +198,7 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
           );
         } else if (m.variant === "laydown_teammate") {
           content = (
-            <div className="flex justify-center">
+            <div className="laydown-bubble-cards flex justify-center">
               <FannedCards 
                 cards={m.cards || []} 
                 size="xs" 
@@ -193,73 +232,13 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
           );
         }
 
-        const theme =
-          m.variant === "ask" ? "bg-white/10 backdrop-blur-xl border-white/20 shadow-[0_8px_32px_rgba(14,165,233,0.3)]" :
-          m.variant === "yes" ? "bg-white/10 backdrop-blur-xl border-white/20 shadow-[0_8px_32px_rgba(16,185,129,0.3)]" :
-          m.variant === "no"  ? "bg-white/10 backdrop-blur-xl border-white/20 shadow-[0_8px_32px_rgba(244,63,94,0.3)]" :
-          m.variant === "laydown_start" ? "bg-gradient-to-br from-purple-600/20 to-violet-600/20 backdrop-blur-xl border border-purple-400/30 shadow-[0_8px_32px_rgba(147,51,234,0.3)]" :
-          m.variant === "laydown_set" ? "bg-gradient-to-br from-indigo-600/20 to-blue-600/20 backdrop-blur-xl border border-indigo-400/30 shadow-[0_8px_32px_rgba(79,70,229,0.3)]" :
-          m.variant === "laydown_cards" ? "bg-gradient-to-br from-blue-600/20 to-cyan-600/20 backdrop-blur-xl border border-blue-400/30 shadow-[0_8px_32px_rgba(37,99,235,0.3)]" :
-          m.variant === "laydown_teammate" ? "bg-gradient-to-br from-cyan-600/20 to-teal-600/20 backdrop-blur-xl border border-cyan-400/30 shadow-[0_8px_32px_rgba(8,145,178,0.3)]" :
-          m.variant === "chat" ? "bg-white/10 backdrop-blur-xl border-white/20 shadow-[0_8px_32px_rgba(251,191,36,0.3)]" :
-          "bg-white/10 backdrop-blur-xl border-white/20 shadow-[0_8px_32px_rgba(255,255,255,0.1)]";
-
-        // Tail color
-        const tailColor =
-          m.variant === "ask" ? "rgba(255, 255, 255, 0.2)" :
-          m.variant === "yes" ? "rgba(255, 255, 255, 0.2)" :
-          m.variant === "no"  ? "rgba(255, 255, 255, 0.2)" :
-          m.variant === "laydown_start" ? "rgb(147 51 234 / 0.6)" :
-          m.variant === "laydown_set" ? "rgb(79 70 229 / 0.6)" :
-          m.variant === "laydown_cards" ? "rgb(37 99 235 / 0.6)" :
-          m.variant === "laydown_teammate" ? "rgb(8 145 178 / 0.6)" :
-          m.variant === "chat" ? "rgba(255, 255, 255, 0.2)" :
-          "rgba(255, 255, 255, 0.2)";
-
-        const translate = xy.place === "above" ? "translate(-50%,-100%)" : "translate(-50%,0)";
-
+        const tone = m.variant === 'no' ? 'error' : m.variant === 'yes' ? 'success' : m.variant?.startsWith('laydown_') ? 'vote' : 'info';
+        const theme = `club-bubble club-bubble--${tone}`;
         return (
-          <div
-            key={m.id}
-            className={`fixed z-[120] pointer-events-none rounded-2xl border ${theme} text-white px-4 py-3 transition-all duration-300 ${
-              m.variant?.startsWith('laydown_') ? 'hover:scale-105' : 'shadow-lg'
-            }`}
-            style={{
-              left: xy.x,
-              top: xy.y,
-              transform: translate,
-              whiteSpace: "nowrap",
-              // Fallback auto-hide on mobile if timers are throttled
-              animation: m.sticky === false ? 'bubbleFadeOut 0.6s ease forwards' : undefined,
-              animationDelay: m.sticky === false ? '5s' : undefined,
-            }}
-          >
-            <div className="relative">
-              {/* bubble tail */}
-              {xy.place === "above" ? (
-                <div
-                  className="absolute left-1/2 top-full -translate-x-1/2"
-                  style={{
-                    width: 0, height: 0,
-                    borderLeft: "8px solid transparent",
-                    borderRight: "8px solid transparent",
-                    borderTop: `10px solid ${tailColor}`,
-                  }}
-                />
-              ) : (
-                <div
-                  className="absolute left-1/2 bottom-full -translate-x-1/2"
-                  style={{
-                    width: 0, height: 0,
-                    borderLeft: "8px solid transparent",
-                    borderRight: "8px solid transparent",
-                    borderBottom: `10px solid ${tailColor}`,
-                  }}
-                />
-              )}
-              {content}
-            </div>
-          </div>
+          <SeatMessageBubble key={m.id} message={m} anchor={xy} theme={theme}
+            ownerName={asker?.name || m.teammate_name || 'Player'}>
+            {content}
+          </SeatMessageBubble>
         );
       })}
     </>

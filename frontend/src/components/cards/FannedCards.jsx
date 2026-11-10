@@ -1,7 +1,7 @@
 import { Card } from './';
 import { RANKS_LOWER, RANKS_UPPER } from '../../lib/deck';
 
-export default function FannedCards({ cards, size = "sm", maxCards = 6 }) {
+export default function FannedCards({ cards, size = "sm", maxCards = 6, reserveFanSpace = false }) {
   if (!cards || cards.length === 0) return null;
 
   // Sort cards by rank (lower set: 2-7, upper set: 8-A)
@@ -15,11 +15,16 @@ export default function FannedCards({ cards, size = "sm", maxCards = 6 }) {
   // Limit the number of cards to display
   const displayCards = sortedCards.slice(0, maxCards);
   const hasMore = cards.length > maxCards;
+  const [cardWidth, cardHeight] = ({ xs: [32, 44], 'sm-xs': [38, 52], sm: [44, 60], md: [64, 88], lg: [96, 132] })[size] || [64, 88];
+  const fanAngle = displayCards.length > 1 ? Math.min(displayCards.length * 3, 20) / 2 * Math.PI / 180 : 0;
+  // Rotated cards extend beyond their unrotated height. Reserve their full
+  // bounds plus shadow clearance when content follows beneath the fan.
+  const fanHeight = Math.ceil(cardHeight * Math.cos(fanAngle) + cardWidth * Math.sin(fanAngle)) + 16;
 
   return (
     <div className="relative flex justify-center items-center" style={{ 
       width: `${Math.min(displayCards.length * 16 + 40, 250)}px`,
-      height: '70px'
+      height: reserveFanSpace ? `${fanHeight}px` : '70px'
     }}>
       {displayCards.map((card, index) => {
         const totalCards = displayCards.length;

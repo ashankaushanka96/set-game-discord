@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useStore } from '../../store';
 import { send } from '../../ws';
 import emojiSoundManager from '../../utils/sounds';
@@ -60,13 +60,16 @@ const QUICK_EMOJIS = [
   { emoji: '👍', name: 'Thumbs Up', category: 'gesture', cooldown: 2000 }
 ];
 
-export default function ReactionTray({ isOpen, onClose, selectedCardsToPass = [] }) {
+export default function ReactionTray({ isOpen, onClose, onSent, selectedCardsToPass = [], inline = false }) {
   const { me, state, ws } = useStore();
   const [selectedEmoji, setSelectedEmoji] = useState(null);
   const [showPlayerSelection, setShowPlayerSelection] = useState(false);
   const [cooldowns, setCooldowns] = useState({});
   const [isAnimating, setIsAnimating] = useState(false);
-  const trayRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) { setSelectedEmoji(null); setShowPlayerSelection(false); }
+  }, [isOpen]);
 
   // Get other players (excluding self)
   const otherPlayers = Object.values(state?.players || {}).filter(p => p.id !== me?.id && p.connected !== false);
@@ -100,7 +103,7 @@ export default function ReactionTray({ isOpen, onClose, selectedCardsToPass = []
 
   // Handle player selection and send emoji
   const handlePlayerSelect = (targetPlayer) => {
-    if (selectedEmoji && ws) {
+    if (selectedEmoji && ws?.readyState === 1) {
       // Update cooldown
       setCooldowns(prev => ({
         ...prev,
@@ -120,11 +123,13 @@ export default function ReactionTray({ isOpen, onClose, selectedCardsToPass = []
       setSelectedEmoji(null);
       setShowPlayerSelection(false);
       onClose();
+      onSent?.();
     }
   };
 
-  // Update cooldowns
+  // Update visible cooldowns only while the picker is open.
   useEffect(() => {
+    if (!isOpen) return;
     const interval = setInterval(() => {
       setCooldowns(prev => {
         const now = Date.now();
@@ -140,7 +145,7 @@ export default function ReactionTray({ isOpen, onClose, selectedCardsToPass = []
     }, 100);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isOpen]);
 
   // Close on escape key
   useEffect(() => {
@@ -158,13 +163,13 @@ export default function ReactionTray({ isOpen, onClose, selectedCardsToPass = []
 
   if (!isOpen) return null;
 
-  return (
-    <GlassmorphismModal isOpen={isOpen} onClose={onClose} size="md">
+  const content = (
+    <>
       {!showPlayerSelection ? (
         <>
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-white">Quick Reactions</h3>
+            <h3 className="text-sm font-semibold text-white">Pick a reaction</h3>
             <button
               onClick={onClose}
               className="text-white/70 hover:text-white transition-colors p-1"
@@ -175,7 +180,7 @@ export default function ReactionTray({ isOpen, onClose, selectedCardsToPass = []
 
           {/* Emoji Grid */}
           <div>
-            <div className="grid grid-cols-6 gap-3">
+            <div className="reaction-picker grid grid-cols-4 gap-3">
               {QUICK_EMOJIS.map((emojiData, index) => {
                 const now = Date.now();
                 const lastUsed = cooldowns[emojiData.emoji] || 0;
@@ -190,7 +195,7 @@ export default function ReactionTray({ isOpen, onClose, selectedCardsToPass = []
                     onClick={() => handleEmojiSelect(emojiData)}
                     disabled={isOnCooldown || cardsSelected}
                     className={`
-                      relative p-3 rounded-xl transition-all duration-200 transform
+                      reaction-picker__item relative p-3 rounded-xl transition-all duration-200 transform
                       ${isOnCooldown || cardsSelected
                         ? 'opacity-50 cursor-not-allowed' 
                         : 'hover:scale-110 hover:bg-white/10 active:scale-95'
@@ -204,6 +209,7 @@ export default function ReactionTray({ isOpen, onClose, selectedCardsToPass = []
                       {emojiData.emoji}
                     </div>
 
+                    <span className="reaction-picker__name">{emojiData.name}</span>
                     {/* Cooldown Ring */}
                     {isOnCooldown && (
                       <div className="absolute inset-0 rounded-xl overflow-hidden">
@@ -237,7 +243,7 @@ export default function ReactionTray({ isOpen, onClose, selectedCardsToPass = []
                 </p>
               ) : (
                 <p className="text-xs text-white/70 text-center">
-                  💡 Tip: Select an emoji, then choose a target player to send it flying across the screen!
+                  Pick a reaction, then choose who gets it.
                 </p>
               )}
             </div>
@@ -262,6 +268,7 @@ export default function ReactionTray({ isOpen, onClose, selectedCardsToPass = []
               </button>
             </div>
 
+            <button type="button" className="reaction-self-button" onClick={() => handlePlayerSelect(me)}>React at my seat {selectedEmoji?.emoji}</button>
             <div className="grid grid-cols-2 gap-3">
               {otherPlayers.map((player) => (
                 <button
@@ -305,6 +312,7 @@ export default function ReactionTray({ isOpen, onClose, selectedCardsToPass = []
           </div>
         </>
       )}
-    </GlassmorphismModal>
+    </>
   );
+  return inline ? <div className="inline-reaction-tray">{content}</div> : <GlassmorphismModal isOpen={isOpen} onClose={onClose} size="md">{content}</GlassmorphismModal>;
 }

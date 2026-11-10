@@ -1,60 +1,32 @@
-export default function Card({ suit="spades", rank="A", size="md" }) {
-    const SUIT_SYMBOL = { hearts:"♥", diamonds:"♦", clubs:"♣", spades:"♠" };
-    const red = suit === "hearts" || suit === "diamonds";
-    const sizes = {
-      xs: { w: 32, h: 44, r: 6, f: 10, big: 14 },
-      'sm-xs': { w: 38, h: 52, r: 7, f: 11, big: 16 },
-      sm: { w: 44, h: 60, r: 8, f: 12, big: 18 },
-      md: { w: 64, h: 88, r: 10, f: 14, big: 24 },
-      lg: { w: 96, h: 132, r: 12, f: 18, big: 36 },
-    };
-    const S = sizes[size] || sizes.md;
-  
-    return (
-      <div
-        className="relative bg-white card-shadow"
-        style={{
-          width: S.w, height: S.h, borderRadius: S.r,
-          border: "1px solid rgba(0,0,0,.15)",
-        }}
-      >
-        {/* Corners */}
-        <div
-          style={{
-            position: "absolute", top: 2, left: 2,
-            fontSize: S.f, lineHeight: "1.1em",
-            color: red ? "#dc2626" : "#111827",
-            textAlign: "center", fontWeight: 700, width: S.w/3,
-          }}
-        >
-          {rank}
-          <div style={{ fontWeight: 600 }}>{SUIT_SYMBOL[suit]}</div>
-        </div>
-        <div
-          style={{
-            position: "absolute", bottom: 2, right: 2,
-            transform: "rotate(180deg)",
-            fontSize: S.f, lineHeight: "1.1em",
-            color: red ? "#dc2626" : "#111827",
-            textAlign: "center", fontWeight: 700, width: S.w/3,
-          }}
-        >
-          {rank}
-          <div style={{ fontWeight: 600 }}>{SUIT_SYMBOL[suit]}</div>
-        </div>
-  
-        {/* Center suit */}
-        <div
-          style={{
-            position: "absolute", inset: 0,
-            display: "grid", placeItems: "center",
-            fontSize: S.big, color: red ? "#ef4444" : "#111827",
-            opacity: 0.9
-          }}
-        >
-          {SUIT_SYMBOL[suit]}
-        </div>
+import { SUIT_SYMBOL, isRed } from '../../lib/deck';
+
+const SIZES = { xs: [32,44], 'sm-xs': [38,52], sm: [44,60], md: [64,88], lg: [96,132] };
+const PIPS = {
+  2: [[50,20],[50,80]], 3: [[50,20],[50,50],[50,80]],
+  4: [[28,20],[72,20],[28,80],[72,80]],
+  5: [[28,20],[72,20],[50,50],[28,80],[72,80]],
+  6: [[28,20],[72,20],[28,50],[72,50],[28,80],[72,80]],
+  7: [[28,20],[72,20],[50,35],[28,50],[72,50],[28,80],[72,80]],
+  8: [[28,20],[72,20],[50,35],[28,50],[72,50],[50,65],[28,80],[72,80]],
+  9: [[28,16],[72,16],[28,38],[72,38],[50,50],[28,62],[72,62],[28,84],[72,84]],
+  10: [[28,16],[72,16],[50,27],[28,38],[72,38],[28,62],[72,62],[50,73],[28,84],[72,84]],
+};
+
+export default function Card({ suit = 'spades', rank = 'A', size = 'md' }) {
+  const [width, height] = SIZES[size] || SIZES.md;
+  const symbol = SUIT_SYMBOL[suit];
+  const face = ['J','Q','K'].includes(rank);
+  return (
+    <div className={`playing-card ${isRed(suit) ? 'playing-card--red' : ''}`}
+      role="img" aria-label={`${rank} of ${suit}`}
+      style={{ width, height, '--card-unit': `${width / 64}px` }}>
+      <div className="playing-card__corner">{rank}<span>{symbol}</span></div>
+      <div className="playing-card__corner playing-card__corner--bottom" aria-hidden="true">{rank}<span>{symbol}</span></div>
+      <div className="playing-card__art" aria-hidden="true">
+        {PIPS[rank] ? PIPS[rank].map(([x,y], i) => (
+          <span key={i} className="playing-card__pip" style={{ left: `${x}%`, top: `${y}%`, transform: `translate(-50%, -50%) rotate(${y > 50 ? 180 : 0}deg)` }}>{symbol}</span>
+        )) : <div className={face ? 'playing-card__court' : 'playing-card__ace'}>{face && <span className="playing-card__crown">♛</span>}{symbol}{face && <span className="playing-card__court-rank">{rank}</span>}</div>}
       </div>
-    );
-  }
-  
+    </div>
+  );
+}

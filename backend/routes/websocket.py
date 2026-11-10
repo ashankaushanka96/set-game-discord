@@ -205,7 +205,10 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                 # Only allow shuffle_deal when game is ready, ended, or in lobby
                 if game.state.phase in ["ready", "ended", "lobby"]:
                     res = game.shuffle_deal_new_game(p.get("dealer_id", player_id))
-                    await WebSocketService.broadcast(room_id, "new_game_started", {**res, "state": game.state.model_dump()})
+                    if res.get("success"):
+                        await WebSocketService.broadcast(room_id, "new_game_started", {**res, "state": game.state.model_dump()})
+                    else:
+                        await ws.send_text(json.dumps({"type": "error", "payload": {"message": res["reason"]}}))
                 else:
                     # Game in progress - send error
                     await WebSocketService.broadcast(room_id, "shuffle_deal_error", {
@@ -314,7 +317,10 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
 
             elif t == "shuffle_deal_new_game":
                 res = game.shuffle_deal_new_game(p["dealer_id"])
-                await WebSocketService.broadcast(room_id, "new_game_started", {**res, "state": game.state.model_dump()})
+                if res.get("success"):
+                    await WebSocketService.broadcast(room_id, "new_game_started", {**res, "state": game.state.model_dump()})
+                else:
+                    await ws.send_text(json.dumps({"type": "error", "payload": {"message": res["reason"]}}))
 
             elif t == "bubble_message":
                 # Forward bubble message to all players
@@ -325,11 +331,14 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                 })
 
             elif t == "chat_message":
-                # Forward chat message to all players
+                text = str(p.get("text", "")).strip()[:100]
+                if not text:
+                    continue
+                # Attribute chat to the player on this connection.
                 await WebSocketService.broadcast(room_id, "bubble_message", {
-                    "player_id": p["player_id"],
+                    "player_id": player_id,
                     "variant": "chat",
-                    "text": p["text"]
+                    "text": text
                 })
 
             elif t == "emoji_throw":
@@ -350,8 +359,18 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
 
             elif t == "start_new_round":
                 # Start a new round with dealer rotation
-                res = game.start_new_round(p["player_id"])
-                await WebSocketService.broadcast(room_id, "new_round_started", {**res, "state": game.state.model_dump()})
+                res = game.start_new_round(player_id)
+                if res.get("success"):
+                    await WebSocketService.broadcast(room_id, "new_round_started", {**res, "state": game.state.model_dump()})
+                else:
+                    await ws.send_text(json.dumps({"type": "error", "payload": {"message": res["reason"]}}))
+
+            elif t == "finish_match":
+                res = game.finish_match(player_id)
+                if res.get("success"):
+                    await WebSocketService.broadcast(room_id, "match_finished", {**res, "state": game.state.model_dump()})
+                else:
+                    await ws.send_text(json.dumps({"type": "error", "payload": {"message": res["reason"]}}))
 
             elif t == "request_back_to_lobby":
                 res = game.request_back_to_lobby(p["requester_id"])

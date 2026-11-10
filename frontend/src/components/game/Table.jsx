@@ -71,6 +71,8 @@ export default function Table() {
   const [selectedSet, setSelectedSet] = useState({ suit: null, setType: null });
   const [requestAbortOpen, setRequestAbortOpen] = useState(false);
   const [selectedCardsToPass, setSelectedCardsToPass] = useState([]);
+  const [dragTarget, setDragTarget] = useState(null);
+  const [isDraggingCards, setIsDraggingCards] = useState(false);
   const [completedSetsOpen, setCompletedSetsOpen] = useState(false);
   const [emojiSettingsOpen, setEmojiSettingsOpen] = useState(false);
   const [spectatorRequestsOpen, setSpectatorRequestsOpen] = useState(false);
@@ -84,7 +86,6 @@ export default function Table() {
   const lastSeatEl = useRef({});
 
 
-  if (!state) return null;
 
   const players = state.players || {};
   const seats = state.seats || {};
@@ -135,8 +136,10 @@ export default function Table() {
       // Handle new card passing (multiple cards) - animate fanned deck flying
       if (from_player && to_player && cards) {
         
-        const fromEl = seatEls.current[from_player];
-        const toEl = seatEls.current[to_player];
+        const fromWrapper = seatEls.current[from_player];
+        const fromEl = fromWrapper?.querySelector('.game-seat') || fromWrapper;
+        const toWrapper = seatEls.current[to_player];
+        const toEl = toWrapper?.querySelector('.game-seat') || toWrapper;
         if (!fromEl || !toEl) {
           console.warn('Card pass animation failed: missing DOM elements', { 
             from_player, 
@@ -188,8 +191,10 @@ export default function Table() {
       
       // Handle single card passing (if only one card is passed)
       if (from_player && to_player && cards && cards.length === 1) {
-        const fromEl = seatEls.current[from_player];
-        const toEl = seatEls.current[to_player];
+        const fromWrapper = seatEls.current[from_player];
+        const fromEl = fromWrapper?.querySelector('.game-seat') || fromWrapper;
+        const toWrapper = seatEls.current[to_player];
+        const toEl = toWrapper?.querySelector('.game-seat') || toWrapper;
         if (!fromEl || !toEl) {
           console.warn('Single card pass animation failed: missing DOM elements', { from_player, to_player, fromEl: !!fromEl, toEl: !!toEl });
           return;
@@ -292,23 +297,19 @@ export default function Table() {
     });
   };
 
-  const handleSeatClick = (player) => {
-    if (selectedCardsToPass.length === 0) return;
-    
-    // Can only pass to opponent team
-    if (player.team === my.team) {
-      // Show error or just ignore
-      return;
-    }
-    
-    send(ws, 'pass_cards', {
-      from_player_id: me.id,
-      to_player_id: player.id,
-      cards: selectedCardsToPass
-    });
-    
+  const resolveDropTarget = (id) => {
+    const player = players[id];
+    return state.phase === 'playing' && ws?.readyState === 1 && player && player.id !== me.id &&
+      player.team && player.team !== my?.team && !player.is_spectator && player.connected !== false && typeof player.seat === 'number' ? player : null;
+  };
+
+  const passCards = (cards, playerId) => {
+    if (!cards.length || !resolveDropTarget(playerId)) return;
+    if (!cards.every(card => my?.hand?.some(c => c.suit === card.suit && c.rank === card.rank))) return;
+    send(ws, 'pass_cards', { from_player_id:me.id, to_player_id:playerId, cards });
     setSelectedCardsToPass([]);
   };
+  const handleSeatClick = player => passCards(selectedCardsToPass,player.id);
 
 
   const handleTableClick = () => {
@@ -321,7 +322,7 @@ export default function Table() {
   // Show spectator view if player is a spectator
   if (isSpectator) {
     return (
-      <div className="h-screen w-screen overflow-hidden flex flex-col bg-gradient-vibrant">
+      <div className="card-room h-screen w-screen overflow-hidden flex flex-col bg-gradient-vibrant">
         <div className="flex-1 overflow-y-auto">
           <SpectatorView players={players} myId={me.id} gamePhase={state.phase} />
         </div>
@@ -342,12 +343,13 @@ export default function Table() {
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col bg-gradient-vibrant" onClick={handleTableClick}>
+    <div className="card-room h-screen w-screen overflow-hidden flex flex-col bg-gradient-vibrant" onClick={handleTableClick}>
+      <div className="game-room-heading"><span className="club-eyebrow">SET CLUB</span><span>{state.phase === 'playing' ? 'Round in play' : state.phase === 'ready' ? 'Waiting for the deal' : 'Round complete'}</span></div>
       <Celebration tableCenterRef={tableCenterRef} />
       <DealingAnimation />
       
       {/* Back to Lobby Button - Top Left */}
-      <div className="fixed top-2 left-2 md:top-3 md:left-3 z-40">
+      <div className="game-top-control fixed top-2 left-2 md:top-3 md:left-3 z-40">
           <button 
             className={`group px-3 py-2 md:px-4 md:py-2 rounded-lg md:rounded-xl shadow-lg transition-all duration-200 transform flex items-center gap-2 border ${
               selectedCardsToPass.length > 0 
@@ -369,7 +371,7 @@ export default function Table() {
 
       {/* New Game Button - Top Right */}
       {state.phase === 'playing' && (
-        <div className="fixed top-2 right-2 md:top-3 md:right-3 z-40">
+        <div className="game-top-control fixed top-2 right-2 md:top-3 md:right-3 z-40">
           <button 
             className={`group px-3 py-2 md:px-4 md:py-2 rounded-lg md:rounded-xl shadow-lg transition-all duration-200 transform flex items-center gap-2 border ${
               selectedCardsToPass.length > 0 
@@ -392,7 +394,7 @@ export default function Table() {
 
 
       {/* Emoji Settings Button - Top Right Corner */}
-      <div className="fixed top-14 right-2 md:top-16 md:right-3 z-40">
+      <div className="game-secondary-control fixed top-14 right-2 md:top-16 md:right-3 z-40">
         <button 
           className={`group p-2 rounded-lg shadow-lg transition-all duration-200 transform border ${
             selectedCardsToPass.length > 0 
@@ -412,7 +414,7 @@ export default function Table() {
 
       {/* Spectator Requests Button - Admin Only */}
       {state.admin_player_id === me.id && Object.keys(state.spectator_requests || {}).length > 0 && (
-        <div className="fixed top-14 right-14 md:top-16 md:right-16 z-40">
+        <div className="game-secondary-control fixed top-14 right-14 md:top-16 md:right-16 z-40">
           <button 
             className="group bg-gradient-warm hover:shadow-glow-amber text-white p-2 rounded-lg shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 relative border border-accent-amber/30"
             onClick={() => setSpectatorRequestsOpen(true)}
@@ -431,17 +433,17 @@ export default function Table() {
       )}
 
       {/* Card Passing Indicator */}
-      {selectedCardsToPass.length > 0 && (
+      {selectedCardsToPass.length > 0 && !isDraggingCards && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 bg-gradient-primary text-white px-4 py-2 rounded-lg shadow-lg border border-accent-blue/30 shadow-glow-blue">
           <div className="text-sm font-semibold">
             {selectedCardsToPass.length} card{selectedCardsToPass.length !== 1 ? 's' : ''} selected
           </div>
-          <div className="text-xs opacity-80">Click on an opponent's seat to pass</div>
+          <div className="text-xs opacity-80">Drag onto an opponent to pass, or click their seat</div>
         </div>
       )}
 
       {handoffFor && handoffFor.who_id === me.id && (
-        <div className="fixed top-2 md:top-4 left-1/2 -translate-x-1/2 z-[95] bg-dark-card/90 backdrop-blur px-2 md:px-4 py-1 md:py-2 rounded-xl card-shadow flex flex-col sm:flex-row items-center gap-1 md:gap-2 border border-accent-emerald/20">
+        <div className="game-top-control fixed top-2 md:top-4 left-1/2 -translate-x-1/2 z-[95] bg-dark-card/90 backdrop-blur px-2 md:px-4 py-1 md:py-2 rounded-xl card-shadow flex flex-col sm:flex-row items-center gap-1 md:gap-2 border border-accent-emerald/20">
           <span className="text-xs md:text-sm text-text-secondary">Pass turn to teammate:</span>
           <div className="flex flex-wrap gap-1 md:gap-2">
             {handoffFor.eligible.map(pid => (
@@ -472,9 +474,9 @@ export default function Table() {
        <EmojiPassAnimation />
        
        {/* Main game area - takes up most of the viewport */}
-       <div className="flex-1 flex items-center justify-center p-2 md:p-4 max-h-[60vh] md:max-h-none">
+       <div className="game-stage">
          {/* left panel (Team A) - table - right panel (Team B) */}
-         <div className="relative w-full max-w-7xl flex items-center justify-center gap-2 lg:gap-4">
+         <div className="game-stage__layout">
         <div className="hidden xl:block w-[260px]">
           <div className="sticky top-4 space-y-2">
             <div className="text-sm font-semibold text-accent-blue mb-1">Team A — Collected</div>
@@ -485,7 +487,7 @@ export default function Table() {
           </div>
         </div>
 
-         <div className="relative flex-1 max-w-[90vw] h-[min(60vh,500px)] lg:h-[min(70vh,600px)] flex items-center justify-center">
+         <div className="game-table-arena">
            <div className="relative w-full h-full">
              {/* Table Base/Legs */}
              <div className="absolute rounded-full"
@@ -501,7 +503,7 @@ export default function Table() {
              </div>
              
              {/* Main Table Surface */}
-             <div ref={tableCenterRef} data-table-center="true" className="absolute rounded-full border-6 border-amber-800/90 bg-gradient-to-br from-green-900 via-green-800 to-emerald-900 flex items-center justify-center"
+             <div ref={tableCenterRef} data-table-center="true" className="felt-table absolute rounded-full border-6 border-amber-800/90 bg-gradient-to-br from-green-900 via-green-800 to-emerald-900 flex items-center justify-center"
                   style={{ 
                     width: 'min(50%, 350px)', 
                     height: 'min(50%, 350px)', 
@@ -523,8 +525,9 @@ export default function Table() {
                       inset 0 -2px 4px rgba(255, 255, 255, 0.1)
                     `
                   }}>
+              <div className="table-hallmark" aria-hidden="true"><span>♠</span><strong>SET CLUB</strong><small>THE TABLE IS YOURS</small></div>
               {/* Shuffle & Deal button - show for current dealer when game is ready, ended, or when no cards are dealt, but NOT when game is actively playing */}
-              {me?.id === state.current_dealer && state.phase !== 'playing' && (state.phase === 'ready' || state.phase === 'ended' || !state.deck_count || state.deck_count === 0 || !my?.hand?.length) && (
+              {!state.match_finished && me?.id === state.current_dealer && state.phase !== 'playing' && (state.phase === 'ready' || state.phase === 'ended' || !state.deck_count || state.deck_count === 0 || !my?.hand?.length) && (
                 <button 
                   className="bg-gradient-warm hover:shadow-glow-amber text-white px-6 py-3 rounded-lg font-semibold shadow-lg transition-all duration-200 border border-accent-amber/30"
                   onClick={() => send(ws, 'shuffle_deal', {})}
@@ -549,7 +552,7 @@ export default function Table() {
               const i = Number(k);
               const pid = seats[i];
               const p = pid ? players[pid] : null;
-              const selectable = selectedCardsToPass.length > 0 && !!p && p.team !== my.team;
+              const selectable = selectedCardsToPass.length > 0 && !!p && !!resolveDropTarget(p.id);
               const ringClass = p?.team === 'A' ? TEAM_RING.A : p?.team === 'B' ? TEAM_RING.B : TEAM_RING.unknown;
               const isMe = p && p.id === me.id;
               const isLaydownPlayer = p && pendingLay && p.id === pendingLay.who_id;
@@ -558,21 +561,20 @@ export default function Table() {
               return (
                 <div key={`seatwrap-${i}-${pid || 'empty'}`} className="absolute" style={seatPositions[i]} ref={p ? setSeatRef(p.id) : undefined} data-seat={i} data-player-id={p?.id}>
                   <div className={[
-                      'rounded-full relative',
+                      'seat-frame relative',
                       selectable ? 'ring-2 ring-yellow-300/80' : '',
                       ringClass,
                       isMe ? 'ring-4 ring-cyan-400 shadow-[0_0_0_6px_rgba(34,211,238,0.25)]' : 'ring-2',
                       isLaydownPlayer ? 'ring-4 ring-amber-400 shadow-[0_0_0_8px_rgba(251,191,36,0.4)] animate-pulse' : '',
                     ].join(' ')}
                   >
-                    {isSpeaking && (
-                      <div className="pointer-events-none absolute -inset-1 rounded-full ring-4 ring-green-400 shadow-[0_0_14px_rgba(34,197,94,0.6)] z-10" />
-                    )}
                     <Seat
                       seatIndex={i}
                       player={p}
                       highlight={isLaydownPlayer}
                       selectable={selectable}
+                      dropTarget={dragTarget === p?.id}
+                      draggingCards={isDraggingCards}
                       onSelect={p ? () => handleSeatClick(p) : null}
                       team={p?.team}
                       isMe={isMe}
@@ -619,14 +621,14 @@ export default function Table() {
                             key={`${card.suit}-${card.rank}-${index}`}
                             className="absolute transform"
                             style={{
-                              transform: `translateX(${offsetX}px) rotate(${rotation}deg)`,
+                              transform: `translate(-50%, -50%) translateX(${offsetX}px) rotate(${rotation}deg)`,
                               zIndex: index + 1,
                               left: '50%',
-                              marginLeft: '-19px',
+                              top: '50%',
                               filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))'
                             }}
                           >
-                            <Card suit={card.suit} rank={card.rank} size={anim.landed ? "sm" : "sm-xs"} />
+                            <Card suit={card.suit} rank={card.rank} size="sm" />
                           </div>
                         );
                       })}
@@ -669,10 +671,10 @@ export default function Table() {
        </div>
 
        {/* Bottom section - Scoreboard, Player Hand, and Controls */}
-       <div className="flex-shrink-0 p-2 md:p-4 space-y-1 md:space-y-2 mt-2 md:-mt-4">
+       <div className="game-hand-dock">
          {/* Scoreboard */}
-         <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-30 text-xs sm:text-sm">
-        <div className="px-2 sm:px-3 py-1 rounded-full bg-dark-card/70 backdrop-blur-sm border border-accent-blue/20 shadow-glow-blue">
+         <div className="game-score-strip flex items-center justify-center gap-4 text-xs sm:text-sm">
+        <div className="score-pill px-2 sm:px-3 py-1 rounded-full bg-dark-card/70 backdrop-blur-sm border border-accent-blue/20 shadow-glow-blue">
           <span className="inline-flex items-center gap-1 sm:gap-2 text-accent-blue">
             <span className="inline-block h-2 w-2 rounded-full bg-accent-blue shadow-glow-blue" />
             <span className="hidden sm:inline">Team A</span>
@@ -683,7 +685,7 @@ export default function Table() {
             <span className="text-text-muted"> ({(state.table_sets||[]).filter(s=>s.owner_team==='A').length})</span>
           </span>
         </div>
-        <div className="px-2 sm:px-3 py-1 rounded-full bg-dark-card/70 backdrop-blur-sm border border-accent-rose/20 shadow-glow-rose">
+        <div className="score-pill px-2 sm:px-3 py-1 rounded-full bg-dark-card/70 backdrop-blur-sm border border-accent-rose/20 shadow-glow-rose">
           <span className="inline-flex items-center gap-1 sm:gap-2 text-accent-rose">
             <span className="inline-block h-2 w-2 rounded-full bg-accent-rose shadow-glow-rose" />
             <span className="hidden sm:inline">Team B</span>
@@ -696,33 +698,39 @@ export default function Table() {
         </div>
       </div>
 
+         <div className="match-score-strip" aria-label="Match round wins"><span>Round {(state.completed_rounds || 0) + (state.phase === 'ended' ? 0 : 1)}</span><strong>Rounds won</strong><span>A: {state.round_wins?.A || 0}</span><span>B: {state.round_wins?.B || 0}</span>{state.tied_rounds > 0 && <span>Tied: {state.tied_rounds}</span>}</div>
+
          {/* Player Hand */}
          <div className="flex flex-col items-center">
            <PlayerHand 
              cards={my?.hand || []} 
              selectedCards={selectedCardsToPass}
              onCardSelect={handleHandCardClick}
-             selectable={true}
+             selectable={state.phase === 'playing' && ws?.readyState === 1}
+             resolveDropTarget={resolveDropTarget}
+             onDragStart={cards => { setSelectedCardsToPass(cards); setIsDraggingCards(true); }}
+             onDragHover={setDragTarget}
+             onDragEnd={() => { setIsDraggingCards(false); setDragTarget(null); }}
+             onCardsDrop={passCards}
            />
            
-           {/* Clear Selection Button - only show when cards are selected */}
-           {selectedCardsToPass.length > 0 && (
-             <div className="mt-2">
+           {/* Keep the selection action outside layout so the table never shrinks. */}
+             <div className="hand-selection-actions" style={{visibility:selectedCardsToPass.length ? 'visible' : 'hidden'}} aria-hidden={!selectedCardsToPass.length}>
                <button 
                  className="bg-gradient-secondary hover:shadow-glow-rose text-white px-3 py-1 rounded text-sm font-medium transition-all duration-200 border border-accent-rose/30"
+                 tabIndex={selectedCardsToPass.length ? 0 : -1}
                  onClick={() => setSelectedCardsToPass([])}
                >
                  Clear Selection ({selectedCardsToPass.length})
                </button>
              </div>
-           )}
          </div>
 
          {/* Game Controls */}
          <div className="flex items-center justify-center gap-3">
          {/* Show current phase and dealer info */}
          <div className="text-xs text-text-muted">
-           Phase: {state.phase}
+           {state.phase === 'playing' ? 'Round in play' : state.phase === 'ready' ? 'Ready for the deal' : 'Round complete'}
            {state.phase === 'ready' && state.current_dealer && (
              <span className="ml-2 text-blue-400">
                • Dealer: {(() => {
@@ -790,7 +798,7 @@ export default function Table() {
 
        {/* Laydown Button - Fixed in bottom right corner */}
        {(state.phase === 'playing' || state.phase === 'ready') && (
-         <div className="fixed bottom-4 right-4 z-50">
+         <div className="game-laydown-action">
            <button
              onClick={() => selectedCardsToPass.length === 0 && setLayOpen(true)}
              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-lg border ${

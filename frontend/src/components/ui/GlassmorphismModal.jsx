@@ -1,108 +1,35 @@
 import { useEffect, useRef } from 'react';
 
-export default function GlassmorphismModal({ 
-  isOpen, 
-  onClose, 
-  children, 
-  className = "",
-  overlayClassName = "",
-  onClickOutside = true,
-  size = "md" 
-}) {
+const SIZES = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-lg', xl: 'max-w-xl', '2xl': 'max-w-2xl', '3xl': 'max-w-3xl', '4xl': 'max-w-4xl', full: 'max-w-full' };
+export default function GlassmorphismModal({ isOpen, onClose, children, className = '', overlayClassName = '', onClickOutside = true, size = 'md' }) {
   const modalRef = useRef(null);
-
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
-    const handleEscape = (e) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose?.();
+    if (!isOpen) return;
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const panel = modalRef.current;
+    const focusable = () => [...panel.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]')].filter(el => el.getClientRects().length);
+    (focusable()[0] || panel).focus();
+    const keydown = event => {
+      if (event.key === 'Escape') closeRef.current?.();
+      if (event.key === 'Tab') {
+        const items = focusable();
+        if (!items.length) { event.preventDefault(); panel.focus(); return; }
+        if (event.shiftKey && (document.activeElement === items[0] || document.activeElement === panel)) { event.preventDefault(); items.at(-1).focus(); }
+        else if (!event.shiftKey && document.activeElement === items.at(-1)) { event.preventDefault(); items[0].focus(); }
       }
     };
-
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
-    }
-
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen, onClose]);
-
+    document.addEventListener('keydown', keydown);
+    return () => { document.removeEventListener('keydown', keydown); document.body.style.overflow = previousOverflow; previousFocus?.focus?.(); };
+  }, [isOpen]);
   if (!isOpen) return null;
-
-  const sizeClasses = {
-    sm: "max-w-sm",
-    md: "max-w-md", 
-    lg: "max-w-lg",
-    xl: "max-w-xl",
-    "2xl": "max-w-2xl",
-    "3xl": "max-w-3xl",
-    "4xl": "max-w-4xl",
-    full: "max-w-full mx-4"
-  };
-
-  return (
-    <div 
-      className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${overlayClassName}`}
-      onClick={onClickOutside ? onClose : undefined}
-    >
-      {/* Animated backdrop */}
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm animate-in fade-in duration-300" />
-      
-      {/* Floating liquid effect */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-gradient-to-br from-accent-blue/10 via-accent-purple/5 to-accent-cyan/10 rounded-full blur-3xl liquid-bg-1" />
-        <div className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-gradient-to-tl from-accent-pink/10 via-accent-emerald/5 to-accent-amber/10 rounded-full blur-3xl liquid-bg-2" />
-      </div>
-
-      {/* Modal container */}
-      <div 
-        ref={modalRef}
-        className={`
-          relative w-full ${sizeClasses[size]} max-h-[90vh] 
-          bg-white/3 backdrop-blur-xl 
-          border border-white/10 
-          rounded-3xl shadow-2xl
-          animate-in zoom-in-95 slide-in-from-bottom-4 duration-300
-          glassmorphism-modal
-          ${className}
-        `}
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: `
-            linear-gradient(135deg, 
-              rgba(255, 255, 255, 0.05) 0%, 
-              rgba(255, 255, 255, 0.02) 50%, 
-              rgba(255, 255, 255, 0.01) 100%
-            ),
-            radial-gradient(circle at 30% 20%, rgba(139, 92, 246, 0.08) 0%, transparent 50%),
-            radial-gradient(circle at 70% 80%, rgba(59, 130, 246, 0.08) 0%, transparent 50%),
-            radial-gradient(circle at 20% 80%, rgba(236, 72, 153, 0.05) 0%, transparent 50%)
-          `,
-          boxShadow: `
-            0 25px 50px -12px rgba(0, 0, 0, 0.15),
-            0 0 0 1px rgba(255, 255, 255, 0.05),
-            inset 0 1px 0 rgba(255, 255, 255, 0.05)
-          `
-        }}
-      >
-        {/* Inner glow effect */}
-        <div 
-          className="absolute inset-0 rounded-3xl"
-          style={{
-            background: `
-              radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.05) 0%, transparent 70%),
-              linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, transparent 100%)
-            `
-          }}
-        />
-        
-        {/* Content */}
-        <div className="relative z-10 p-6 overflow-y-auto max-h-[90vh]">
-          {children}
-        </div>
-      </div>
+  return <div className={`club-modal-backdrop fixed inset-0 z-[100] flex items-center justify-center p-4 ${overlayClassName}`} onClick={() => onClickOutside && onClose?.()}>
+    <div ref={modalRef} role="dialog" aria-modal="true" aria-label="Game dialog" tabIndex={-1}
+      className={`club-modal relative w-full ${SIZES[size] || SIZES.md} ${className}`} onClick={event => event.stopPropagation()}>
+      <div className="club-modal__content">{children}</div>
     </div>
-  );
+  </div>;
 }

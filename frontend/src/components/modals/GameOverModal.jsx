@@ -1,80 +1,32 @@
-import { useStore } from "../../store";
-import { send } from "../../ws";
-import GlassmorphismModal from "../ui/GlassmorphismModal";
+import { useStore } from '../../store';
+import { send } from '../../ws';
+import GlassmorphismModal from '../ui/GlassmorphismModal';
 
 export default function GameOverModal({ open, onClose, gameResult }) {
   const { state, me, ws } = useStore();
-  
   if (!open || !gameResult) return null;
-
   const { winner, team_a_score, team_b_score, team_a_sets, team_b_sets } = gameResult;
-
-  const getWinnerMessage = () => {
-    if (winner === "tie") {
-      return {
-        title: "Game Tied!",
-        message: "Both teams have the same score",
-        color: "text-yellow-400"
-      };
-    } else {
-      return {
-        title: `Team ${winner} Wins!`,
-        message: `Team ${winner} scored ${winner === "A" ? team_a_score : team_b_score} points`,
-        color: winner === "A" ? "text-blue-400" : "text-red-400"
-      };
-    }
-  };
-
-  const winnerInfo = getWinnerMessage();
-
-  const handleStartNewRound = () => {
-    // Send request to start new round
-    send(ws, "start_new_round", {
-      player_id: me.id
-    });
-    onClose?.();
-  };
-
-  return (
-    <GlassmorphismModal isOpen={open} onClose={onClose} size="md">
-      <div className="text-center">
-        <h2 className={`text-3xl font-bold mb-4 ${winnerInfo.color}`}>
-          {winnerInfo.title}
-        </h2>
-        
-        <p className="text-white/80 mb-6">
-          {winnerInfo.message}
-        </p>
-
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-4">
-            <div className="text-blue-400 font-semibold mb-2">Team A</div>
-            <div className="text-2xl font-bold text-white">{team_a_score} pts</div>
-            <div className="text-sm text-white/70">{team_a_sets} sets</div>
-          </div>
-          
-          <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-4">
-            <div className="text-red-400 font-semibold mb-2">Team B</div>
-            <div className="text-2xl font-bold text-white">{team_b_score} pts</div>
-            <div className="text-sm text-white/70">{team_b_sets} sets</div>
-          </div>
-        </div>
-
-        <div className="flex gap-3 justify-center">
-          <button
-            onClick={onClose}
-            className="px-6 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 rounded-xl text-white transition-all duration-200 hover:shadow-lg"
-          >
-            Close
-          </button>
-          <button
-            onClick={handleStartNewRound}
-            className="px-6 py-2 bg-gradient-to-r from-accent-emerald to-accent-cyan hover:shadow-glow-emerald rounded-xl text-white transition-all duration-200"
-          >
-            Start New Round
-          </button>
-        </div>
+  const wins = gameResult.round_wins || state?.round_wins || { A:0, B:0 };
+  const finished = gameResult.match_finished || state?.match_finished;
+  const leader = wins.A > wins.B ? 'A' : wins.B > wins.A ? 'B' : 'tie';
+  const round = gameResult.round_number || state?.completed_rounds || 1;
+  const ties = gameResult.tied_rounds ?? state?.tied_rounds ?? 0;
+  const canAct = ws?.readyState === 1 && !state?.players?.[me?.id]?.is_spectator;
+  return <GlassmorphismModal isOpen={open} onClose={onClose} size="md">
+    <div className="text-center">
+      <span className="club-eyebrow">{finished ? 'FINAL MATCH RESULT' : `ROUND ${round} COMPLETE`}</span>
+      <h2 className="text-2xl font-semibold text-text-primary mt-3 mb-3">{finished ? leader === 'tie' ? 'Match tied' : `Team ${leader} wins the match!` : winner === 'tie' ? 'Round tied' : `Team ${winner} wins this round!`}</h2>
+      <p className="text-sm text-text-secondary mb-5">{finished ? 'The overall result is decided by rounds won.' : 'Round points decide this round. Rounds won decide the match.'}</p>
+      <div className="match-result-scores">
+        {['A','B'].map(team=><div key={team}><span>Team {team}</span><strong>{wins[team]}</strong><small>rounds won</small><p>{team === 'A' ? team_a_score : team_b_score} points · {team === 'A' ? team_a_sets : team_b_sets} sets this round</p></div>)}
       </div>
-    </GlassmorphismModal>
-  );
+      <p className="text-xs text-text-secondary mt-3 mb-5">{round} completed {round === 1 ? 'round' : 'rounds'}{ties ? ` · ${ties} tied` : ''}{!finished && ` · ${leader === 'tie' ? 'Match is tied' : `Team ${leader} leads overall`}`}</p>
+      <div className="flex flex-wrap gap-3 justify-center">
+        {finished ? <button className="club-primary px-5 py-3 rounded-lg" disabled={!canAct} onClick={()=>send(ws,'request_back_to_lobby',{requester_id:me.id})}>Back to lobby</button> : <>
+          <button className="px-4 py-3 rounded-lg border border-white/20" disabled={!canAct} onClick={()=>send(ws,'finish_match',{})}>Finish match</button>
+          <button className="club-primary px-4 py-3 rounded-lg" disabled={!canAct} onClick={()=>send(ws,'start_new_round',{player_id:me.id})}>Next round</button>
+        </>}
+      </div>
+    </div>
+  </GlassmorphismModal>;
 }

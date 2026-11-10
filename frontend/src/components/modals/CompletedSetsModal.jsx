@@ -1,3 +1,4 @@
+import GlassmorphismModal from '../ui/GlassmorphismModal';
 import { useState } from 'react';
 import { Card, FannedCards } from '../cards';
 
@@ -47,13 +48,14 @@ export default function CompletedSetsModal({ open, onClose, tableSets = [] }) {
   const setsB = tableSets.filter(ts => ts.owner_team === 'B');
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-dark-card/95 backdrop-blur-sm rounded-xl max-w-md w-full max-h-[80vh] overflow-hidden border border-accent-purple/20 shadow-2xl">
+    <GlassmorphismModal isOpen={open} onClose={onClose}>
+      <div>
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-accent-purple/20">
           <h2 className="text-lg font-semibold text-text-primary">Completed Sets</h2>
           <button
             onClick={onClose}
+            aria-label="Close completed sets"
             className="text-text-muted hover:text-text-primary text-2xl leading-none transition-colors"
           >
             ×
@@ -121,6 +123,6 @@ export default function CompletedSetsModal({ open, onClose, tableSets = [] }) {
           </button>
         </div>
       </div>
-    </div>
+    </GlassmorphismModal>
   );
 }

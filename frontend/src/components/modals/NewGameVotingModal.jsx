@@ -48,7 +48,7 @@ export default function NewGameVotingModal({ open, onClose, votingData, gameStat
         </h2>
         
         <p className="text-white/80 mb-4">
-          {requester?.name || "A player"} wants to start a new game with fresh cards.
+          {requester?.name || "A player"} wants to restart this round with fresh cards. The dealer and completed round wins stay the same.
         </p>
 
           <div className="mb-4">

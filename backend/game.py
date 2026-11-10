@@ -270,6 +270,11 @@ class Game:
 
     def start(self):
         self.state.phase = "ready"
+        self.state.round_wins = {"A": 0, "B": 0}
+        self.state.completed_rounds = 0
+        self.state.tied_rounds = 0
+        self.state.round_result = None
+        self.state.match_finished = False
         # Start with seat 0 as the first dealer (displays as "Seat 1")
         dealer = self.state.seats.get(0)
         self.state.current_dealer = dealer
@@ -654,6 +659,31 @@ class Game:
 
         # --- Failure: opponent wins, capture full set to table; choose next turn smartly
         if declared != needed_ranks:
+            # Snapshot the declaration and ownership BEFORE collecting the set.
+            # The updated hands no longer contain these cards after a failure.
+            selected_by_rank = {rank: set() for rank in self.ranks_for(set_type)}
+            for c in my.hand:
+                if c.suit == suit and c.rank in needed_ranks:
+                    selected_by_rank[c.rank].add(who_id)
+            for pid, ranks in coll_map.items():
+                if pid not in self.state.players:
+                    continue
+                for rank in ranks:
+                    if rank in needed_ranks:
+                        selected_by_rank[rank].add(pid)
+            declaration_comparison = []
+            for rank in self.ranks_for(set_type):
+                selected_ids = sorted(selected_by_rank[rank])
+                actual_ids = sorted(
+                    pid for pid, player in self.state.players.items()
+                    if any(c.suit == suit and c.rank == rank for c in player.hand)
+                )
+                declaration_comparison.append({
+                    "card": {"suit": suit, "rank": rank},
+                    "selected_player_ids": selected_ids,
+                    "actual_player_ids": actual_ids,
+                    "correct": len(selected_ids) == 1 and selected_ids == actual_ids,
+                })
             loser_team = my.team
             winner_team = "A" if loser_team == "B" else "B"
 
@@ -712,6 +742,7 @@ class Game:
             return {
                 "success": False,
                 "who_id": who_id,
+                "declaration_comparison": declaration_comparison,
                 "owner_team": winner_team,
                 "suit": suit,
                 "set_type": set_type,
@@ -857,6 +888,10 @@ class Game:
     # ---------------- Game End Logic ----------------
     def check_game_end(self):
         """Check if game should end and return game result if so"""
+        if self.state.round_result is not None:
+            return self.state.round_result
+        if self.state.phase not in ["playing", "ended"]:
+            return {"game_ended": False}
         # Game ends when all 8 sets are collected OR all players have empty hands
         all_hands_empty = all(not player.hand for player in self.state.players.values())
         sets_collected = len(self.state.table_sets) >= 8
@@ -874,10 +909,22 @@ class Game:
                 winner = "B"
             else:
                 winner = "tie"
+
+            self.state.completed_rounds += 1
+            if winner == "tie":
+                self.state.tied_rounds += 1
+            else:
+                self.state.round_wins[winner] += 1
+            wins = self.state.round_wins
+            overall_winner = "A" if wins["A"] > wins["B"] else "B" if wins["B"] > wins["A"] else "tie"
             
             result = {
                 "game_ended": True,
                 "winner": winner,
+                "round_number": self.state.completed_rounds,
+                "round_wins": dict(wins),
+                "tied_rounds": self.state.tied_rounds,
+                "overall_winner": overall_winner,
                 "team_a_score": team_a_score,
                 "team_b_score": team_b_score,
                 "team_a_sets": len([s for s in self.state.table_sets if s.owner_team == "A"]),
@@ -885,6 +932,7 @@ class Game:
             }
             
             logger.info(f"Game ended in room {self.state.room_id}: Winner={winner}, A={team_a_score}, B={team_b_score}, Sets={len(self.state.table_sets)}")
+            self.state.round_result = result
             return result
         return {"game_ended": False}
 
@@ -1029,6 +1077,9 @@ class Game:
 
     def _execute_abort(self):
         """Execute the abort - reset game but stay in room"""
+        if self.state.phase == "ended":
+            result = self.start_new_round(self.state.current_dealer)
+            return {**result, "abort_executed": result.get("success", False)}
         # Reset game state but keep players and teams
         self.state.phase = "ready"  # Set to ready so shuffle/deal can be used
         self.state.turn_player = None
@@ -1037,23 +1088,9 @@ class Game:
         self.state.team_scores = {"A": 0, "B": 0}
         self.state.table_sets = []
         
-        # Rotate dealer clockwise for new game
-        if self.state.current_dealer:
-            current_dealer_seat = None
-            for seat, pid in self.state.seats.items():
-                if pid == self.state.current_dealer:
-                    current_dealer_seat = seat
-                    break
-            
-            if current_dealer_seat is not None:
-                # Find next occupied seat clockwise
-                for offset in range(1, 7):
-                    next_seat = (current_dealer_seat + offset) % 6
-                    next_player_id = self.state.seats.get(next_seat)
-                    if next_player_id:
-                        self.state.current_dealer = next_player_id
-                        break
-        
+        # Restarting an unfinished round keeps its dealer and match standings.
+        self.state.round_result = None
+
         # Clear abort votes
         if hasattr(self.state, 'abort_votes'):
             delattr(self.state, 'abort_votes')
@@ -1069,8 +1106,12 @@ class Game:
         }
 
     def shuffle_deal_new_game(self, dealer_id: str):
-        """Start a new game with shuffle and deal, rotating dealer and turn"""
-        if self.state.phase not in ["ended", "lobby", "ready"]:
+        """Deal a round; only a completed round advances the dealer."""
+        if self.state.phase == "ended":
+            prepared = self.start_new_round(dealer_id)
+            if not prepared.get("success"):
+                return prepared
+        if self.state.phase not in ["lobby", "ready"]:
             return {"success": False, "reason": "game_in_progress"}
         
         # Find current dealer seat (the one who clicked the button)
@@ -1099,7 +1140,7 @@ class Game:
             return None, None
 
         # Never rotate dealer in shuffle_deal_new_game - keep current dealer
-        # Dealer rotation only happens in start_new_round() or new game button
+        # Dealer rotation only happens in start_new_round() after completion.
         next_dealer_seat = current_dealer_seat
         next_dealer_id = self.state.current_dealer
 
@@ -1170,6 +1211,8 @@ class Game:
 
     def start_new_round(self, requester_id: str):
         """Start a new round after game over, rotating dealer clockwise"""
+        if self.state.match_finished:
+            return {"success": False, "reason": "match_finished"}
         if self.state.phase != "ended":
             return {"success": False, "reason": "game_not_ended"}
         
@@ -1213,7 +1256,8 @@ class Game:
         if not next_turn_id:
             return {"success": False, "reason": "no_turn_player"}
         
-        # Reset game state for new round
+        # Reset this round while preserving the match's round wins.
+        self.state.round_result = None
         self.state.phase = "ready"  # Ready for shuffle & deal
         self.state.team_scores = {"A": 0, "B": 0}
         self.state.table_sets = []
@@ -1228,3 +1272,13 @@ class Game:
             "turn_player_id": next_turn_id,
             "message": f"New round started! Dealer: {self.state.players[next_dealer_id].name}"
         }
+
+    def finish_match(self, requester_id: str):
+        player = self.state.players.get(requester_id)
+        if not player or player.is_spectator or player.seat is None:
+            return {"success": False, "reason": "not_a_player"}
+        if self.state.phase != "ended" or self.state.round_result is None:
+            return {"success": False, "reason": "round_not_completed"}
+        self.state.match_finished = True
+        self.state.round_result = {**self.state.round_result, "match_finished": True}
+        return {"success": True, "result": self.state.round_result}
