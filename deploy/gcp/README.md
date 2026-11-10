@@ -5,11 +5,14 @@ Cloudflare Tunnel, so there is no nginx, no SSL certificate and no open HTTP por
 Deploys keep using the existing GitHub Actions + Ansible workflow.
 
 ```
-Discord Activity ─► <client_id>.discordsays.com
-                     ├─ /        ─► frontend (GitHub Pages / Cloudflare)
-                     └─ /api/v1  ─► set-game-backend.ashankaushanka.dev
-                                     └─ Cloudflare Tunnel ─► VM: uvicorn on 127.0.0.1:8001
+Discord Activity ─► <client_id>.discordsays.com ─► Cloudflare Pages (set-game)
+                                                     ├─ /       frontend files
+                                                     └─ /api/*  Pages Function proxy
+                                                                  └─► set-game-backend.ashankaushanka.dev
+                                                                        └─ Cloudflare Tunnel ─► VM: uvicorn 127.0.0.1:8001
 ```
+
+The frontend is on Cloudflare Pages (see [DEPLOYMENT.md](../../DEPLOYMENT.md)); the VM runs only the backend.
 
 ## 0. Billing (do this first)
 
@@ -87,12 +90,14 @@ Its last step runs `restart.sh`, which restarts the systemd service.
 
 ## 5. Discord URL mappings
 
-Developer Portal → Activities → URL Mappings:
+Developer Portal → Activities → URL Mappings: a single root mapping is enough, because
+the Pages Function forwards `/api/*` to the VM.
 
 | Prefix | Target |
 |---|---|
-| `/` | your production frontend host |
-| `/api/v1` | `set-game-backend.ashankaushanka.dev/api/v1` |
+| `/` | `set-game.pages.dev` (or the custom domain attached to the Pages project) |
+
+Remove the old `/api/v1` proxy mapping.
 
 ## Check it
 
