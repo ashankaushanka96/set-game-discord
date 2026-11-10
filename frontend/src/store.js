@@ -1,3 +1,4 @@
+import { createSpeakingActions } from './utils/speaking';
 import { create } from "zustand";
 
 function getMe() {
@@ -41,7 +42,6 @@ export const useStore = create((set, get) => ({
 
   // speaking users (by Discord user id)
   speakingUsers: {},
-  _speakingTimers: {},
 
   // emoji animations
   emojiAnimations: [],
@@ -119,41 +119,7 @@ export const useStore = create((set, get) => ({
     return withId.id;
   },
 
-  // speaking helpers
-  startSpeaking: (userId, ttlMs = 2000) => {
-    if (!userId) return;
-    const id = String(userId);
-    set((state) => ({ speakingUsers: { ...state.speakingUsers, [id]: true } }));
-    // auto-clear if no stop event arrives
-    try {
-      const timers = { ...(get()._speakingTimers || {}) };
-      if (timers[id]) clearTimeout(timers[id]);
-      timers[id] = setTimeout(() => {
-        const s = get();
-        const next = { ...(s.speakingUsers || {}) };
-        delete next[id];
-        set({ speakingUsers: next });
-      }, ttlMs);
-      set({ _speakingTimers: timers });
-    } catch {}
-  },
-  stopSpeaking: (userId) => {
-    if (!userId) return;
-    const id = String(userId);
-    set((state) => {
-      const next = { ...(state.speakingUsers || {}) };
-      delete next[id];
-      return { speakingUsers: next };
-    });
-    try {
-      const timers = { ...(get()._speakingTimers || {}) };
-      if (timers[id]) {
-        clearTimeout(timers[id]);
-        delete timers[id];
-        set({ _speakingTimers: timers });
-      }
-    } catch {}
-  },
+  ...createSpeakingActions(set),
 
   // --- bottom message box ---
   setGameMessage: (title, lines, cards = null) => {
@@ -321,7 +287,7 @@ export const useStore = create((set, get) => ({
       if (Array.isArray(msg.payload.contributors) && msg.payload.contributors.length) {
         try {
           window.dispatchEvent(new CustomEvent("lay_anim", {
-            detail: { contributors: msg.payload.contributors, suit: msg.payload.suit, set_type: msg.payload.set_type }
+            detail: { contributors: msg.payload.contributors, suit: msg.payload.suit, set_type: msg.payload.set_type, success:msg.payload.success }
           }));
         } catch {}
       }
@@ -740,6 +706,7 @@ export const useStore = create((set, get) => ({
 
     // PLAYER DISCONNECTED
     if (msg.type === "player_disconnected") {
+      get().stopSpeaking(msg.payload.player_id);
       const s = msg.payload.state;
       set({ state: s });
       const players = s.players || {};
@@ -835,7 +802,7 @@ export const useStore = create((set, get) => ({
     // SPECTATOR PASS CARDS RESULT
     if (msg.type === "spectator_pass_cards_result") {
       const s = msg.payload.state;
-      set({ state: s });
+      if (s) set({ state: s });
       const success = msg.payload.success;
       const fromName = msg.payload.from_name || "Unknown";
       const toName = msg.payload.to_name || "Unknown";

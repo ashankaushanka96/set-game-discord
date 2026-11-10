@@ -220,6 +220,7 @@ export default function LaydownModal({ onClose }) {
       isOpen={true} 
       onClose={step === 0 ? handleClose : undefined}
       size="3xl"
+      className="laydown-workflow-dialog"
       onClickOutside={step === 0}
     >
       <div className="flex flex-col h-full">
@@ -250,7 +251,7 @@ export default function LaydownModal({ onClose }) {
           <StepDot active={step >= 3} label="Confirm" />
         </div>
 
-        <div className="mb-3 font-medium text-white">{stepTitle}</div>
+        <div key={step} className="laydown-step-title mb-3 font-medium text-white">{stepTitle}</div>
         
         {/* Warning message when set is selected */}
         {step > 0 && (
@@ -263,7 +264,7 @@ export default function LaydownModal({ onClose }) {
         )}
 
         {/* Scrollable content area */}
-        <div className="flex-1 overflow-y-auto min-h-0">
+        <div className="laydown-scroll-content min-h-0">
           {/* STEP 0: pick set (ONLY ELIGIBLE) */}
         {step === 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -275,9 +276,8 @@ export default function LaydownModal({ onClose }) {
             {eligibleSets.map(({ suit, type }) => (
               <button
                 key={`${suit}-${type}`}
-                className={`p-3 rounded-xl bg-white/10 backdrop-blur-sm hover:bg-white/20 text-left transition-all duration-200 border ${
-                  pick.suit === suit && pick.setType === type ? "border-accent-emerald shadow-glow-emerald" : "border-white/20 hover:border-accent-purple/40"
-                }`}
+                className="laydown-set-option p-3 rounded-xl text-left transition-all duration-200 border"
+                aria-pressed={pick.suit === suit && pick.setType === type}
                 onClick={() => {
                   setPick({ suit, setType: type });
                   setMyRanks([]);        // reset selection when switching sets
@@ -292,6 +292,7 @@ export default function LaydownModal({ onClose }) {
                   });
                 }}
               >
+                {pick.suit === suit && pick.setType === type && <span className="laydown-set-option__check" aria-hidden="true">✓</span>}
                 <div className="flex flex-col items-center gap-3">
                   <div className="p-3">
                     <FannedCards 
@@ -516,7 +517,7 @@ function StepDot({ active, label }) {
   return (
     <div className={`px-2 py-1 rounded-full ${active ? "bg-accent-purple/20 border border-accent-purple/40" : "bg-white/10 border border-white/20"} text-white whitespace-nowrap text-xs transition-all duration-200`}>
       <span className="hidden sm:inline">{label}</span>
-      <span className="sm:hidden">{label.split(' ')[0]}</span>
+      <span className="sm:hidden">{{'Select Set':'Set','Your Cards':'Cards','Add Teammates (Optional)':'Team','Confirm':'Review'}[label] || label}</span>
     </div>
   );
 }

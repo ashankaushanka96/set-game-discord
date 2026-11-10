@@ -1,3 +1,4 @@
+import GlassmorphismModal from '../ui/GlassmorphismModal';
 export default function ConfirmUnassignModal({
   open,
   playerName,
@@ -7,8 +8,8 @@ export default function ConfirmUnassignModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-zinc-900 rounded-2xl shadow-xl p-5">
+    <GlassmorphismModal isOpen={open} onClose={onClose} size="md">
+      <div>
         <div className="flex items-center justify-between mb-4">
           <div className="text-lg font-semibold text-white">
             Remove Player from Team
@@ -40,6 +41,6 @@ export default function ConfirmUnassignModal({
           </button>
         </div>
       </div>
-    </div>
+    </GlassmorphismModal>
   );
 }

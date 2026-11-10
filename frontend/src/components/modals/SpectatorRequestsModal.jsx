@@ -1,3 +1,4 @@
+import GlassmorphismModal from '../ui/GlassmorphismModal';
 import React from 'react';
 import { useStore } from '../../store';
 import { send } from '../../ws';
@@ -18,8 +19,8 @@ export default function SpectatorRequestsModal({ open, onClose }) {
   };
   
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-zinc-800 rounded-xl p-6 max-w-md w-full max-h-[80vh] overflow-y-auto">
+    <GlassmorphismModal isOpen={open} onClose={onClose} size="md">
+      <div>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-white">Spectator Requests</h2>
           <button
@@ -97,6 +98,6 @@ export default function SpectatorRequestsModal({ open, onClose }) {
           </button>
         </div>
       </div>
-    </div>
+    </GlassmorphismModal>
   );
 }

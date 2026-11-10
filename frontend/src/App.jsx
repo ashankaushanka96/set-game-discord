@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useStore } from './store';
 import { Lobby, Table, GameRoom } from './components';
 import './styles.css';
+import './table-room.css';
 
 export default function App(){
   return (

@@ -12,7 +12,11 @@ export default function GlassmorphismModal({ isOpen, onClose, children, classNam
     document.body.style.overflow = 'hidden';
     const panel = modalRef.current;
     const focusable = () => [...panel.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]')].filter(el => el.getClientRects().length);
-    (focusable()[0] || panel).focus();
+    panel.focus({ preventScroll:true });
+    const resetScroll = requestAnimationFrame(() => {
+      const content = panel.querySelector('.club-modal__content');
+      if (content) content.scrollTop = 0;
+    });
     const keydown = event => {
       if (event.key === 'Escape') closeRef.current?.();
       if (event.key === 'Tab') {
@@ -23,7 +27,7 @@ export default function GlassmorphismModal({ isOpen, onClose, children, classNam
       }
     };
     document.addEventListener('keydown', keydown);
-    return () => { document.removeEventListener('keydown', keydown); document.body.style.overflow = previousOverflow; previousFocus?.focus?.(); };
+    return () => { cancelAnimationFrame(resetScroll); document.removeEventListener('keydown', keydown); document.body.style.overflow = previousOverflow; previousFocus?.focus?.({ preventScroll:true }); };
   }, [isOpen]);
   if (!isOpen) return null;
   return <div className={`club-modal-backdrop fixed inset-0 z-[100] flex items-center justify-center p-4 ${overlayClassName}`} onClick={() => onClickOutside && onClose?.()}>

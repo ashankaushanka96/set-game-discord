@@ -1,11 +1,12 @@
+import GlassmorphismModal from '../ui/GlassmorphismModal';
 import { Card } from '../cards';
 import { firstCardOfSet } from '../../lib/deck';
 
 export default function AskSetModal({ open, eligibleSets, onPick, onClose }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 bg-black/60 grid place-items-center z-50">
-      <div className="bg-zinc-900 rounded-2xl p-5 w-[680px] max-w-[95vw]">
+    <GlassmorphismModal isOpen={open} onClose={onClose} size="2xl">
+      <div>
         <div className="text-lg font-bold mb-4">Select Set</div>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {eligibleSets.map(({ suit, type }) => {
@@ -31,6 +32,6 @@ export default function AskSetModal({ open, eligibleSets, onPick, onClose }) {
           <button className="px-3 py-1 rounded bg-zinc-700" onClick={onClose}>Cancel</button>
         </div>
       </div>
-    </div>
+    </GlassmorphismModal>
   );
 }

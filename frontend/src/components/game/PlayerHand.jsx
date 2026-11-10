@@ -8,7 +8,7 @@ const SUITS = ['hearts', 'diamonds', 'clubs', 'spades'];
 const RANKS = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
 const cardKey = card => `${card.suit}-${card.rank}`;
 
-export default function PlayerHand({ cards = [], selectedCards = [], onCardSelect, selectable = false, resolveDropTarget, onDragStart, onDragHover, onDragEnd, onCardsDrop }) {
+export default function PlayerHand({ cards = [], selectedCards = [], onCardSelect, selectable = false, resolveDropTarget, onDragStart, onDragHover, onDragEnd, onCardsDrop, label = "Your hand" }) {
   const dealing = useStore(state => state.dealingAnimation);
   const previous = useRef(new Set());
   const [arrivals, setArrivals] = useState(new Set());
@@ -26,19 +26,19 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
     return () => clearTimeout(timer);
   }, [cards]);
 
-  if (dealing) return <div className="hand-status" role="status">Dealing your hand…</div>;
+  if (dealing) return <div className="hand-status" role="status">Dealing cards…</div>;
   return <div className="player-hand">
     <div className="player-hand__heading">
-      <span>Your hand <span className="player-hand__count">{cards.length}</span></span>
+      <span>{label} <span className="player-hand__count">{cards.length}</span></span>
       <span aria-live="polite">{selected.size ? `${selected.size} selected · drag to an opponent` : selectable ? 'Drag up to pass · swipe unselected cards to browse' : 'Sorted by suit'}</span>
     </div>
-    <div className="player-hand__scroll" tabIndex={0} aria-label="Your cards, scroll to see more">
+    <div className="player-hand__scroll" tabIndex={0} aria-label={`${label}, scroll to see more`}>
       <div className="player-hand__cards">
         {ordered.map((card, index) => {
           const key = cardKey(card);
           return <button key={key} type="button" {...drag.bind(card)}
             className={`hand-card ${selected.has(key) ? 'hand-card--selected' : ''} ${arrivals.has(key) ? 'hand-card--new' : ''} ${drag.preview?.cards.some(c => cardKey(c) === key) ? 'hand-card--dragging' : ''}`}
-            style={{ '--deal-delay': `${Math.min(index, 12) * 35}ms` }}
+            style={{ '--deal-delay': `${Math.min(index, 12) * 35}ms`, '--fan-angle': `${(index-(ordered.length-1)/2)*Math.min(2.2,20/Math.max(1,ordered.length-1))}deg`, '--fan-y': `${Math.min(9,Math.abs(index-(ordered.length-1)/2)*1.4)}px` }}
             disabled={!selectable} aria-pressed={selectable ? selected.has(key) : undefined}
             aria-label={`${card.rank} of ${card.suit}${selected.has(key) ? ', selected' : ''}`}
             onClick={event => { event.stopPropagation(); if (!drag.shouldIgnoreClick(event)) onCardSelect?.(card); }}>
@@ -52,6 +52,6 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
       <div className="card-drag-preview__fan">{drag.preview.cards.slice(0,3).map((card,i)=><div key={cardKey(card)} style={{transform:`translateX(${i*12}px) rotate(${i*5-5}deg)`}}><Card {...card} size="sm"/></div>)}</div>
       <span>{drag.preview.target ? `Release to pass to ${drag.preview.target.name}` : `Drag ${drag.preview.cards.length} ${drag.preview.cards.length === 1 ? 'card' : 'cards'} to an opponent`}</span>
     </div>,document.body)}
-    {!cards.length && <p className="hand-status">Your next hand will appear here.</p>}
+    {!cards.length && <p className="hand-status">No cards in this hand.</p>}
   </div>;
 }

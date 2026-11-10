@@ -1,3 +1,4 @@
+import { SUIT_SYMBOL } from '../../lib/deck';
 import { FannedCards, ColorCodedFannedCards } from '../cards';
 import LaydownComparison from './LaydownComparison';
 import GlassmorphismModal from '../ui/GlassmorphismModal';
@@ -20,23 +21,22 @@ export default function LaydownResultModal({
       onClose={onClose} 
       size="2xl"
       onClickOutside={false}
+      className={`laydown-result-dialog ${laydownData.success ? 'laydown-result-dialog--success' : 'laydown-result-dialog--failed'}`}
     >
       <div className="text-center">
-        {/* Header */}
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-white mb-2">
-            {laydownData.success ? '🎉 Laydown Successful!' : '❌ Laydown Failed'}
-          </h2>
-          <div className="text-white/70">
-            {laydownData.suit} {laydownData.setType} - {laydownData.points} points to Team {laydownData.team}
-          </div>
-        </div>
+        <header className="laydown-result-hero">
+          <span className="club-eyebrow">THE DECLARATION</span>
+          <div className="laydown-result-seal" aria-hidden="true">{laydownData.success ? SUIT_SYMBOL[laydownData.suit] || '♠' : '!'}</div>
+          <h2>{laydownData.success ? 'A set well played.' : 'This set slipped away.'}</h2>
+          <p className="capitalize">{laydownData.suit} · {laydownData.setType} set</p>
+          <span className="laydown-result-points">+{laydownData.points} points · Team {laydownData.team}</span>
+        </header>
 
         {hasComparison && <LaydownComparison comparisons={laydownData.declarationComparison} players={players} declaredBy={laydownData.declaredBy} />}
 
         {!hasComparison && <>
           {/* Player Contributions */}
-          <div className="space-y-4 mb-6">
+          <div className="laydown-result-section space-y-4 mb-6">
             <h3 className="text-lg font-semibold text-white">Player Contributions</h3>
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
               {laydownData.contributors && laydownData.contributors.map((contributor, index) => {
@@ -75,7 +75,7 @@ export default function LaydownResultModal({
                 });
                 
                 const player = players[contributor.player_id];
-                const teamColor = player?.team === 'A' ? 'bg-blue-500' : 'bg-red-500';
+                const teamColor = player?.team === 'A' ? 'result-team-tag result-team-tag--a' : 'result-team-tag result-team-tag--b';
                 const teamText = player?.team === 'A' ? 'Team A' : 'Team B';
                 
                 return (
@@ -99,8 +99,9 @@ export default function LaydownResultModal({
             </div>
           </div>
 
-        {/* Color-Coded Analysis */}
-        <div className="space-y-4 mb-6">
+        {/* Failed declarations retain the detailed analysis; successful cards
+            are already shown once under their contributors above. */}
+        {!laydownData.success && <div className="laydown-result-section space-y-4 mb-6">
           <h3 className="text-lg font-semibold text-white">
             {laydownData.success ? 'Cards Successfully Laid Down' : 'Card Analysis'}
           </h3>
@@ -121,6 +122,8 @@ export default function LaydownResultModal({
              </div>
           </div>
         </div>
+
+        }
 
         {/* Missing Cards Explanation (for failures) */}
         {!laydownData.success && (
@@ -151,9 +154,7 @@ export default function LaydownResultModal({
         <div className="flex justify-center">
           <button
             onClick={onClose}
-            className="bg-gradient-to-r from-accent-blue to-blue-500 hover:from-accent-blue/80 hover:to-blue-500/80 
-                     text-white px-8 py-3 rounded-xl font-medium transition-all duration-200 
-                     shadow-lg hover:shadow-blue-500/25 hover:scale-105 active:scale-95"
+            className="club-primary px-8 py-3 rounded-xl font-medium"
           >
             Continue
           </button>

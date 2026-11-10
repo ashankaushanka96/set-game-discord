@@ -1,10 +1,11 @@
+import GlassmorphismModal from '../ui/GlassmorphismModal';
 import { Card } from '../cards';
 
 export default function AskRankModal({ open, suit, setType, askableRanks, onPick, onClose }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 bg-black/60 grid place-items-center z-50">
-      <div className="bg-zinc-900 rounded-2xl p-5 w-[540px]">
+    <GlassmorphismModal isOpen={open} onClose={onClose} size="lg">
+      <div>
         <div className="text-lg font-bold mb-3 capitalize">
           Select Card — {suit} {setType}
         </div>
@@ -24,6 +25,6 @@ export default function AskRankModal({ open, suit, setType, askableRanks, onPick
           <button className="px-3 py-1 rounded bg-zinc-700" onClick={onClose}>Cancel</button>
         </div>
       </div>
-    </div>
+    </GlassmorphismModal>
   );
 }

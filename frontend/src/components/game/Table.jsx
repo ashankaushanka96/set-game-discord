@@ -9,7 +9,9 @@ import {
   MessageBubbles 
 } from '../';
 import SpectatorView from './SpectatorView';
+import TableSceneDetails, { SeatCardStack } from './TableSceneDetails';
 import PassedCardsAnimation from './PassedCardsAnimation';
+import LaydownAnimation from './LaydownAnimation';
 import ChatBubble from './ChatBubble';
 import EmojiPassAnimation from './EmojiPassAnimation';
 import EmojiSettings from './EmojiSettings';
@@ -28,10 +30,7 @@ import {
   Toast, 
   Celebration
 } from '../ui';
-import { 
-  Card, 
-  FannedCards 
-} from '../cards';
+import Card from '../cards/Card';
 import { RANKS_LOWER, RANKS_UPPER, SUITS } from '../../lib/deck';
 
 const TEAM_RING = {
@@ -40,35 +39,31 @@ const TEAM_RING = {
   unknown: 'ring-zinc-600/60',
 };
 
-function SetChip({ suit, set_type, owner, expandable=false, cards=[] }) {
+function SetChip({ suit, set_type, owner }) {
   const label = set_type === 'lower' ? 'Lower' : 'Upper';
-  
-  // Create the full set of cards for this suit and type
-  const fullSet = set_type === 'lower' 
-    ? RANKS_LOWER.map(rank => ({ suit, rank }))
-    : RANKS_UPPER.map(rank => ({ suit, rank }));
-  
-  return (
-    <div className="bg-dark-card/70 backdrop-blur-sm rounded-xl p-3 flex items-center gap-2 text-sm border border-accent-purple/20 shadow-glow-purple/20">
-      <div className="shrink-0">
-        <FannedCards 
-          cards={fullSet} 
-          size="xs" 
-          maxCards={7}
-        />
-      </div>
-      <div className="capitalize text-text-primary">
-        {suit} <span className="text-text-secondary">{label}</span>
-        <span className="ml-2 text-[11px] text-text-muted">— Team {owner}</span>
-      </div>
-    </div>
-  );
+  return <div className="collected-set-tile">
+    <div className="collected-set-tile__stack"><Card suit={suit} rank={set_type === 'lower' ? '2' : '8'} size="xs" /></div>
+    <div className="collected-set-tile__label"><strong>{suit}</strong><span>{label} set · {set_type === 'lower' ? '2–7' : '8–A'}</span><small>Team {owner}</small></div>
+  </div>;
 }
 
 export default function Table() {
   const navigate = useNavigate();
   const { state, me, ws, handoffFor, gameResult, abortVoting, dealingAnimation, pendingLay, votingResult, closeVotingResult, backToLobbyVoting, speakingUsers, laydownResult, clearLaydownResult } = useStore();
   const [layOpen, setLayOpen] = useState(false);
+  const [resultsOpen, setResultsOpen] = useState(false);
+  const [resultsReady, setResultsReady] = useState(false);
+  const pendingResult = gameResult || laydownResult;
+  useEffect(() => {
+    setResultsOpen(false);
+    setResultsReady(false);
+    if (!pendingResult) return;
+    const timer = setTimeout(() => setResultsReady(true), window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 150 : 1100);
+    return () => clearTimeout(timer);
+  }, [pendingResult]);
+  useEffect(() => {
+    if (state.phase === 'ready' || state.phase === 'lobby') clearLaydownResult();
+  }, [state.phase, clearLaydownResult]);
   const [selectedSet, setSelectedSet] = useState({ suit: null, setType: null });
   const [requestAbortOpen, setRequestAbortOpen] = useState(false);
   const [selectedCardsToPass, setSelectedCardsToPass] = useState([]);
@@ -78,7 +73,6 @@ export default function Table() {
   const [emojiSettingsOpen, setEmojiSettingsOpen] = useState(false);
   const [spectatorRequestsOpen, setSpectatorRequestsOpen] = useState(false);
 
-  const [lays, setLays] = useState([]);
   const tableCenterRef = useRef(null);
 
   const seatEls = useRef({});
@@ -101,8 +95,11 @@ export default function Table() {
      for (let i = 0; i < 6; i++) {
        const angle = (90 + (i - mySeatIndex) * 60) * (Math.PI / 180);
        const x = 50 + radiusPercent * Math.cos(angle);
-       const y = 50 + radiusPercent * Math.sin(angle);
-       pos[i] = { left: `${x}%`, top: `${y}%`, transform: 'translate(-50%, -50%)' };
+       const relativeSeat = (i - mySeatIndex + 6) % 6;
+       // Open a wider gap between the two chairs on each side of the table.
+       const sideOffset = relativeSeat === 1 || relativeSeat === 5 ? 7 : relativeSeat === 2 || relativeSeat === 4 ? -7 : 0;
+       const y = 50 + radiusPercent * Math.sin(angle) + sideOffset;
+       pos[i] = { left: `${x}%`, top: `${y}%`, transform: 'translate(-50%, -50%)', '--chair-angle': `${(i-mySeatIndex)*60}deg`, '--hand-x': `${-Math.cos(angle)*69}px`, '--hand-y': `${-Math.sin(angle)*69}px`, '--hand-direction': `${(i-mySeatIndex)*60}deg` };
      }
      return pos;
    }, [mySeatIndex]);
@@ -124,36 +121,6 @@ export default function Table() {
 
 
 
-
-  // LAY anim
-  useEffect(() => {
-    function onLayAnim(e) {
-      const { contributors } = e.detail || {};
-      if (!Array.isArray(contributors) || !contributors.length) return;
-      const center = tableCenterRef.current?.getBoundingClientRect();
-      if (!center) return;
-      const cx = center.left + center.width/2;
-      const cy = center.top + center.height/2;
-
-      const items = [];
-      contributors.forEach(contrib => {
-        const el = seatEls.current[contrib.player_id];
-        if (!el) return;
-        const r = el.getBoundingClientRect();
-        const fx = r.left + r.width/2, fy = r.top + r.height/2;
-        const card = (contrib.cards && contrib.cards[0]) || null;
-        if (!card) return;
-        items.push({ suit: card.suit, rank: card.rank, from: {x:fx,y:fy}, to: {x:cx,y:cy}, go:false });
-      });
-      setLays(items);
-      requestAnimationFrame(()=>requestAnimationFrame(()=>{
-        setLays(its => its.map(it => ({...it, go:true})));
-      }));
-      setTimeout(()=>setLays([]), 1000);
-    }
-    window.addEventListener('lay_anim', onLayAnim);
-    return () => window.removeEventListener('lay_anim', onLayAnim);
-  }, []);
 
   const handCount = (pid) => (players[pid]?.hand?.length ?? 0);
 
@@ -213,15 +180,6 @@ export default function Table() {
           <SpectatorView players={players} myId={me.id} gamePhase={state.phase} />
         </div>
         
-        {/* Spectator status indicator */}
-        <div className="fixed top-4 left-4 z-40 bg-gradient-warm text-white px-4 py-2 rounded-lg shadow-lg border border-accent-amber/30">
-          <div className="text-sm font-semibold">👁️ Spectator Mode</div>
-          <div className="text-xs opacity-80">
-            {my?.spectator_request_pending ? 'Waiting for admin approval' : 
-             state.phase === 'lobby' ? 'Watching lobby' : 'Watching game'}
-          </div>
-        </div>
-        
         {/* Toast Notifications */}
         <Toast />
       </div>
@@ -230,10 +188,11 @@ export default function Table() {
 
   return (
     <div className="card-room h-screen w-screen overflow-hidden flex flex-col bg-gradient-vibrant" onClick={handleTableClick}>
-      <div className="game-room-heading"><span className="club-eyebrow">SET CLUB</span><span>{state.phase === 'playing' ? 'Round in play' : state.phase === 'ready' ? 'Waiting for the deal' : 'Round complete'}</span></div>
+      <div className="game-room-heading"><span className="club-eyebrow">SET CLUB <i className="room-live-dot" /></span><span>{state.phase === 'playing' ? 'Round in play' : state.phase === 'ready' ? 'Waiting for the deal' : 'Round complete'}</span></div>
       <Celebration tableCenterRef={tableCenterRef} />
       <DealingAnimation />
       <PassedCardsAnimation seatEls={seatEls} phase={state.phase} />
+      <LaydownAnimation seatEls={seatEls} tableCenterRef={tableCenterRef} />
       
       {/* Back to Lobby Button - Top Left */}
       <div className="game-top-control fixed top-2 left-2 md:top-3 md:left-3 z-40">
@@ -376,42 +335,10 @@ export default function Table() {
 
          <div className="game-table-arena">
            <div className="relative w-full h-full">
-             {/* Table Base/Legs */}
-             <div className="absolute rounded-full"
-                  style={{ 
-                    width: 'min(55%, 380px)', 
-                    height: 'min(55%, 380px)', 
-                    left: '50%', 
-                    top: '50%', 
-                    transform: 'translate(-50%, -50%)',
-                    background: 'radial-gradient(circle, rgba(101, 67, 33, 0.8) 0%, rgba(139, 69, 19, 0.6) 70%, transparent 100%)',
-                    boxShadow: '0 15px 30px rgba(0, 0, 0, 0.5)'
-                  }}>
-             </div>
-             
-             {/* Main Table Surface */}
-             <div ref={tableCenterRef} data-table-center="true" className="felt-table absolute rounded-full border-6 border-amber-800/90 bg-gradient-to-br from-green-900 via-green-800 to-emerald-900 flex items-center justify-center"
-                  style={{ 
-                    width: 'min(50%, 350px)', 
-                    height: 'min(50%, 350px)', 
-                    left: '50%', 
-                    top: '50%', 
-                    transform: 'translate(-50%, -50%)',
-                    backgroundImage: `
-                      radial-gradient(circle at 30% 30%, rgba(255,255,255,0.15) 0%, transparent 50%),
-                      radial-gradient(circle at 70% 70%, rgba(0,0,0,0.3) 0%, transparent 50%),
-                      linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.08) 50%, transparent 70%),
-                      repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(0,0,0,0.1) 2px, rgba(0,0,0,0.1) 4px)
-                    `,
-                    boxShadow: `
-                      0 0 0 2px rgba(139, 69, 19, 0.9),
-                      0 0 0 4px rgba(160, 82, 45, 0.7),
-                      0 0 0 6px rgba(139, 69, 19, 0.5),
-                      0 25px 50px -12px rgba(0, 0, 0, 0.8),
-                      inset 0 2px 4px rgba(0, 0, 0, 0.4),
-                      inset 0 -2px 4px rgba(255, 255, 255, 0.1)
-                    `
-                  }}>
+             <TableSceneDetails />
+             <div className="table-plinth" aria-hidden="true" />
+             <div ref={tableCenterRef} data-table-center="true" className="felt-table absolute rounded-full flex items-center justify-center"
+               style={{left:'50%',top:'50%',transform:'translate(-50%, -50%)'}}>
               <div className="table-hallmark" aria-hidden="true"><span>♠</span><strong>SET CLUB</strong><small>THE TABLE IS YOURS</small></div>
               {/* Shuffle & Deal button - show for current dealer when game is ready, ended, or when no cards are dealt, but NOT when game is actively playing */}
               {!state.match_finished && me?.id === state.current_dealer && state.phase !== 'playing' && (state.phase === 'ready' || state.phase === 'ended' || !state.deck_count || state.deck_count === 0 || !my?.hand?.length) && (
@@ -424,7 +351,7 @@ export default function Table() {
               )}
               
               {/* Sets Button - show in center of table after game starts (mobile and small desktop) */}
-              {state.phase === 'playing' && (
+              {state.phase === 'playing' && !pendingResult && (
                 <button
                   onClick={() => setCompletedSetsOpen(true)}
                   className="px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 bg-gradient-primary hover:shadow-glow-blue text-white shadow-lg border border-accent-blue/30 xl:hidden"
@@ -434,6 +361,11 @@ export default function Table() {
                 </button>
               )}
             </div>
+
+            {pendingResult && resultsReady && <div className="laydown-results-prompt" role="status">
+              <span>{gameResult ? 'Round complete' : laydownResult.success ? 'Set complete' : 'Declaration checked'}</span>
+              <button type="button" className="club-primary" onClick={event => {event.stopPropagation();setResultsOpen(true);}}>View results</button>
+            </div>}
 
             {Object.keys(seats).map((k) => {
               const i = Number(k);
@@ -446,7 +378,7 @@ export default function Table() {
               const isSpeaking = p && speakingUsers && speakingUsers[p.id];
               
               return (
-                <div key={`seatwrap-${i}-${pid || 'empty'}`} className="absolute" style={seatPositions[i]} ref={p ? setSeatRef(p.id) : undefined} data-seat={i} data-player-id={p?.id}>
+                <div key={`seatwrap-${i}-${pid || 'empty'}`} className="table-seat-position absolute" style={seatPositions[i]} ref={p ? setSeatRef(p.id) : undefined} data-seat={i} data-player-id={p?.id} data-team={p?.team || 'none'}>
                   <div className={[
                       'seat-frame relative',
                       selectable ? 'ring-2 ring-yellow-300/80' : '',
@@ -470,21 +402,16 @@ export default function Table() {
                       isDealer={p?.id === state.current_dealer}
                     />
                   </div>
-                  {p && p.id !== my.id && !dealingAnimation && (
+                  {p && p.id !== my?.id && !dealingAnimation && <SeatCardStack count={handCount(pid)} />}
+                  {p && p.id !== my?.id && !dealingAnimation && (
                     <div className="mt-1 text-center text-xs text-text-muted">{handCount(pid)} cards</div>
                   )}
                 </div>
               );
             })}
 
-            {lays.map((a, idx)=>(
-              <div key={`lay-${idx}`} className="fixed z-[88] pointer-events-none" style={{ left: a.from.x, top: a.from.y, transform: 'translate(-50%,-50%)' }}>
-                <div style={{ position:'relative', left: a.go ? (a.to.x - a.from.x) : 0, top: a.go ? (a.to.y - a.from.y) : 0,
-                              transition:'left .9s cubic-bezier(.2,.8,.2,1), top .9s cubic-bezier(.2,.8,.2,1)' }}>
-                  <Card suit={a.suit} rank={a.rank} size="sm" />
-                </div>
-              </div>
-            ))}
+
+
           </div>
 
         </div>
@@ -578,16 +505,16 @@ export default function Table() {
 
       {/* Laydown Result Modal */}
       <LaydownResultModal
-        open={!!laydownResult}
-        onClose={clearLaydownResult}
+        open={!!laydownResult && !gameResult && resultsOpen}
+        onClose={() => { setResultsOpen(false); clearLaydownResult(); }}
         laydownData={laydownResult}
         state={state}
       />
 
       {/* Game Over Modal */}
       <GameOverModal
-        open={!!gameResult}
-        onClose={() => {}}
+        open={!!gameResult && resultsOpen}
+        onClose={() => setResultsOpen(false)}
         gameResult={gameResult}
       />
 
