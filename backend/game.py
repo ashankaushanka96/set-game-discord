@@ -284,8 +284,25 @@ class Game:
         
         # Lock the lobby to prevent new players from joining
         self.state.lobby_locked = True
+
+        # Players who never took a seat watch instead of playing (otherwise their
+        # client would render the table from an empty seat).
+        for p in self.state.players.values():
+            if p.seat is None and not p.is_spectator:
+                p.is_spectator = True
+                p.spectator_request_pending = False
+                p.team = None
+                p.hand = []
+                logger.info(f"Player {p.id} had no seat at game start; joined as spectator")
         
         logger.info(f"Game started in room {self.state.room_id}, dealer: {dealer}, lobby locked")
+
+    def _release_spectators_to_lobby(self):
+        """The lobby is open again, so spectators can pick a seat like everyone else."""
+        for p in self.state.players.values():
+            p.is_spectator = False
+            p.spectator_request_pending = False
+        self.state.spectator_requests = {}
 
     def request_back_to_lobby(self, requester_id: str) -> dict:
         """
@@ -318,6 +335,7 @@ class Game:
             # Return to lobby
             self.state.phase = "lobby"
             self.state.lobby_locked = False
+            self._release_spectators_to_lobby()
             self.state.back_to_lobby_votes = {}
             self.state.abort_votes = {}
             
@@ -390,6 +408,7 @@ class Game:
             # Return to lobby
             self.state.phase = "lobby"
             self.state.lobby_locked = False
+            self._release_spectators_to_lobby()
             self.state.back_to_lobby_votes = {}
             self.state.abort_votes = {}
             

@@ -14,7 +14,13 @@ export async function apiGetState(roomId) {
   return r.json();
 }
 
+// Remembered so a WebSocket reconnect can re-join first: the backend drops
+// players from the lobby when their socket closes.
+let lastJoin = null;
+export function getLastJoin() { return lastJoin; }
+
 export async function apiJoinRoom(roomId, player) {
+  lastJoin = { roomId, player };
   const r = await fetch(`/api/v1/rooms/${roomId}/players`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

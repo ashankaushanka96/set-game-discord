@@ -1,4 +1,5 @@
 import { WS_BASE } from './config.js';
+import { apiJoinRoom, getLastJoin } from './api.js';
 
 export function connectWS(roomId, playerId, onMessage) {
     const ws = new WebSocket(`/api/v1/ws/${roomId}/${playerId}`);
@@ -11,8 +12,13 @@ export function connectWS(roomId, playerId, onMessage) {
       // If the connection was closed unexpectedly (not a clean close), attempt to reconnect
       if (event.code !== 1000 && event.code !== 1001) {
         console.log('WebSocket connection lost, attempting to reconnect...');
-        setTimeout(() => {
-          // Attempt to reconnect after 3 seconds
+        setTimeout(async () => {
+          // Attempt to reconnect after 3 seconds. Re-join over HTTP first so the
+          // server knows this player again (it removes lobby players on disconnect).
+          const join = getLastJoin();
+          if (join && join.roomId === roomId && join.player?.id === playerId) {
+            try { await apiJoinRoom(roomId, join.player); } catch (e) { console.warn('Re-join failed:', e); }
+          }
           const newWs = connectWS(roomId, playerId, onMessage);
           // Replace the old WebSocket reference
           if (window.currentWS) {

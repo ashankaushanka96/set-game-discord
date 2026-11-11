@@ -5,7 +5,7 @@ import { connectWS, send } from "../../ws";
 import { apiJoinRoom } from "../../api";
 // Avatar selection removed; we always use Discord profile
 import { Toast } from "../ui";
-import { ConfirmUnassignModal } from "../modals";
+import { ConfirmUnassignModal, ConfirmSpectatorStartModal } from "../modals";
 import { SeatSelector } from "./";
 import { generateUUID } from "../../utils/uuid";
 import { DiscordSDK, Events }  from "@discord/embedded-app-sdk";
@@ -182,6 +182,7 @@ export default function Lobby() {
   const [redirectingToGame, setRedirectingToGame] = useState(false);
   const [checkingReconnection, setCheckingReconnection] = useState(true);
   const [unassignModal, setUnassignModal] = useState({ open: false, player: null });
+  const [spectatorStart, setSpectatorStart] = useState({ open: false, players: [] });
   const autoJoinGuardRef = useRef(false);
   const isDiscordUA = /Discord/i.test(navigator.userAgent || "");
 
@@ -1062,10 +1063,30 @@ export default function Lobby() {
     return await apiJoinRoom(rid, player);
   }
 
+  // Players (other than the admin) who are in the lobby but haven't picked a seat.
+  const unseatedOthers = () => {
+    const meId = useStore.getState().me?.id;
+    return Object.values(state?.players || {}).filter(
+      (p) => p.connected !== false && !p.is_spectator && p.seat == null && p.id !== meId
+    );
+  };
+
   const startGame = () => {
-    const allPlayers = Object.values(state?.players || {});
-    const connectedPlayers = allPlayers.filter((p) => p.connected !== false);
+    const waiting = unseatedOthers();
+    if (waiting.length > 0) {
+      setSpectatorStart({ open: true, players: waiting });
+      return;
+    }
+    doStartGame();
+  };
+
+  const doStartGame = () => {
     const meRef = useStore.getState().me;
+    // Unseated players become spectators when the game starts, so only seated
+    // players (plus the admin, who is auto-seated below) count toward the table.
+    const connectedPlayers = Object.values(state?.players || {}).filter(
+      (p) => p.connected !== false && !p.is_spectator && (p.seat != null || p.id === meRef?.id)
+    );
 
     console.debug(`[Start Game] Starting with ${connectedPlayers.length} real players`);
 
@@ -1380,7 +1401,7 @@ export default function Lobby() {
 
               <button
                 className={`club-primary w-full px-4 py-2 rounded-lg transition-all duration-200 font-medium text-sm ${
-                  (!roomId || (!TEST_MODE_ENABLED && players.filter((p)=>p.connected!==false).length !== 6))
+                  (!roomId || (!TEST_MODE_ENABLED && players.filter((p)=>p.connected!==false && !p.is_spectator && (p.seat != null || p.id === me?.id)).length !== 6))
                     ? "bg-dark-tertiary cursor-not-allowed border border-text-muted/30"
                     : "bg-gradient-warm hover:shadow-glow-amber border border-accent-amber/30"
                 }`}
@@ -1403,6 +1424,17 @@ export default function Lobby() {
       {/* Toast Notifications */}
       <Toast />
       
+      {/* Start with unseated players as spectators */}
+      <ConfirmSpectatorStartModal
+        open={spectatorStart.open}
+        players={spectatorStart.players}
+        onConfirm={() => {
+          setSpectatorStart({ open: false, players: [] });
+          doStartGame();
+        }}
+        onClose={() => setSpectatorStart({ open: false, players: [] })}
+      />
+
       {/* Unassign Confirmation Modal */}
       <ConfirmUnassignModal
         open={unassignModal.open}

@@ -526,6 +526,11 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
 
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected: room={room_id}, player={player_id}")
+        # A reconnect may already have replaced this socket; the stale socket's close
+        # must not remove the player (or the new connection) from the room.
+        if WebSocketService.connections.get(room_id, {}).get(player_id) is not ws:
+            logger.info(f"Ignoring close of stale socket for {player_id} in room {room_id}")
+            return
         try:
             # Handle player disconnection based on game phase
             player_name = "Unknown"
