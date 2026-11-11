@@ -51,19 +51,26 @@ cat ~/.ssh/set-game-deploy
 
 **→ GitHub secret `SSH_PRIVATE_KEY`**: the whole `-----BEGIN … END-----` block.
 
-### 3. Create the VM
+### 3. Create the VM (Terraform)
 
-From the repository root:
+The VM is shared with other projects, so its Terraform lives in its own folder,
+`/Users/ashanpathiranage/Projects/gcp-infra`:
 
 ```bash
-SSH_PUBKEY="$(cat ~/.ssh/set-game-deploy.pub)" ./deploy/gcp/create-vm.sh <PROJECT_ID>
+cd ~/Projects/gcp-infra
+gcloud auth application-default login            # credentials for Terraform
+cp terraform.tfvars.example terraform.tfvars     # set project_id
+terraform init
+terraform plan
+terraform apply
+terraform output external_ip
 ```
 
-It creates `app-server` (e2-micro, Ubuntu 24.04, 30 GB standard disk, zone `us-central1-a`),
-installs the deploy key for user `ashan`, and prints the external IP as the last line.
-It refuses zones outside the free tier and does nothing if the VM already exists.
+It creates `app-server` (e2-micro, Ubuntu 24.04, 30 GB standard disk, zone `us-central1-a`) and
+installs `~/.ssh/set-game-deploy.pub` for user `ashan`. It refuses zones and disk sizes outside
+the free tier.
 
-**→ GitHub secret `HOST`**: that IP.
+**→ GitHub secret `HOST`**: the `external_ip` output.
 
 ### 4. Cloudflare
 
@@ -172,8 +179,8 @@ Launch the Activity in a voice channel, on desktop and on a phone.
 
 | Symptom | Check |
 |---|---|
-| `create-vm.sh` fails | billing active? `gcloud services enable compute.googleapis.com` done? |
-| Backend deploy fails to connect | `HOST` is the current VM IP; `SSH_PRIVATE_KEY` matches the key passed to `create-vm.sh` |
+| `terraform apply` fails | billing active? ran `gcloud auth application-default login`? `~/.ssh/set-game-deploy.pub` exists? |
+| Backend deploy fails to connect | `HOST` is the current VM IP; `SSH_PRIVATE_KEY` is the private half of the key in Terraform's `ssh_keys` |
 | `set-game-backend…/health` fails | on the VM: `systemctl status set-game-backend cloudflared`, `journalctl -u set-game-backend -f` |
 | Pages loads but API fails | the first curl in step 9 works? If not, it's the VM/tunnel, not Pages |
 | Discord login hangs | `DISCORD_CLIENT_SECRET` is the OAuth2 client secret, not the bot token |

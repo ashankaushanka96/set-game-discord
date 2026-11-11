@@ -6,9 +6,9 @@ and no open HTTP port; only SSH (port 22) is reachable, for you and the deploy w
 
 The first-time procedure is in [DEPLOYMENT.md](../../DEPLOYMENT.md) (steps 1–5).
 
-| Script | Runs | Does |
+| What | Where | Does |
 |---|---|---|
-| [create-vm.sh](create-vm.sh) | your Mac | creates the VM if missing, installs the deploy SSH key, prints the IP |
+| Terraform | `~/Projects/gcp-infra` (separate folder, shared by all projects) | creates the VM, installs the deploy SSH key, outputs the IP |
 | [setup-vm.sh](setup-vm.sh) | on the VM, with sudo | everything in the table below; safe to re-run |
 
 ## What `setup-vm.sh` sets up
