@@ -1,17 +1,19 @@
 #!/bin/bash
-# Create the free-tier GCP VM for the Set Game backend (skips creation if it already exists).
-# Used by .github/workflows/provision-gcp-vm.yml; can also be run locally with a logged-in gcloud:
-#   SSH_PUBKEY="ssh-ed25519 AAAA..." ./deploy/gcp/create-vm.sh <gcp-project-id> [zone]
+# Create a free-tier GCP VM (skips creation if it already exists). Run on your Mac with a
+# logged-in gcloud CLI. The VM is generic, so it can host other projects too.
+#
+#   SSH_PUBKEY="$(cat ~/.ssh/set-game-deploy.pub)" ./deploy/gcp/create-vm.sh <gcp-project-id> [zone]
 #
 # Always-free tier: one e2-micro in us-central1 / us-east1 / us-west1
 # with a standard persistent disk of 30 GB or less.
-# SSH_PUBKEY (optional) is installed for DEPLOY_USER, who gets sudo via the GCE guest agent.
-# Prints the VM's external IP as the last line.
+# SSH_PUBKEY (optional) is installed for DEPLOY_USER, who gets sudo via the GCE guest agent;
+# GitHub Actions deploys log in with it.
+# VM_NAME (optional, default app-server) names the VM. Prints the VM's external IP as the last line.
 set -euo pipefail
 
 PROJECT="${1:?usage: $0 <gcp-project-id> [zone]}"
 ZONE="${2:-us-central1-a}"
-NAME="set-game-backend"
+NAME="${VM_NAME:-app-server}"
 DEPLOY_USER="${DEPLOY_USER:-ashan}"
 
 case "$ZONE" in
@@ -22,9 +24,8 @@ esac
 if gcloud compute instances describe "$NAME" --project "$PROJECT" --zone "$ZONE" >/dev/null 2>&1; then
   echo "VM $NAME already exists in $ZONE; not creating it again." >&2
 else
-  # No service account: the VM needs no GCP API access, and creating it then
-  # doesn't require the iam.serviceAccountUser role.
-  # App traffic arrives through the Cloudflare Tunnel, so only the default SSH rule is needed.
+  # No service account: the VM needs no GCP API access.
+  # App traffic arrives through a Cloudflare Tunnel, so only the default SSH firewall rule is needed.
   gcloud compute instances create "$NAME" \
     --project "$PROJECT" \
     --zone "$ZONE" \
@@ -33,11 +34,12 @@ else
     --image-project ubuntu-os-cloud \
     --boot-disk-type pd-standard \
     --boot-disk-size 30GB \
-    --no-service-account --no-scopes \
-    --labels app=set-game >&2
+    --no-service-account --no-scopes >&2
 fi
 
 if [ -n "${SSH_PUBKEY:-}" ]; then
+  # add-metadata replaces the instance's ssh-keys list; your own gcloud compute ssh key
+  # lives in project metadata, so it is unaffected.
   gcloud compute instances add-metadata "$NAME" --project "$PROJECT" --zone "$ZONE" \
     --metadata "ssh-keys=$DEPLOY_USER:$SSH_PUBKEY" >&2
 fi
