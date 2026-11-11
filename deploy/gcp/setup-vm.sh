@@ -50,8 +50,8 @@ visudo -cf "/etc/sudoers.d/$SERVICE"
 echo "==> Secrets in $ENV_FILE"
 install -d -m 750 -o root -g "$DEPLOY_USER" /etc/set-game
 if [ -n "${DISCORD_CLIENT_ID:-}" ] && [ -n "${DISCORD_CLIENT_SECRET:-}" ]; then
-  umask 027
-  printf 'DISCORD_CLIENT_ID=%s\nDISCORD_CLIENT_SECRET=%s\n' "$DISCORD_CLIENT_ID" "$DISCORD_CLIENT_SECRET" > "$ENV_FILE"
+  # umask in a subshell only: it must not leak into later files (apt can't read a 640 keyring)
+  ( umask 027; printf 'DISCORD_CLIENT_ID=%s\nDISCORD_CLIENT_SECRET=%s\n' "$DISCORD_CLIENT_ID" "$DISCORD_CLIENT_SECRET" > "$ENV_FILE" )
   chown root:"$DEPLOY_USER" "$ENV_FILE"
   chmod 640 "$ENV_FILE"
 elif [ ! -f "$ENV_FILE" ]; then
@@ -86,6 +86,8 @@ if ! command -v cloudflared >/dev/null; then
   curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg -o /usr/share/keyrings/cloudflare-main.gpg
   echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main" \
     > /etc/apt/sources.list.d/cloudflared.list
+  # apt verifies signatures as the unprivileged _apt user, so these must be world-readable
+  chmod 644 /usr/share/keyrings/cloudflare-main.gpg /etc/apt/sources.list.d/cloudflared.list
   apt-get update -y
   apt-get install -y cloudflared
 fi
