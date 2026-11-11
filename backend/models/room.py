@@ -31,3 +31,11 @@ class RoomState(BaseModel):
     back_to_lobby_votes: Dict[str, bool] = Field(default_factory=dict)  # Votes for returning to lobby
     admin_player_id: Optional[str] = None  # ID of the admin player (first player to join)
     spectator_requests: Dict[str, str] = Field(default_factory=dict)  # player_id -> player_name for pending spectator requests
+    # "voice": players ask out loud and pass cards freely by dragging.
+    # "turns": players ask through the game; the asked player answers with a button and turns are enforced.
+    game_mode: Literal["voice", "turns"] = "voice"
+    # Turns mode: the ask waiting for the target's answer (asker_id, target_id, suit, set_type, ranks, has_card)
+    pending_ask: Optional[dict] = None
+    # Turns mode: after a successful laydown where both helping teammates still have cards,
+    # the declarer picks who gets the turn: {"who_id": ..., "options": [player ids]}
+    pending_handoff: Optional[dict] = None

@@ -60,11 +60,15 @@ const QUICK_EMOJIS = [
   { emoji: '👍', name: 'Thumbs Up', category: 'gesture', cooldown: 2000 }
 ];
 
+// Last-used times survive the tray closing (the target is picked on the table now).
+const lastUsed = {};
+export function markReactionUsed(emoji) { lastUsed[emoji] = Date.now(); }
+
 export default function ReactionTray({ isOpen, onClose, onSent, selectedCardsToPass = [], inline = false }) {
   const { me, state, ws } = useStore();
   const [selectedEmoji, setSelectedEmoji] = useState(null);
   const [showPlayerSelection, setShowPlayerSelection] = useState(false);
-  const [cooldowns, setCooldowns] = useState({});
+  const [cooldowns, setCooldowns] = useState(() => ({ ...lastUsed }));
   const [isAnimating, setIsAnimating] = useState(false);
 
   useEffect(() => {
@@ -97,8 +101,10 @@ export default function ReactionTray({ isOpen, onClose, onSent, selectedCardsToP
     // Initialize/unlock audio context on first emoji selection (user gesture)
     safeForceInitAudio();
 
-    setSelectedEmoji(emojiData);
-    setShowPlayerSelection(true);
+    // Pick the target by tapping a seat on the table.
+    useStore.setState({ reactionAim: emojiData });
+    onClose();
+    onSent?.();
   };
 
   // Handle player selection and send emoji
@@ -243,7 +249,7 @@ export default function ReactionTray({ isOpen, onClose, onSent, selectedCardsToP
                 </p>
               ) : (
                 <p className="text-xs text-white/70 text-center">
-                  Pick a reaction, then choose who gets it.
+                  Pick a reaction, then tap a seat at the table.
                 </p>
               )}
             </div>

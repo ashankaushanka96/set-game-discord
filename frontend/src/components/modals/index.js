@@ -13,3 +13,7 @@ export { default as CompletedSetsModal } from './CompletedSetsModal';
 export { default as VotingResultModal } from './VotingResultModal';
 export { default as SpectatorRequestsModal } from './SpectatorRequestsModal';
 export { default as ConfirmSpectatorStartModal } from './ConfirmSpectatorStartModal';
+export { default as AskCardModal } from './AskCardModal';
+export { default as AnswerAskModal } from './AnswerAskModal';
+export { default as PassTurnModal } from './PassTurnModal';
+export { default as PenaltyLaydownModal } from './PenaltyLaydownModal';

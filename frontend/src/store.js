@@ -14,7 +14,7 @@ const mid = () => `${Date.now()}-${uid++}`;
 
 
 
-const setLabel = (t) => (t === "lower" ? "Lower (2–7)" : "Upper (8–A)");
+const setLabel = (t) => (t === "lower" ? "Lower" : "Upper");
 const cardLabel = (c) => (c ? `${c.rank} of ${c.suit}` : "card");
 
 export const useStore = create((set, get) => ({
@@ -129,10 +129,8 @@ export const useStore = create((set, get) => ({
     if (gameMessageTimer) clearTimeout(gameMessageTimer);
     const timer = setTimeout(() => set({ gameMessage: null, gameMessageTimer: null }), 30000);
     set({ gameMessage: { id: mid(), title, text, ts: Date.now(), cards }, gameMessageTimer: timer });
-    
-    // Also show as toast notification
-    const toastType = get().getToastTypeFromTitle(title);
-    get().showToast(toastType, title, text, cards);
+    // No pop-up here: game events are shown to everyone as seat bubbles.
+    // Pop-ups are kept for players disconnecting/reconnecting and for your own refused actions.
   },
 
   closeVotingResult: () => set({ votingResult: null }),
@@ -188,6 +186,13 @@ export const useStore = create((set, get) => ({
       }
     }
 
+    // A bot is holding its move until someone taps Continue (or the wait runs out)
+    if (msg.type === "bot_wait") {
+      const { bot_id, kind, seconds = 10 } = msg.payload || {};
+      set({ botWait: bot_id ? { bot_id, kind, seconds, until: Date.now() + seconds * 1000 } : null });
+      return;
+    }
+
     // ASK started -> add ASK bubble (sticky until pass/NO)
     if (msg.type === "ask_started") {
       const s = msg.payload.state;
@@ -204,6 +209,7 @@ export const useStore = create((set, get) => ({
         variant: "ask",
         text: "Do you have…",
         card: rank && suit ? { suit, rank } : undefined,
+        cards: (msg.payload.ranks || []).map((r) => ({ suit, rank: r })),
         sticky: true,
         tag: `ask-${askerId}`,
       });
@@ -211,7 +217,7 @@ export const useStore = create((set, get) => ({
       const players = s.players || {};
       const asker = players[askerId]?.name || "Unknown";
       const target = players[targetId]?.name || "Unknown";
-      get().setGameMessage("ASK", [`Who: ${asker} → ${target}`, `What: ${rank} of ${suit}`]);
+      get().setGameMessage("ASK", [`Who: ${asker} → ${target}`, `What: ${(msg.payload.ranks || []).join(", ")} of ${suit}`]);
     }
 
     // ASK pending -> also store pendingAsk (used by ConfirmPassModal)
@@ -242,17 +248,25 @@ export const useStore = create((set, get) => ({
           `Action: Card passed to ${asker}`,
           `Next Turn: ${asker} (continues)`
         ]);
-        // Note: Ask-based card passing has been removed, this should not be called anymore
-        console.warn('Ask-based pass_anim event attempted - this should not happen with new card passing system');
+        // Turn Play: animate the card moving from the asked player to the asker
+        try {
+          window.dispatchEvent(new CustomEvent("pass_anim", { detail: {
+            from_player: msg.payload.target_id, to_player: msg.payload.asker_id, cards: msg.payload.transferred || []
+          } }));
+        } catch {}
+        import('./utils/sounds').then((m) => {
+          try { (m.playKey || m.default?.playKey)?.('pass'); } catch {}
+        }).catch(() => {});
       } else {
         if (msg.payload.reason === "no_card") {
           const rank = msg.payload.ranks?.[0];
           const suit = msg.payload.suit;
-          get().addMessage({ player_id: msg.payload.target_id, variant: "no", text: "No.", card: { suit, rank } });
+          get().addMessage({ player_id: msg.payload.target_id, variant: "no", text: "No.", card: { suit, rank }, cards: (msg.payload.ranks || []).map((r) => ({ suit, rank: r })) });
+          const nextName = players[msg.payload.next_turn || msg.payload.target_id]?.name || target;
           get().setGameMessage("REPLY", [
             `Who: ${target} → ${asker}`,
-            `Answer: NO (${rank} of ${suit})`,
-            `Next Turn: ${target}`
+            `Answer: NO (${(msg.payload.ranks || [rank]).join(", ")} of ${suit})`,
+            `Next Turn: ${nextName}`
           ]);
         } else if (msg.payload.reason === "target_empty") {
           get().addMessage({ player_id: msg.payload.target_id, variant: "no", text: "No cards!" });
@@ -265,6 +279,49 @@ export const useStore = create((set, get) => ({
           get().setGameMessage("REPLY", "Pass failed. Turn changes.");
         }
       }
+    }
+
+    // Turn Play: a wrong ask forfeits the set to the other team
+    if (msg.type === "ask_penalty") {
+      const pl = msg.payload;
+      const s = pl.state;
+      set({ state: s });
+      if (Array.isArray(pl.contributors) && pl.contributors.length) {
+        try {
+          window.dispatchEvent(new CustomEvent("lay_anim", {
+            detail: { contributors: pl.contributors, suit: pl.suit, set_type: pl.set_type, success: false, points: pl.points, team: pl.owner_team, penalty: true }
+          }));
+        } catch {}
+      }
+      import('./utils/sounds').then((m) => {
+        try { (m.playKey || m.default?.playKey)?.('lay_unsuccess'); } catch {}
+      }).catch(() => {});
+      if (pl.mistake === "penalty") {
+        const setName = `${pl.suit[0].toUpperCase()}${pl.suit.slice(1)} ${pl.set_type === "lower" ? "Lower" : "Upper"}`;
+        get().addMessage({ player_id: pl.asker_id, variant: "event_bad", title: "Penalty laydown",
+          text: `${setName} goes to Team ${pl.owner_team} (+${pl.points}).` });
+        if (pl.game_end?.game_ended) set({ gameResult: pl.game_end });
+        return;
+      }
+      const players = s.players || {};
+      const asker = players[pl.asker_id]?.name || "Someone";
+      const target = players[pl.target_id]?.name || "an opponent";
+      const symbol = { hearts: "♥", diamonds: "♦", clubs: "♣", spades: "♠" }[pl.suit] || "";
+      const card = (pl.ranks || []).map((r) => `${r}${symbol}`).join(", ");
+      const setName = `${pl.suit[0].toUpperCase()}${pl.suit.slice(1)} ${pl.set_type === "lower" ? "Lower" : "Upper"}`;
+      const why = pl.mistake === "own_card" ? `but already had it` : `with no ${setName} card in hand`;
+      const nextName = players[pl.next_turn]?.name;
+      get().removeMessageByTag(`ask-${pl.asker_id}`);
+      get().addMessage({ player_id: pl.asker_id, variant: "event_bad",
+        title: `Wrong ask! ${target}, the ${card}?`,
+        text: `${pl.mistake === "own_card" ? "Already had it" : `No ${setName} card in hand`}. ${setName} goes to Team ${pl.owner_team} (+${pl.points}).` });
+      get().setGameMessage("WRONG ASK", [
+        `Who: ${asker} → ${target}`,
+        `Asked: ${card} (${pl.mistake === "own_card" ? "already in their hand" : "no card of that set"})`,
+        `Penalty: ${setName} to Team ${pl.owner_team}`,
+        ...(nextName ? [`Next Turn: ${nextName}`] : []),
+      ]);
+      if (pl.game_end?.game_ended) set({ gameResult: pl.game_end });
     }
 
     // LAYDOWN started
@@ -288,7 +345,7 @@ export const useStore = create((set, get) => ({
       if (Array.isArray(msg.payload.contributors) && msg.payload.contributors.length) {
         try {
           window.dispatchEvent(new CustomEvent("lay_anim", {
-            detail: { contributors: msg.payload.contributors, suit: msg.payload.suit, set_type: msg.payload.set_type, success:msg.payload.success }
+            detail: { contributors: msg.payload.contributors, suit: msg.payload.suit, set_type: msg.payload.set_type, success:msg.payload.success, points: msg.payload.set_type === "lower" ? 20 : 30, team: msg.payload.owner_team }
           }));
         } catch {}
       }
@@ -372,8 +429,7 @@ export const useStore = create((set, get) => ({
         // Show laydown result modal with detailed information
         get().setLaydownResult(laydownData);
         
-        // Show simple toast notification
-        get().showToast('success', 'LAYDOWN SUCCESS', `${whoName} successfully laid down ${setName} for ${pts} points!`);
+        get().addMessage({ player_id: msg.payload.who_id, variant: "event_good", title: `Laid down ${setName}!`, text: `+${pts} for Team ${msg.payload.owner_team}` });
         
         if (msg.payload?.who_id === get().me?.id && (msg.payload.handoff_eligible || []).length) {
           set({ handoffFor: { who_id: msg.payload.who_id, eligible: msg.payload.handoff_eligible } });
@@ -394,10 +450,7 @@ export const useStore = create((set, get) => ({
         // Show laydown result modal with detailed information
         get().setLaydownResult(laydownData);
         
-        // Show simple toast notification
-        const nextId = s.turn_player;
-        const nextName = players[nextId]?.name || "next player";
-        get().showToast('error', 'LAYDOWN FAILED', `${whoName} failed to lay down ${setName}. Next turn: ${nextName}`);
+        get().addMessage({ player_id: msg.payload.who_id, variant: "event_bad", title: `Laydown failed: ${setName}`, text: `Goes to Team ${msg.payload.owner_team}` });
         
         set({ handoffFor: null });
       }
@@ -456,6 +509,11 @@ export const useStore = create((set, get) => ({
         `To: ${toName}`,
         `Cards: ${cardCount}`
       ], msg.payload.cards);
+    }
+
+    // Server rejected an action (e.g. an ask in Turn Play)
+    if (msg.type === "error" && msg.payload?.message) {
+      get().showToast('error', 'Not allowed', msg.payload.message);
     }
 
     // PASS CARDS ERROR
@@ -619,7 +677,6 @@ export const useStore = create((set, get) => ({
       ]);
       
       // Show toast notification
-      get().showToast("success", "Returned to Lobby", "Game ended by majority vote");
     }
 
     // BACK TO LOBBY FAILED
@@ -632,7 +689,6 @@ export const useStore = create((set, get) => ({
       ]);
       
       // Show toast notification
-      get().showToast("info", "Vote Failed", "Not enough votes to return to lobby");
     }
 
     // SHUFFLE DEAL ERROR
@@ -679,6 +735,28 @@ export const useStore = create((set, get) => ({
           ...data,
           sticky: true,
           tag: `laydown-${player_id}` // Tag for clearing
+        });
+      }
+    }
+
+    // RECONNECT: bring back bubbles that are still in progress (laydowns, an open ask)
+    if (msg.type === "bubble_replay") {
+      const { bubbles = [], pending_ask } = msg.payload || {};
+      bubbles.forEach(({ player_id, variant, ...data }) => {
+        get().addMessage({ player_id, variant, ...data, sticky: true, tag: `laydown-${player_id}` });
+      });
+      if (pending_ask) {
+        const rank = pending_ask.ranks?.[0];
+        get().removeMessageByTag(`ask-${pending_ask.asker_id}`);
+        get().addMessage({
+          player_id: pending_ask.asker_id,
+          target_id: pending_ask.target_id,
+          variant: "ask",
+          text: "Do you have…",
+          card: rank && pending_ask.suit ? { suit: pending_ask.suit, rank } : undefined,
+          cards: (pending_ask.ranks || []).map((r) => ({ suit: pending_ask.suit, rank: r })),
+          sticky: true,
+          tag: `ask-${pending_ask.asker_id}`,
         });
       }
     }
@@ -791,7 +869,6 @@ export const useStore = create((set, get) => ({
         `${spectatorName} has been approved as a spectator`,
         "They can now view all player hands"
       ]);
-      get().showToast("success", "Spectator Approved", `${spectatorName} can now spectate`);
     }
 
     // SPECTATOR REJECTED
@@ -803,7 +880,6 @@ export const useStore = create((set, get) => ({
         `${spectatorName} has been rejected`,
         "They have been removed from the room"
       ]);
-      get().showToast("info", "Spectator Rejected", `${spectatorName} was rejected`);
     }
 
     // SPECTATOR PASS CARDS RESULT
@@ -820,7 +896,6 @@ export const useStore = create((set, get) => ({
           `Spectator passed ${cardCount} card${cardCount !== 1 ? 's' : ''}`,
           `From: ${fromName} → To: ${toName}`
         ]);
-        get().showToast("success", "Cards Passed", `Spectator passed ${cardCount} card${cardCount !== 1 ? 's' : ''}`);
       } else {
         get().setGameMessage("SPECTATOR PASS ERROR", [msg.payload.error || "Failed to pass cards"]);
         get().showToast("error", "Pass Failed", msg.payload.error || "Failed to pass cards");

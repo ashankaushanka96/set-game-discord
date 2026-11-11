@@ -23,7 +23,7 @@ function SeatMessageBubble({ message, anchor, theme, ownerName, children }) {
   const edge = above ? 0 : 14;
   const tipY = above ? 14 : 0;
   return <div ref={bubbleRef}
-    className={`fixed z-[120] pointer-events-none rounded-2xl border ${theme} text-white px-4 py-3 shadow-lg`}
+    className={`fixed z-[90] pointer-events-none rounded-2xl border ${theme} text-white px-4 py-3 shadow-lg`}
     aria-label={message.variant?.startsWith('laydown_') ? `Laydown from ${ownerName}` : undefined}
     style={{ left: anchor.x, top: anchor.y,
       transform: above ? 'translate(-50%,-100%)' : 'translate(-50%,0)',
@@ -35,7 +35,7 @@ function SeatMessageBubble({ message, anchor, theme, ownerName, children }) {
     <svg className="seat-bubble-tail" aria-hidden="true" width="100%" height="14"
       style={{ position: 'absolute', left: 0, overflow: 'visible', ...(above ? { top: '100%' } : { bottom: '100%' }) }}>
       <path d={`M ${tail.base - 8} ${edge} L ${tail.tip} ${tipY} L ${tail.base + 8} ${edge}`}
-        fill="#253b30" stroke="var(--bubble-border)" strokeWidth="1" strokeLinejoin="round" />
+        fill="var(--bubble-bg, #253b30)" stroke="var(--bubble-border)" strokeWidth="1" strokeLinejoin="round" />
     </svg>
     {children}
   </div>;
@@ -52,6 +52,16 @@ function SeatMessageBubble({ message, anchor, theme, ownerName, children }) {
  *   - yes: "{PlayerName}: Yes, I have." + card
  *   - no : "{PlayerName}: No." + card
  */
+// One or several asked cards (Turn Play can ask for several of one set at once).
+function AskedCards({ m }) {
+  const cards = m.cards?.length && m.variant !== "laydown" ? m.cards : m.card ? [m.card] : [];
+  if (!cards.length) return null;
+  return <span className="inline-flex items-center gap-1 align-middle flex-wrap">
+    {cards.map((c) => <Card key={`${c.suit}-${c.rank}`} suit={c.suit} rank={c.rank} size="xs" />)}
+    <span className="text-xs opacity-80">({cards.map((c) => c.rank).join(", ")} of {cards[0].suit})</span>
+  </span>;
+}
+
 export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubbles = false }) {
   const { messages, state, me } = useStore();
   const players = state?.players || {};
@@ -93,22 +103,9 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
   }, [messages, seatVersion, seatEls]);
 
   const items = useMemo(() => {
-    const allMessages = messages || [];
-    // Filter out messages from the current player (they don't need to see their own bubble messages)
-    // EXCEPT for laydown-related messages and chat messages where the player needs to see their own messages
-    let filtered = allMessages.filter(m => {
-      if (m.player_id !== me?.id) return true; // Show other players' messages
-      // Show current player's own laydown-related messages and chat messages
-      return (m.variant && m.variant.startsWith('laydown_')) || m.variant === 'chat';
-    });
-    
-    // If hideLaydownBubbles is true, filter out all laydown-related bubbles
-    if (hideLaydownBubbles) {
-      filtered = filtered.filter(m => !m.variant || !m.variant.startsWith('laydown_'));
-    }
-    
-    return filtered;
-  }, [messages, me?.id, hideLaydownBubbles]);
+    // Everyone sees the same bubbles, including their own asks, answers and laydowns.
+    return messages || [];
+  }, [messages]);
 
   if (!items.length) return null;
 
@@ -132,14 +129,7 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
             <div className="text-sm">
               <span className="font-semibold">{target?.name || "Player"}</span>
               <span className="opacity-80">, do you have</span>{" "}
-              {m.card ? (
-                <span className="inline-flex items-center gap-1 align-middle">
-                  <Card suit={m.card.suit} rank={m.card.rank} size="xs" />
-                  <span className="text-xs opacity-80">
-                    ({m.card.rank} of {m.card.suit})
-                  </span>
-                </span>
-              ) : null}
+              <AskedCards m={m} />
               <span className="opacity-80">?</span>
             </div>
           );
@@ -148,14 +138,7 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
             <div className="text-sm">
               <span className="font-semibold">{asker?.name || "Player"}</span>
               <span className="opacity-80">: Yes, I have.</span>{" "}
-              {m.card ? (
-                <span className="inline-flex items-center gap-1 align-middle">
-                  <Card suit={m.card.suit} rank={m.card.rank} size="xs" />
-                  <span className="text-xs opacity-80">
-                    ({m.card.rank} of {m.card.suit})
-                  </span>
-                </span>
-              ) : null}
+              <AskedCards m={m} />
             </div>
           );
         } else if (m.variant === "no") {
@@ -163,14 +146,7 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
             <div className="text-sm">
               <span className="font-semibold">{asker?.name || "Player"}</span>
               <span className="opacity-80">: No.</span>{" "}
-              {m.card ? (
-                <span className="inline-flex items-center gap-1 align-middle">
-                  <Card suit={m.card.suit} rank={m.card.rank} size="xs" />
-                  <span className="text-xs opacity-80">
-                    ({m.card.rank} of {m.card.suit})
-                  </span>
-                </span>
-              ) : null}
+              <AskedCards m={m} />
             </div>
           );
         } else if (m.variant === "laydown_start") {
@@ -206,6 +182,14 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
               />
             </div>
           );
+        } else if (m.variant === "event_good" || m.variant === "event_bad") {
+          // Results that used to be pop-up notifications (laydown result, wrong ask)
+          content = (
+            <div className="text-sm">
+              <span className="font-semibold">{m.title}</span>
+              {m.text ? <div className="opacity-85 text-xs mt-0.5">{m.text}</div> : null}
+            </div>
+          );
         } else if (m.variant === "chat") {
           // Check if it's an emoji (single character or short emoji)
           const isEmoji = m.text && m.text.length <= 4 && /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/u.test(m.text);
@@ -232,7 +216,7 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
           );
         }
 
-        const tone = m.variant === 'no' ? 'error' : m.variant === 'yes' ? 'success' : m.variant?.startsWith('laydown_') ? 'vote' : 'info';
+        const tone = m.variant === 'ask' ? 'ask' : m.variant === 'no' || m.variant === 'event_bad' ? 'error' : m.variant === 'yes' || m.variant === 'event_good' ? 'success' : m.variant?.startsWith('laydown_') ? 'vote' : 'info';
         const theme = `club-bubble club-bubble--${tone}`;
         return (
           <SeatMessageBubble key={m.id} message={m} anchor={xy} theme={theme}

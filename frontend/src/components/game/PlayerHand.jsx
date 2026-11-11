@@ -26,18 +26,71 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
     return () => clearTimeout(timer);
   }, [cards]);
 
+  // Phones: overlap the cards just enough for the whole hand to fit, centred, and lift the
+  // card under the finger while it slides along the hand.
+  const scrollRef = useRef(null);
+  const [compact, setCompact] = useState(false);
+  const [overlap, setOverlap] = useState(0);
+  const [peek, setPeek] = useState(null);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const media = window.matchMedia('(max-width: 767px)');
+    const update = () => {
+      setCompact(media.matches);
+      if (!media.matches) return;
+      const styles = getComputedStyle(el);
+      const width = el.clientWidth - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight);
+      const n = ordered.length;
+      // 52px cards with a 4px gap when they fit; otherwise overlap evenly
+      setOverlap(n > 1 ? Math.min(4, (width - n * 52) / (n - 1)) : 0);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    media.addEventListener('change', update);
+    return () => { observer.disconnect(); media.removeEventListener('change', update); };
+  }, [ordered.length, dealing]);
+  const peekAt = (x, y) => setPeek(document.elementFromPoint(x, y)?.closest('.hand-card')?.dataset.cardKey || null);
+  const peekHandlers = compact ? {
+    onPointerDownCapture: event => { if (event.pointerType !== 'mouse') peekAt(event.clientX, event.clientY); },
+    onPointerMoveCapture: event => { if (event.pointerType !== 'mouse' && event.buttons) peekAt(event.clientX, event.clientY); },
+    onPointerUpCapture: () => setPeek(null),
+    onPointerCancelCapture: () => setPeek(null),
+  } : {};
+
+  // When cards can't be dragged to pass (Turn Play), dragging the hand sideways browses it:
+  // touch uses native panning (CSS), the mouse is handled here.
+  const browse = useRef(null);
+  const browseHandlers = selectable ? {} : {
+    onPointerDown: event => {
+      if (event.pointerType !== 'mouse' || event.button !== 0) return;
+      browse.current = { x: event.clientX, left: event.currentTarget.scrollLeft, moved: false };
+    },
+    onPointerMove: event => {
+      const b = browse.current;
+      if (!b) return;
+      const dx = event.clientX - b.x;
+      if (Math.abs(dx) > 3) b.moved = true;
+      event.currentTarget.scrollLeft = b.left - dx;
+    },
+    onPointerUp: () => { browse.current = null; },
+    onPointerLeave: () => { browse.current = null; },
+  };
+
   if (dealing) return <div className="hand-status" role="status">Dealing cards…</div>;
-  return <div className="player-hand">
+  return <div className={`player-hand ${selectable ? '' : 'player-hand--browse'} ${compact ? 'player-hand--compact' : ''}`}>
     <div className="player-hand__heading">
       <span>{label} <span className="player-hand__count">{cards.length}</span></span>
-      <span aria-live="polite">{selected.size ? `${selected.size} selected · drag to an opponent` : selectable ? 'Drag up to pass · swipe unselected cards to browse' : 'Sorted by suit'}</span>
+      <span aria-live="polite">{selected.size ? `${selected.size} selected · drag to an opponent` : compact ? (selectable ? 'Slide to look · drag up to pass' : 'Slide along your cards to look') : selectable ? 'Drag up to pass · swipe unselected cards to browse' : 'Sorted by suit · swipe to browse'}</span>
     </div>
-    <div className="player-hand__scroll" tabIndex={0} aria-label={`${label}, scroll to see more`}>
-      <div className="player-hand__cards">
+    <div className="player-hand__scroll" tabIndex={0} aria-label={`${label}, scroll to see more`} ref={scrollRef} {...browseHandlers} {...peekHandlers}>
+      <div className="player-hand__cards" style={compact ? { '--hand-overlap': `${overlap}px` } : undefined}>
         {ordered.map((card, index) => {
           const key = cardKey(card);
           return <button key={key} type="button" {...drag.bind(card)}
-            className={`hand-card ${selected.has(key) ? 'hand-card--selected' : ''} ${arrivals.has(key) ? 'hand-card--new' : ''} ${drag.preview?.cards.some(c => cardKey(c) === key) ? 'hand-card--dragging' : ''}`}
+            data-card-key={key}
+            className={`hand-card ${peek === key ? 'hand-card--peek' : ''} ${selected.has(key) ? 'hand-card--selected' : ''} ${arrivals.has(key) ? 'hand-card--new' : ''} ${drag.preview?.cards.some(c => cardKey(c) === key) ? 'hand-card--dragging' : ''}`}
             style={{ '--deal-delay': `${Math.min(index, 12) * 35}ms`, '--fan-angle': `${(index-(ordered.length-1)/2)*Math.min(2.2,20/Math.max(1,ordered.length-1))}deg`, '--fan-y': `${Math.min(9,Math.abs(index-(ordered.length-1)/2)*1.4)}px` }}
             disabled={!selectable} aria-pressed={selectable ? selected.has(key) : undefined}
             aria-label={`${card.rank} of ${card.suit}${selected.has(key) ? ', selected' : ''}`}

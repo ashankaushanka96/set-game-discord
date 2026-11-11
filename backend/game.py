@@ -336,6 +336,9 @@ class Game:
         self.state.current_dealer = None
         self.state.table_sets = []
 
+        self.state.pending_ask = None
+        self.state.pending_handoff = None
+
         # Bots only fill seats for one game; the lobby starts with humans only.
         for pid in [pid for pid in self.state.players if self.is_bot(pid)]:
             for seat, occupant in self.state.seats.items():
@@ -633,6 +636,11 @@ class Game:
         collaborators: Dict[str, List[str]] | List[Dict[str, List[str]]] | None = None,
     ):
 
+        if self.state.game_mode == "turns":
+            if self.state.turn_player != who_id:
+                raise ValueError("You can only lay down on your turn")
+            if self.state.pending_ask or self.state.pending_handoff:
+                raise ValueError("Finish the current ask or turn handoff first")
         my = self.state.players[who_id]
         needed_ranks = set(self.ranks_for(set_type))
 
@@ -747,6 +755,7 @@ class Game:
                 start_seat, lambda pid: self.state.players[pid].team == winner_team and self._has_cards(pid)
             ) or self._next_ccw_matching(start_seat, lambda pid: self._has_cards(pid))
             self.state.turn_player = next_pid
+            self.state.pending_handoff = None
 
             # Check if game has ended
             game_end_result = self.check_game_end()
@@ -820,6 +829,8 @@ class Game:
             for c in contributors
             if c["player_id"] != who_id and self.state.players[c["player_id"]].team == owner_team
         ]
+        if self.state.game_mode == "turns":
+            handoff_eligible = self._turn_after_laydown(who_id, handoff_eligible)
 
         # Check if game has ended
         game_end_result = self.check_game_end()
@@ -853,9 +864,196 @@ class Game:
             "game_end": game_end_result,
         }
 
+    # ---------------- Turns mode: ask / answer through the game ----------------
+    def set_game_mode(self, requester_id: str, mode: str) -> dict:
+        if mode not in ("voice", "turns"):
+            return {"success": False, "message": "Unknown game mode"}
+        if self.state.phase != "lobby":
+            return {"success": False, "message": "The game mode can only be changed in the lobby"}
+        if self.state.admin_player_id and requester_id != self.state.admin_player_id:
+            return {"success": False, "message": "Only the room admin can change the game mode"}
+        self.state.game_mode = mode
+        return {"success": True}
+
+    def ask_card(self, asker_id: str, target_id: str, suit: str, set_type: str, ranks) -> dict:
+        """Turns mode: the turn player asks an opponent for one or more cards of one set.
+        All or nothing: if the opponent lacks any of them, nothing moves and the turn passes.
+        Raises ValueError if not allowed."""
+        if isinstance(ranks, str):
+            ranks = [ranks]
+        ranks = list(dict.fromkeys(ranks or []))
+        if self.state.game_mode != "turns":
+            raise ValueError("Asking through the game is only used in Turn Play")
+        if self.state.phase != "playing":
+            raise ValueError("The round isn't in play")
+        if self.state.pending_ask:
+            raise ValueError("Waiting for the previous answer")
+        if self.state.pending_handoff:
+            raise ValueError("Pass the turn to a teammate first")
+        if set_type not in ("lower", "upper") or not ranks or any(r not in self.ranks_for(set_type) for r in ranks):
+            raise ValueError("That card isn't in this set")
+        if self.state.turn_player != asker_id:
+            raise ValueError("Not your turn")
+        asker = self.state.players.get(asker_id)
+        target = self.state.players.get(target_id)
+        if not asker or not target:
+            raise ValueError("Unknown player")
+        if asker.team == target.team:
+            raise ValueError("Must ask an opponent")
+        if not target.hand:
+            raise ValueError("That player has no cards")
+        if self._table_has_set(suit, set_type):
+            raise ValueError("That set is already on the table")
+
+        # Real-table mistakes forfeit the set to the other team (like a failed laydown)
+        own = [r for r in ranks if any(c.suit == suit and c.rank == r for c in asker.hand)]
+        if own:
+            res = self.forfeit_set(asker_id, target_id, suit, set_type, own[0], "own_card")
+            res["ranks"] = ranks
+            return res
+        if not self.has_at_least_one_in_set(asker, suit, set_type):
+            res = self.forfeit_set(asker_id, target_id, suit, set_type, ranks[0], "no_card_in_set")
+            res["ranks"] = ranks
+            return res
+
+        res = self.prepare_ask(asker_id, target_id, suit, set_type, ranks)
+        if res.get("reason") == "target_empty":
+            raise ValueError("That player has no cards")
+        self.state.pending_ask = {
+            "asker_id": asker_id, "target_id": target_id,
+            "suit": suit, "set_type": set_type, "ranks": ranks,
+            "has_card": all(any(c.suit == suit and c.rank == r for c in target.hand) for r in ranks),
+        }
+        return res
+
+    def forfeit_set(self, asker_id: str, target_id: str, suit: str, set_type: str, rank: str, mistake: str, move_turn: bool = True) -> dict:
+        """Turn Play penalty: the whole set goes to the opposing team and the turn moves on
+        exactly as after a failed laydown."""
+        asker = self.state.players[asker_id]
+        winner_team = "A" if asker.team == "B" else "B"
+        needed = set(self.ranks_for(set_type))
+        contributors, collected = [], []
+        for pid, p in self.state.players.items():
+            take = [c for c in p.hand if c.suit == suit and c.rank in needed]
+            if take:
+                p.hand = [c for c in p.hand if not (c.suit == suit and c.rank in needed)]
+                contributors.append({"player_id": pid, "cards": [c.model_dump() for c in take]})
+                collected.extend(take)
+        self.state.table_sets.append(TableSet(suit=suit, set_type=set_type, cards=collected, owner_team=winner_team))
+        self.state.team_scores[winner_team] += POINTS[set_type]
+
+        start_seat = asker.seat or 0
+        if move_turn:
+            self.state.turn_player = self._next_ccw_matching(
+                start_seat, lambda pid: self.state.players[pid].team == winner_team and self._has_cards(pid)
+            ) or self._next_ccw_matching(start_seat, self._has_cards)
+        self.state.pending_ask = None
+        self.state.pending_handoff = None
+        logger.info(f"{asker_id} asked for {rank} of {suit} ({mistake}); {suit} {set_type} forfeited to team {winner_team}")
+        return {
+            "penalty": True, "mistake": mistake,
+            "asker_id": asker_id, "target_id": target_id,
+            "suit": suit, "set_type": set_type, "ranks": [rank],
+            "owner_team": winner_team, "points": POINTS[set_type],
+            "contributors": contributors, "scores": self.state.team_scores,
+            "next_turn": self.state.turn_player,
+            "game_end": self.check_game_end(),
+        }
+
+    def penalty_laydown(self, who_id: str, suit: str, set_type: str) -> dict:
+        """Voice Play: a player owns up to a wrong ask (made out loud) and gives the set to the other team.
+        The turn is left alone; the table carries on in voice."""
+        if self.state.phase != "playing":
+            raise ValueError("No round in play")
+        if self.state.game_mode != "voice":
+            raise ValueError("Penalty laydown is for Voice Play; Turn Play applies penalties automatically")
+        me = self.state.players.get(who_id)
+        if not me or not me.team or me.is_spectator:
+            raise ValueError("Only seated players can do a penalty laydown")
+        if suit not in ("hearts", "diamonds", "clubs", "spades") or set_type not in ("lower", "upper"):
+            raise ValueError("Unknown set")
+        if any(t.suit == suit and t.set_type == set_type for t in self.state.table_sets):
+            raise ValueError("That set is already on the table")
+        res = self.forfeit_set(who_id, None, suit, set_type, None, "penalty", move_turn=False)
+        res["ranks"] = []
+        return res
+
+    def answer_ask(self, responder_id: str) -> dict:
+        """Turns mode: the asked player answers. The server decides what is handed over."""
+        ask = self.state.pending_ask
+        if not ask:
+            raise ValueError("Nobody is asking you for a card")
+        if responder_id != ask["target_id"]:
+            raise ValueError("Only the asked player can answer")
+        target = self.state.players[ask["target_id"]]
+        cards = [c for c in target.hand if c.suit == ask["suit"] and c.rank in ask["ranks"]]
+        if len(cards) < len(ask["ranks"]):
+            cards = []  # all or nothing: missing any card means nothing moves and the turn passes
+        self.state.pending_ask = None
+        self.state.pending_handoff = None
+        res = self.confirm_pass(ask["asker_id"], ask["target_id"], cards)
+        return {**res, **{k: ask[k] for k in ("asker_id", "target_id", "suit", "ranks")}, "cards": [c.model_dump() for c in cards]}
+
+    def bot_choose_ask(self, bot_id: str) -> Optional[dict]:
+        """Pick a legal ask for a bot: a missing card from a set it holds, from an opponent with cards."""
+        bot = self.state.players.get(bot_id)
+        if not bot or not bot.hand:
+            return None
+        opponents = [pid for pid, p in self.state.players.items()
+                     if p.team and p.team != bot.team and p.hand and not p.is_spectator]
+        options = []
+        for c in bot.hand:
+            set_type = self.card_set_type(c)
+            for rank in self.ranks_for(set_type):
+                if not any(h.suit == c.suit and h.rank == rank for h in bot.hand):
+                    options.append((c.suit, set_type, rank))
+        if not opponents or not options:
+            return None
+        suit, set_type, rank = random.choice(sorted(set(options)))
+        return {"target_id": random.choice(opponents), "suit": suit, "set_type": set_type, "rank": rank}
+
+    def _turn_after_laydown(self, who_id: str, helpers: List[str]) -> List[str]:
+        """Turn Play, successful laydown. The turn goes to a teammate who helped:
+        - no helpers: the declarer keeps the turn
+        - helpers with cards: one -> that teammate; two -> the declarer chooses (pending_handoff)
+        - helpers all empty: next teammate anti-clockwise with cards, else the declarer
+        Returns the ids the declarer may choose between (empty when decided already)."""
+        self.state.pending_handoff = None
+        me = self.state.players[who_id]
+        if not helpers:
+            nxt = who_id
+        else:
+            with_cards = [pid for pid in helpers if self._has_cards(pid)]
+            if len(with_cards) >= 2:
+                self.state.turn_player = who_id
+                self.state.pending_handoff = {"who_id": who_id, "options": with_cards}
+                return with_cards
+            nxt = with_cards[0] if with_cards else (self._next_ccw_matching(
+                me.seat or 0,
+                lambda pid: pid != who_id and self.state.players[pid].team == me.team and self._has_cards(pid),
+            ) or who_id)
+        if not self._has_cards(nxt):
+            # the declarer used their last cards: fall back to a teammate, then anyone, with cards
+            nxt = self._next_ccw_matching(
+                me.seat or 0, lambda pid: self.state.players[pid].team == me.team and self._has_cards(pid)
+            ) or self._next_ccw_matching(me.seat or 0, self._has_cards) or nxt
+        self.state.turn_player = nxt
+        return []
+
+    def skip_empty_turn(self) -> Optional[str]:
+        """If the turn player has no cards, move the turn counter-clockwise to someone who does."""
+        pid = self.state.turn_player
+        if pid and self._has_cards(pid):
+            return pid
+        seat = self.state.players[pid].seat if pid in self.state.players else 0
+        self.state.turn_player = self._next_ccw_matching(seat or 0, self._has_cards)
+        return self.state.turn_player
+
     # ---------------- Pass Cards ----------------
     def pass_cards(self, from_player_id: str, to_player_id: str, cards: List[Card]):
         """Pass cards from one player to another (opponent only)"""
+        if self.state.game_mode == "turns":
+            raise ValueError("In Turn Play, cards move only when someone asks for them")
         if from_player_id not in self.state.players or to_player_id not in self.state.players:
             raise ValueError("Unknown player")
         
@@ -909,6 +1107,12 @@ class Game:
         # NEW: cannot hand off to an empty-handed teammate
         if not b.hand:
             return {"ok": False, "reason": "empty_hand", "turn_player": self.state.turn_player}
+
+        if self.state.game_mode == "turns":
+            handoff = self.state.pending_handoff
+            if not handoff or handoff["who_id"] != who_id or to_id not in handoff["options"]:
+                return {"ok": False, "reason": "not_offered", "turn_player": self.state.turn_player}
+            self.state.pending_handoff = None
 
         self.state.turn_player = to_id
         return {"ok": True, "turn_player": to_id}
@@ -1106,6 +1310,8 @@ class Game:
             return {**result, "abort_executed": result.get("success", False)}
         # Reset game state but keep players and teams
         self.state.phase = "ready"  # Set to ready so shuffle/deal can be used
+        self.state.pending_ask = None
+        self.state.pending_handoff = None
         self.state.turn_player = None
         self.state.ask_chain_from = None
         self.state.deck_count = 0
@@ -1180,6 +1386,8 @@ class Game:
         
         # Reset game state
         self.state.phase = "playing"
+        self.state.pending_ask = None
+        self.state.pending_handoff = None
         self.state.team_scores = {"A": 0, "B": 0}
         self.state.table_sets = []
         self.state.current_dealer = next_dealer_id

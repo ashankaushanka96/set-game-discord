@@ -144,6 +144,10 @@ class EmojiSoundManager {
   playKey(key) {
     if (!key) return;
     // Legacy callers must never restart the old full-length recordings.
+    if (key === 'lay_success' || key === 'lay_unsuccess') {
+      this.playLaydownCue(key === 'lay_success');
+      return;
+    }
     if (key === 'deal' || key === 'shuffle') {
       this.playCardFoley(key === 'shuffle' ? 'riffle' : 'slide');
       return;
@@ -160,6 +164,69 @@ class EmojiSoundManager {
       return;
     }
     action();
+  }
+
+  // Synthesized laydown cue, timed to the animation: card swishes as the cards gather (0–0.6s),
+  // then a bright chime arpeggio with sparkles (success) or a thud and a soft "wah-wah" (fail).
+  playLaydownCue(success) {
+    if (this.isMuted || !this._unlocked) return;
+    try {
+      const Context = globalThis.window?.AudioContext || globalThis.window?.webkitAudioContext;
+      if (!this.audioContext && Context) this.audioContext = new Context();
+      const ctx = this.audioContext;
+      if (!ctx) return;
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+      const t0 = ctx.currentTime + .03;
+      const master = ctx.createGain();
+      master.gain.value = this.volume * .55;
+      const comp = ctx.createDynamicsCompressor();
+      master.connect(comp); comp.connect(ctx.destination);
+      const noise = (at, dur, freq, q, peak) => {
+        const buf = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * dur), ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+        const src = ctx.createBufferSource(); src.buffer = buf;
+        const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.setValueAtTime(freq, at); f.frequency.exponentialRampToValueAtTime(freq * 1.8, at + dur); f.Q.value = q;
+        const g = ctx.createGain(); g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(peak, at + dur * .25); g.gain.exponentialRampToValueAtTime(.0001, at + dur);
+        src.connect(f); f.connect(g); g.connect(master); src.start(at); src.stop(at + dur + .02);
+      };
+      const tone = (at, dur, freq, type, peak, opts = {}) => {
+        const o = ctx.createOscillator(); o.type = type; o.frequency.setValueAtTime(freq, at);
+        if (opts.glideTo) o.frequency.exponentialRampToValueAtTime(opts.glideTo, at + dur);
+        if (opts.detune) o.detune.value = opts.detune;
+        let out = o;
+        if (opts.lowpass) { const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(opts.lowpass, at); if (opts.wah) { f.frequency.linearRampToValueAtTime(opts.lowpass * 2.2, at + dur * .35); f.frequency.linearRampToValueAtTime(opts.lowpass * .8, at + dur); } f.Q.value = opts.wah ? 6 : 1; o.connect(f); out = f; }
+        if (opts.vibrato) { const l = ctx.createOscillator(); const lg = ctx.createGain(); l.frequency.value = 6; lg.gain.value = opts.vibrato; l.connect(lg); lg.connect(o.frequency); l.start(at); l.stop(at + dur + .05); }
+        const g = ctx.createGain(); g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(peak, at + (opts.attack || .012)); g.gain.setValueAtTime(peak, at + dur * (opts.hold || .2)); g.gain.exponentialRampToValueAtTime(.0001, at + dur);
+        out.connect(g); g.connect(master); o.start(at); o.stop(at + dur + .05);
+      };
+      // Cards sweeping into the middle of the table.
+      [0, .09, .17, .24, .3].forEach((dt, i) => noise(t0 + dt, .12, 1800 + i * 220, .8, .22));
+      noise(t0 + .52, .09, 520, 1.2, .5); // cards landing
+      const hit = t0 + .66;
+      if (success) {
+        tone(hit, .5, 130.81, 'sine', .45, { glideTo: 65 }); // soft low thump
+        const notes = [523.25, 659.25, 783.99, 1046.5, 1318.5];
+        notes.forEach((f, i) => {
+          tone(hit + i * .075, 1.1, f, 'triangle', .22, { hold: .05 });
+          tone(hit + i * .075, 1.1, f * 2, 'sine', .06, { hold: .05, detune: 6 });
+        });
+        [523.25, 659.25, 783.99].forEach(f => tone(hit + .42, 1.5, f, 'sine', .1, { attack: .08, hold: .3 })); // warm chord
+        for (let i = 0; i < 14; i++) tone(hit + .3 + Math.random() * .9, .22, 2600 + Math.random() * 2600, 'sine', .05 + Math.random() * .04); // sparkles
+      } else {
+        tone(hit, .35, 90, 'sine', .55, { glideTo: 45 }); // dull thud
+        noise(hit, .18, 300, .7, .35);
+        const sad = [[392, .32], [369.99, .32], [349.23, .32], [329.63, .95]];
+        let at = hit + .38;
+        sad.forEach(([f, d], i) => {
+          const last = i === sad.length - 1;
+          tone(at, d, f, 'sawtooth', .16, { lowpass: 700, wah: true, attack: .03, hold: .5, vibrato: last ? 9 : 0, glideTo: last ? f * .94 : undefined });
+          tone(at, d, f / 2, 'triangle', .1, { attack: .03, hold: .5 });
+          at += d * .92;
+        });
+      }
+      setTimeout(() => { try { master.disconnect(); comp.disconnect(); } catch (_) {} }, 4000);
+    } catch (_) {}
   }
 
   playCardFoley(kind = 'slide') {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../../store";
 import { send } from "../../ws";
 import { Card, FannedCards } from "../cards";
@@ -7,14 +7,34 @@ import GlassmorphismModal from "../ui/GlassmorphismModal";
 
 const SETS = { lower: RANKS_LOWER, upper: RANKS_UPPER };
 
-export default function LaydownModal({ onClose }) {
+// An unfinished laydown is saved on this device so a player who drops out (app closed,
+// connection lost) comes back to the same step. Old drafts are ignored.
+const DRAFT_MAX_AGE_MS = 15 * 60 * 1000;
+const draftKey = (roomId, playerId) => `laydown_draft:${roomId}:${playerId}`;
+export function loadLaydownDraft(roomId, playerId) {
+  try {
+    const draft = JSON.parse(localStorage.getItem(draftKey(roomId, playerId)) || "null");
+    if (!draft || Date.now() - draft.savedAt > DRAFT_MAX_AGE_MS) return null;
+    return draft;
+  } catch { return null; }
+}
+function saveLaydownDraft(roomId, playerId, draft) {
+  try { localStorage.setItem(draftKey(roomId, playerId), JSON.stringify({ ...draft, savedAt: Date.now() })); } catch {}
+}
+function clearLaydownDraft(roomId, playerId) {
+  try { localStorage.removeItem(draftKey(roomId, playerId)); } catch {}
+}
+
+export default function LaydownModal({ onClose, onPenalty }) {
   const { state, me, ws } = useStore();
   const players = state?.players || {};
   const my = players[me.id];
 
-  // Send initial bubble message when modal opens
+  const draft = useRef(loadLaydownDraft(state?.room_id, me?.id)).current;
+
+  // Send initial bubble message when modal opens (a restored laydown keeps the bubbles it already had)
   useEffect(() => {
-    if (me?.id) {
+    if (me?.id && !draft) {
       send(ws, "bubble_message", {
         player_id: me.id,
         variant: "laydown_start"
@@ -37,16 +57,26 @@ export default function LaydownModal({ onClose }) {
         });
       });
     }
+    clearLaydownDraft(state?.room_id, me?.id);
     onClose?.();
   };
 
-  const [step, setStep] = useState(0); // 0 select set, 1 choose my cards, 2 teammates, 3 confirm
-  const [pick, setPick] = useState({ suit: null, setType: null });
+  const [step, setStep] = useState(draft?.step ?? 0); // 0 select set, 1 choose my cards, 2 teammates, 3 confirm
+  const [pick, setPick] = useState(draft?.pick ?? { suit: null, setType: null });
 
   // ranks I (declarer) contribute
-  const [myRanks, setMyRanks] = useState([]);
+  const [myRanks, setMyRanks] = useState(draft?.myRanks ?? []);
   // collaborators (blind): { player_id -> Set<rank> }
-  const [collabRanks, setCollabRanks] = useState({});
+  const [collabRanks, setCollabRanks] = useState(() =>
+    Object.fromEntries(Object.entries(draft?.collabRanks || {}).map(([pid, ranks]) => [pid, new Set(ranks)])));
+
+  // Keep the draft up to date while the dialog is open
+  useEffect(() => {
+    saveLaydownDraft(state?.room_id, me?.id, {
+      step, pick, myRanks,
+      collabRanks: Object.fromEntries(Object.entries(collabRanks).map(([pid, set]) => [pid, [...set]])),
+    });
+  }, [step, pick, myRanks, collabRanks, state?.room_id, me?.id]);
 
   // ---------- Derived helpers ----------
   const myTeamMates = useMemo(
@@ -222,6 +252,8 @@ export default function LaydownModal({ onClose }) {
       size="3xl"
       className="laydown-workflow-dialog"
       onClickOutside={step === 0}
+      docked
+      peekLabel="Continue laying down"
     >
       <div className="flex flex-col h-full">
         <div className="flex items-center justify-between mb-4">
@@ -265,6 +297,12 @@ export default function LaydownModal({ onClose }) {
 
         {/* Scrollable content area */}
         <div className="laydown-scroll-content min-h-0">
+          {/* Voice Play: own up to a wrong ask from here instead of a separate button */}
+        {step === 0 && onPenalty && (
+          <button type="button" className="laydown-penalty-link" onClick={() => { handleClose(); onPenalty(); }}>
+            <span>Made a wrong ask?</span> <strong>Penalty laydown →</strong>
+          </button>
+        )}
           {/* STEP 0: pick set (ONLY ELIGIBLE) */}
         {step === 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -334,97 +372,45 @@ export default function LaydownModal({ onClose }) {
 
         {/* STEP 2: teammates (blind, with real card visuals for ranks) */}
         {step === 2 && (
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div className="text-xs text-white/70">
-              Assign remaining ranks to teammates <span className="italic">(you won't see their cards)</span>.
+              Tap the teammate who holds each card <span className="italic">(you won't see their cards)</span>.
             </div>
 
-            {/* Remaining ranks as fanned cards */}
-            <div className="flex items-center gap-2 flex-wrap mb-2">
-              <span className="text-xs text-white/80">Remaining:</span>
-              {remainingNeeded.length > 0 ? (
-                <div className="p-2">
-                  <FannedCards 
-                    cards={remainingNeeded.map(rank => ({ suit: pick.suit, rank }))} 
-                    size="xs" 
-                    maxCards={7}
-                  />
-                </div>
-              ) : (
-                <span className="text-xs text-white/60">None — you already have a full set.</span>
-              )}
-            </div>
-
-            {/* Teammate rows */}
-            {myTeamMates.length ? (
-              myTeamMates.map((tm) => {
-                const assigned = new Set(collabRanks[tm.id] || []);
-                const takenByOthers = new Set(myRanks);
-                Object.entries(collabRanks).forEach(([pid, set]) => {
-                  if (pid !== tm.id) Array.from(set || []).forEach((rr) => takenByOthers.add(rr));
-                });
-                const available = setRanks.filter((r) => !takenByOthers.has(r));
-
-                return (
-                  <div key={tm.id} className={`rounded-xl p-3 ${
-                    assigned.size > 0 ? "bg-emerald-500/20 border-2 border-emerald-500" : "bg-white/10 backdrop-blur-sm border-2 border-white/20"
-                  }`}>
-                    <div className="mb-2 text-sm flex items-center gap-2">
-                      {typeof tm.avatar === "string" && tm.avatar.startsWith("http") ? (
-                        <img 
-                          src={tm.avatar} 
-                          alt={tm.name || 'Player'} 
-                          className="h-5 w-5 rounded-full border border-white/30" 
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        <span>{tm.avatar}</span>
-                      )}
-                      <span className="text-white">{tm.name}</span>
-                    </div>
-                    {available.length ? (
-                      <div className="flex flex-wrap gap-2">
-                        {available.map((r) => {
-                          const on = assigned.has(r);
-                          return (
-                            <button
-                              key={`pick-${tm.id}-${r}`}
-                              onClick={() => addRankFor(tm.id, r)}
-                              className={`rounded-lg p-1 ${
-                                on ? "border-2 border-emerald-500 bg-emerald-500/10" : "bg-white/10 hover:bg-white/20 border-2 border-white/20"
-                              }`}
-                              title={on ? "Selected" : "Select"}
-                            >
-                              <Card suit={pick.suit} rank={r} size="sm" />
-                            </button>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="text-xs text-white/60">No ranks left to assign.</div>
-                    )}
-
-                    {assigned.size > 0 && (
-                      <div className="mt-2 text-xs text-white/80 flex items-center gap-2 flex-wrap">
-                        <span>Selected:</span>
-                        <div className="p-2">
-                          <FannedCards 
-                            cards={Array.from(assigned).map(rank => ({ suit: pick.suit, rank }))} 
-                            size="xs" 
-                            maxCards={7}
-                          />
-                        </div>
-                        <button className="ml-2 text-rose-300 hover:underline" onClick={() => resetCollab(tm.id)}>
-                          clear
+            {/* One column per card still needed; tap a teammate under it to say who holds it. */}
+            {(() => {
+              const needed = setRanks.filter((r) => !myRanks.includes(r));
+              const ownerOf = (r) => Object.entries(collabRanks).find(([, set]) => set?.has?.(r))?.[0];
+              const assign = (r, pid) => {
+                const current = ownerOf(r);
+                if (current) addRankFor(current, r);
+                if (current !== pid) addRankFor(pid, r);
+              };
+              if (!myTeamMates.length) return <div className="text-xs text-white/60">No teammates on your team.</div>;
+              if (!needed.length) return <div className="text-xs text-white/60">None needed — you already have a full set.</div>;
+              return <>
+                <div className="laydown-assign">
+                  {needed.map((r) => {
+                    const owner = ownerOf(r);
+                    return <div key={r} className={`laydown-assign__col ${owner ? 'is-set' : ''}`}>
+                      <Card suit={pick.suit} rank={r} size="sm-xs" />
+                      {myTeamMates.map((tm) => (
+                        <button key={tm.id} type="button" aria-pressed={owner === tm.id}
+                          title={`${tm.name} has ${r}`} onClick={() => assign(r, tm.id)}>
+                          {typeof tm.avatar === "string" && tm.avatar.startsWith("http")
+                            ? <img src={tm.avatar} alt="" referrerPolicy="no-referrer" />
+                            : <span aria-hidden="true">{tm.avatar}</span>}
+                          <small>{(tm.name || '').split(' ')[0].slice(0, 6)}</small>
                         </button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            ) : (
-              <div className="text-xs text-white/60">No teammates on your team.</div>
-            )}
+                      ))}
+                    </div>;
+                  })}
+                </div>
+                <div className="text-xs text-white/60">
+                  {remainingNeeded.length ? `${remainingNeeded.length} card${remainingNeeded.length > 1 ? 's' : ''} not assigned yet` : 'All cards assigned ✓'}
+                </div>
+              </>;
+            })()}
           </div>
         )}
 

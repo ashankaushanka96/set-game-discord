@@ -7,6 +7,7 @@ import { apiJoinRoom } from "../../api";
 import { Toast } from "../ui";
 import { ConfirmUnassignModal, ConfirmSpectatorStartModal } from "../modals";
 import { SeatSelector } from "./";
+import GameModePicker from "./GameModePicker";
 import { generateUUID } from "../../utils/uuid";
 import { DiscordSDK, Events }  from "@discord/embedded-app-sdk";
 import { readyDiscordSDK } from "../../utils/discordSdkSingleton";
@@ -1391,6 +1392,8 @@ export default function Lobby() {
                 </div>
               </div>
 
+              <GameModePicker state={state} me={me} />
+
               {players.length >= 6 && players.filter((p) => p.team).length < 6 && (
                 <div className="mb-3 p-2 bg-gradient-warm/20 border border-accent-amber/40 rounded-lg shadow-glow-amber">
                   <div className="text-xs text-accent-amber">
@@ -1406,7 +1409,7 @@ export default function Lobby() {
                     : "bg-gradient-warm hover:shadow-glow-amber border border-accent-amber/30"
                 }`}
                 onClick={startGame}
-                disabled={!roomId || (!TEST_MODE_ENABLED && players.filter((p)=>p.connected!==false).length !== 6)}
+                disabled={!roomId || (!TEST_MODE_ENABLED && players.filter((p)=>p.connected!==false && !p.is_spectator && (p.seat != null || p.id === me?.id)).length !== 6)}
               >
                 {!roomId 
                   ? "No Room Connected"

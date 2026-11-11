@@ -13,7 +13,10 @@ import TableSceneDetails, { SeatCardStack } from './TableSceneDetails';
 import PassedCardsAnimation from './PassedCardsAnimation';
 import LaydownAnimation from './LaydownAnimation';
 import ChatBubble from './ChatBubble';
+import { markReactionUsed } from './ReactionTray';
 import EmojiPassAnimation from './EmojiPassAnimation';
+import AskPointer from './AskPointer';
+import BotWaitPill from './BotWaitPill';
 import EmojiSettings from './EmojiSettings';
 import { 
   LaydownModal, 
@@ -24,7 +27,11 @@ import {
   VotingResultModal, 
   CompletedSetsModal,
   BackToLobbyModal,
-  SpectatorRequestsModal
+  SpectatorRequestsModal,
+  AskCardModal,
+  PenaltyLaydownModal,
+  AnswerAskModal,
+  PassTurnModal
 } from '../modals';
 import { 
   Toast, 
@@ -32,6 +39,7 @@ import {
 } from '../ui';
 import Card from '../cards/Card';
 import { RANKS_LOWER, RANKS_UPPER, SUITS } from '../../lib/deck';
+import { loadLaydownDraft } from '../modals/LaydownModal';
 
 const TEAM_RING = {
   A: 'ring-blue-500/70',
@@ -50,8 +58,36 @@ function SetChip({ suit, set_type, owner }) {
 export default function Table() {
   const navigate = useNavigate();
   const { state, me, ws, gameResult, abortVoting, dealingAnimation, pendingLay, votingResult, closeVotingResult, backToLobbyVoting, speakingUsers, laydownResult, clearLaydownResult } = useStore();
-  const [layOpen, setLayOpen] = useState(false);
+  const reactionAim = useStore(s => s.reactionAim);
+  const [penaltyOpen, setPenaltyOpen] = useState(false);
+  const throwReaction = target => {
+    const aim = useStore.getState().reactionAim;
+    useStore.setState({ reactionAim: null });
+    if (!aim || ws?.readyState !== 1) return;
+    markReactionUsed(aim.emoji);
+    send(ws, 'emoji_throw', { from_player_id: me.id, to_player_id: target.id, emoji: aim.emoji, emoji_name: aim.name, category: aim.category });
+  };
+  useEffect(() => {
+    if (!reactionAim) return;
+    const esc = e => { if (e.key === 'Escape') useStore.setState({ reactionAim: null }); };
+    document.addEventListener('keydown', esc);
+    return () => document.removeEventListener('keydown', esc);
+  }, [reactionAim]);
+  // Reopen a laydown this player was in the middle of before they dropped out
+  const [layOpen, setLayOpen] = useState(() => {
+    if (state?.phase !== 'playing') return false;
+    const draft = loadLaydownDraft(state?.room_id, me?.id);
+    if (!draft) return false;
+    const { suit, setType } = draft.pick || {};
+    if (!suit) return true;
+    // Only if the set is still in play and I still hold a card of it
+    const ranks = setType === 'lower' ? RANKS_LOWER : RANKS_UPPER;
+    const onTable = (state.table_sets || []).some(t => t.suit === suit && t.set_type === setType);
+    const holdIt = (state.players?.[me?.id]?.hand || []).some(c => c.suit === suit && ranks.includes(c.rank));
+    return !onTable && holdIt;
+  });
   const [resultsOpen, setResultsOpen] = useState(false);
+  const [layAnimActive, setLayAnimActive] = useState(false);
   const [resultsReady, setResultsReady] = useState(false);
   const pendingResult = laydownResult || gameResult;
   useEffect(() => {
@@ -61,6 +97,12 @@ export default function Table() {
     const timer = setTimeout(() => setResultsReady(true), window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 150 : 1100);
     return () => clearTimeout(timer);
   }, [pendingResult]);
+  // Nobody opened the laydown results within 30s: put the prompt away so play can go on.
+  useEffect(() => {
+    if (!laydownResult || resultsOpen) return;
+    const timer = setTimeout(() => clearLaydownResult(), 30000);
+    return () => clearTimeout(timer);
+  }, [laydownResult, resultsOpen, clearLaydownResult]);
   useEffect(() => {
     if (state.phase === 'ready' || state.phase === 'lobby') clearLaydownResult();
   }, [state.phase, clearLaydownResult]);
@@ -72,6 +114,7 @@ export default function Table() {
   const [completedSetsOpen, setCompletedSetsOpen] = useState(false);
   const [emojiSettingsOpen, setEmojiSettingsOpen] = useState(false);
   const [spectatorRequestsOpen, setSpectatorRequestsOpen] = useState(false);
+  const [askTarget, setAskTarget] = useState(null);
 
   const tableCenterRef = useRef(null);
 
@@ -87,22 +130,50 @@ export default function Table() {
   const isSpectator = my?.is_spectator || false;
 
    const mySeatIndex = typeof my?.seat === 'number' ? my.seat : 0;
+   // Seats sit on an ellipse around the table. They are spaced by equal distance along that
+   // ellipse (not equal angle), so neighbours are the same distance apart whatever the
+   // shape of the screen. My own seat is always at the bottom.
+   const arenaRef = useRef(null);
+   const [arenaAspect, setArenaAspect] = useState(1);
+   const [wideTable, setWideTable] = useState(false); // desktop: rounded-rectangle table
+   useEffect(() => {
+     const el = arenaRef.current;
+     if (!el) return;
+     const measure = () => {
+       const r = el.getBoundingClientRect();
+       if (r.width && r.height) setArenaAspect(Math.round((r.width / r.height) * 50) / 50);
+       setWideTable(window.innerWidth >= 768);
+     };
+     measure();
+     const ro = new ResizeObserver(measure);
+     ro.observe(el);
+     return () => ro.disconnect();
+   }, []);
+   useEffect(() => { setSeatVersion(v => v + 1); }, [arenaAspect, wideTable]);
    const seatPositions = useMemo(() => {
-     // Use percentage-based positioning for responsive design
+     const R = 35; // % of the arena, both ways
+     const w = arenaAspect, h = 1; // relative pixel size of the arena
+     const STEPS = 720, cum = [0];
+     // Phones: an ellipse. Desktop: a squarer path that follows the rounded-rectangle table.
+     const e = wideTable ? 2 / 3.2 : 1;
+     const sq = (v) => Math.sign(v) * Math.pow(Math.abs(v), e);
+     const at = (k) => { const t = Math.PI / 2 + (k / STEPS) * 2 * Math.PI; return [sq(Math.cos(t)), sq(Math.sin(t))]; };
+     for (let k = 1; k <= STEPS; k++) {
+       const [ax, ay] = at(k - 1), [bx, by] = at(k);
+       cum.push(cum[k - 1] + Math.hypot((bx - ax) * w, (by - ay) * h));
+     }
      const pos = {};
-     // Use a larger radius to avoid collision with table
-         const radiusPercent = 35; // Closer to table edge like sitting at the table
      for (let i = 0; i < 6; i++) {
-       const angle = (90 + (i - mySeatIndex) * 60) * (Math.PI / 180);
-       const x = 50 + radiusPercent * Math.cos(angle);
-       const relativeSeat = (i - mySeatIndex + 6) % 6;
-       // Open a wider gap between the two chairs on each side of the table.
-       const sideOffset = relativeSeat === 1 || relativeSeat === 5 ? 7 : relativeSeat === 2 || relativeSeat === 4 ? -7 : 0;
-       const y = 50 + radiusPercent * Math.sin(angle) + sideOffset;
-       pos[i] = { left: `${x}%`, top: `${y}%`, transform: 'translate(-50%, -50%)', '--chair-angle': `${(i-mySeatIndex)*60}deg`, '--hand-x': `${-Math.cos(angle)*69}px`, '--hand-y': `${-Math.sin(angle)*69}px`, '--hand-direction': `${(i-mySeatIndex)*60}deg` };
+       const rel = (i - mySeatIndex + 6) % 6;
+       const want = (rel / 6) * cum[STEPS];
+       let k = 0; while (k < STEPS && cum[k] < want) k++;
+       const [cx, cy] = at(k);
+       const dx = cx * w, dy = cy * h, d = Math.hypot(dx, dy) || 1; // real direction from the table centre
+       const deg = Math.atan2(dy, dx) * 180 / Math.PI - 90;
+       pos[i] = { left: `${50 + R * cx}%`, top: `${50 + R * cy}%`, transform: 'translate(-50%, -50%)', '--chair-angle': `${deg}deg`, '--hand-x': `${-dx / d * 69}px`, '--hand-y': `${-dy / d * 69}px`, '--hand-direction': `${deg}deg` };
      }
      return pos;
-   }, [mySeatIndex]);
+   }, [mySeatIndex, arenaAspect, wideTable]);
 
   const eligibleSets = useMemo(() => {
     if (!my) return [];
@@ -164,6 +235,23 @@ export default function Table() {
   };
   const handleSeatClick = player => passCards(selectedCardsToPass,player.id);
 
+  // Turn Play: ask through the game instead of dragging cards across
+  const isTurnPlay = state.game_mode === 'turns';
+  const botWait = useStore((st) => st.botWait);
+  const pendingAsk = isTurnPlay ? state.pending_ask : null;
+  const pendingHandoff = isTurnPlay ? state.pending_handoff : null;
+  const myTurn = isTurnPlay && state.phase === 'playing' && state.turn_player === me.id && !pendingAsk && !pendingHandoff && ws?.readyState === 1;
+  const canAsk = (player) => myTurn && !!player && player.team && player.team !== my?.team &&
+    !player.is_spectator && (player.hand?.length ?? 0) > 0;
+  const turnPlayer = isTurnPlay && state.phase === 'playing' ? players[state.turn_player] : null;
+  const sendAsk = ({ target_id, suit, set_type, ranks }) => {
+    send(ws, 'ask', { asker_id: me.id, target_id, suit, set_type, ranks });
+    setAskTarget(null);
+  };
+  useEffect(() => { if (!myTurn) setAskTarget(null); }, [myTurn]);
+  // Turn Play: lay down only on your own turn
+  const layLocked = isTurnPlay && !myTurn;
+
 
   const handleTableClick = () => window.dispatchEvent(new Event('dismiss_passed_cards'));
 
@@ -187,7 +275,8 @@ export default function Table() {
       <Celebration tableCenterRef={tableCenterRef} />
       <DealingAnimation />
       <PassedCardsAnimation seatEls={seatEls} phase={state.phase} />
-      <LaydownAnimation seatEls={seatEls} tableCenterRef={tableCenterRef} />
+      <LaydownAnimation seatEls={seatEls} tableCenterRef={tableCenterRef} onActiveChange={setLayAnimActive}
+        onViewResult={() => { if (useStore.getState().laydownResult || useStore.getState().gameResult) setResultsOpen(true); }} />
       
       {/* Back to Lobby Button - Top Left */}
       <div className="game-top-control fixed top-2 left-2 md:top-3 md:left-3 z-40">
@@ -283,8 +372,13 @@ export default function Table() {
         </div>
       )}
 
-       <MessageBubbles seatEls={seatEls} seatVersion={seatVersion} hideLaydownBubbles={layOpen} />
+       <AskPointer seatEls={seatEls} seatVersion={seatVersion} ask={pendingAsk} />
+       <MessageBubbles seatEls={seatEls} seatVersion={seatVersion} />
        <ChatBubble selectedCardsToPass={selectedCardsToPass} />
+       {reactionAim && <div className="reaction-aim" role="status">
+         <span>Tap a seat to send {reactionAim.emoji}</span>
+         <button type="button" onClick={() => useStore.setState({ reactionAim: null })}>Cancel</button>
+       </div>}
        <EmojiPassAnimation />
        
        {/* Main game area - takes up most of the viewport */}
@@ -302,7 +396,7 @@ export default function Table() {
         </div>
 
          <div className="game-table-arena">
-           <div className="relative w-full h-full">
+           <div ref={arenaRef} className="relative w-full h-full">
              <TableSceneDetails />
              <div className="table-plinth" aria-hidden="true" />
              <div ref={tableCenterRef} data-table-center="true" className="felt-table absolute rounded-full flex items-center justify-center"
@@ -330,7 +424,7 @@ export default function Table() {
               )}
             </div>
 
-            {pendingResult && resultsReady && <div className="laydown-results-prompt" role="status">
+            {pendingResult && resultsReady && !layAnimActive && <div className="laydown-results-prompt" role="status">
               <span>{laydownResult ? (laydownResult.success ? 'Set complete' : 'Declaration checked') : 'Round complete'}</span>
               <button type="button" className="club-primary" onClick={event => {event.stopPropagation();setResultsOpen(true);}}>View results</button>
             </div>}
@@ -339,7 +433,7 @@ export default function Table() {
               const i = Number(k);
               const pid = seats[i];
               const p = pid ? players[pid] : null;
-              const selectable = selectedCardsToPass.length > 0 && !!p && !!resolveDropTarget(p.id);
+              const selectable = reactionAim ? !!p : isTurnPlay ? canAsk(p) : selectedCardsToPass.length > 0 && !!p && !!resolveDropTarget(p.id);
               const ringClass = p?.team === 'A' ? TEAM_RING.A : p?.team === 'B' ? TEAM_RING.B : TEAM_RING.unknown;
               const isMe = p && p.id === me.id;
               const isLaydownPlayer = p && pendingLay && p.id === pendingLay.who_id;
@@ -362,7 +456,10 @@ export default function Table() {
                       selectable={selectable}
                       dropTarget={dragTarget === p?.id}
                       draggingCards={isDraggingCards}
-                      onSelect={p ? () => handleSeatClick(p) : null}
+                      onSelect={p ? () => (reactionAim ? throwReaction(p) : isTurnPlay ? setAskTarget(p) : handleSeatClick(p)) : null}
+                      isTurn={!!turnPlayer && p?.id === turnPlayer.id}
+                      askMode={isTurnPlay}
+                      reactEmoji={reactionAim?.emoji}
                       team={p?.team}
                       isMe={isMe}
                       isLaydownPlayer={isLaydownPlayer}
@@ -372,7 +469,7 @@ export default function Table() {
                   </div>
                   {p && p.id !== my?.id && !dealingAnimation && <SeatCardStack count={handCount(pid)} />}
                   {p && p.id !== my?.id && !dealingAnimation && (
-                    <div className="mt-1 text-center text-xs text-text-muted">{handCount(pid)} cards</div>
+                    <div className="seat-count" aria-label={`${handCount(pid)} cards`} title={`${handCount(pid)} cards`}>{handCount(pid)}</div>
                   )}
                 </div>
               );
@@ -398,6 +495,19 @@ export default function Table() {
 
        {/* Bottom section - Scoreboard, Player Hand, and Controls */}
        <div className="game-hand-dock">
+         {/* While a bot is holding its move, the countdown + Continue takes the turn banner's place */}
+         {turnPlayer && botWait && <BotWaitPill canContinue={!!my?.team && !my?.is_spectator} />}
+         {turnPlayer && !botWait && (
+        <div className={`turn-banner ${turnPlayer.id === me.id && !pendingAsk ? 'turn-banner--mine' : ''}`} role="status" aria-live="polite">
+          {pendingHandoff
+            ? <span>{pendingHandoff.who_id === me.id ? 'Choose a teammate to play next' : `${players[pendingHandoff.who_id]?.name || 'Declarer'} is choosing who plays next…`}</span>
+            : pendingAsk
+            ? <span>{pendingAsk.asker_id === me.id ? 'Waiting for' : `${players[pendingAsk.asker_id]?.name || 'Someone'} asked`} {pendingAsk.target_id === me.id ? 'you' : players[pendingAsk.target_id]?.name}…</span>
+            : turnPlayer.id === me.id
+              ? <span>Your turn — tap an opponent to ask for a card</span>
+              : <span>{turnPlayer.name}'s turn</span>}
+        </div>
+      )}
          {/* Scoreboard */}
          <div className="game-score-strip flex items-center justify-center gap-4 text-xs sm:text-sm">
         <div className="score-pill px-2 sm:px-3 py-1 rounded-full bg-dark-card/70 backdrop-blur-sm border border-accent-blue/20 shadow-glow-blue">
@@ -427,12 +537,12 @@ export default function Table() {
          <div className="match-score-strip" aria-label="Match round wins"><span>Round {(state.completed_rounds || 0) + (state.phase === 'ended' ? 0 : 1)}</span><strong>Rounds won</strong><span>A: {state.round_wins?.A || 0}</span><span>B: {state.round_wins?.B || 0}</span>{state.tied_rounds > 0 && <span>Tied: {state.tied_rounds}</span>}</div>
 
          {/* Player Hand */}
-         <div className="flex flex-col items-center">
+         <div className="game-hand-wrap flex flex-col items-center">
            <PlayerHand 
              cards={my?.hand || []} 
              selectedCards={selectedCardsToPass}
              onCardSelect={handleHandCardClick}
-             selectable={state.phase === 'playing' && ws?.readyState === 1}
+             selectable={!isTurnPlay && state.phase === 'playing' && ws?.readyState === 1}
              resolveDropTarget={resolveDropTarget}
              onDragStart={cards => { setSelectedCardsToPass(cards); setIsDraggingCards(true); }}
              onDragHover={setDragTarget}
@@ -453,7 +563,7 @@ export default function Table() {
          </div>
 
          {/* Game Controls */}
-         <div className="flex items-center justify-center gap-3">
+         <div className="game-hand-status flex items-center justify-center gap-3">
          {/* Show current phase and dealer info */}
          <div className="text-xs text-text-muted">
            {state.phase === 'playing' ? 'Round in play' : state.phase === 'ready' ? 'Ready for the deal' : 'Round complete'}
@@ -469,7 +579,20 @@ export default function Table() {
          </div>
        </div>
 
-      {layOpen && <LaydownModal onClose={() => setLayOpen(false)} />}
+      {layOpen && <LaydownModal onClose={() => setLayOpen(false)} onPenalty={!isTurnPlay && my?.team ? () => setPenaltyOpen(true) : null} />}
+
+      {/* Turn Play: ask an opponent, or answer an ask */}
+      <AskCardModal open={!!askTarget && myTurn} target={askTarget} tableSets={state.table_sets || []} onAsk={sendAsk} onClose={() => setAskTarget(null)} />
+      <AnswerAskModal
+        ask={pendingAsk && pendingAsk.target_id === me.id ? pendingAsk : null}
+        asker={pendingAsk ? players[pendingAsk.asker_id] : null}
+        onAnswer={() => send(ws, 'answer_ask', {})}
+      />
+      <PassTurnModal
+        options={pendingHandoff && pendingHandoff.who_id === me.id && state.phase === 'playing' ? pendingHandoff.options : []}
+        players={players}
+        onPick={(toId) => send(ws, 'handoff_after_laydown', { who_id: me.id, to_id: toId })}
+      />
 
       {/* Laydown Result Modal */}
       <LaydownResultModal
@@ -526,14 +649,14 @@ export default function Table() {
        {(state.phase === 'playing' || state.phase === 'ready') && (
          <div className="game-laydown-action">
            <button
-             onClick={() => selectedCardsToPass.length === 0 && setLayOpen(true)}
+             onClick={() => selectedCardsToPass.length === 0 && !layLocked && setLayOpen(true)}
              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-lg border ${
-               selectedCardsToPass.length > 0 
+               selectedCardsToPass.length > 0 || layLocked 
                  ? 'bg-gray-500 cursor-not-allowed text-gray-300 border-gray-400/30' 
                  : 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white border-amber-500/30'
              }`}
-             disabled={selectedCardsToPass.length > 0}
-             title={selectedCardsToPass.length > 0 ? "Clear card selection first" : "Laydown cards"}
+             disabled={selectedCardsToPass.length > 0 || layLocked}
+             title={layLocked ? "You can lay down on your turn" : selectedCardsToPass.length > 0 ? "Clear card selection first" : "Laydown cards"}
            >
              <span className="hidden sm:inline">Laydown</span>
              <span className="sm:hidden">Lay</span>
@@ -541,6 +664,10 @@ export default function Table() {
          </div>
        )}
 
+
+      <PenaltyLaydownModal open={penaltyOpen && !isTurnPlay && state.phase === 'playing'} tableSets={tableSets} myTeam={my?.team}
+        onClose={() => setPenaltyOpen(false)}
+        onConfirm={({ suit, set_type }) => { send(ws, 'penalty_laydown', { suit, set_type }); setPenaltyOpen(false); }} />
 
       {/* Emoji Settings */}
       <EmojiSettings 

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useStore } from '../../store';
 import { Tomato, TomatoSplat } from './ReactionArtwork';
 import { reactionMotion } from './reactionMotion';
@@ -21,6 +22,7 @@ function ReactionScene({ reaction, reduced }) {
   const [target, setTarget] = useState(null);
   const [landed, setLanded] = useState(false);
   const [direction,setDirection] = useState(1);
+  const [launch,setLaunch] = useState(null);
   const tomato = reaction.emoji === '🍅';
   const hammer = reaction.emoji === '🔨';
   const bomb = reaction.emoji === '💣';
@@ -44,6 +46,7 @@ function ReactionScene({ reaction, reduced }) {
     window.addEventListener('resize',update);
     window.addEventListener('scroll',update,true);
     const from = center(fromSeat), to = center(toSeat);
+    setLaunch(from);
     const self = reaction.from_player_id === reaction.to_player_id;
     const motion = reactionMotion(reaction.emoji,from,to);
     setDirection(motion.direction);
@@ -64,6 +67,7 @@ function ReactionScene({ reaction, reduced }) {
   }, [reaction.id, reaction.from_player_id, reaction.to_player_id, reduced, tomato, hammer, bomb]);
 
   return <div className={`reaction-scene ${reduced ? 'reaction-scene--reduced' : ''}`} aria-hidden="true">
+    {launch && !reduced && reaction.from_player_id !== reaction.to_player_id && <div className="reaction-launch" style={{left:launch.x,top:launch.y}}><span>{reaction.emoji}</span></div>}
     {!landed && !reduced && <div ref={projectile} className="reaction-projectile">{tomato ? <Tomato/> : hammer ? <Hammer/> : <span>{reaction.emoji}</span>}</div>}
     {landed && target && <div className={`reaction-on-card reaction-on-card--${kind}`} style={{...target,'--impact-direction':direction}}>
       <div className="reaction-card-decal" style={{borderRadius:target.borderRadius}}>
@@ -92,5 +96,5 @@ export default function EmojiPassAnimation() {
     preference.addEventListener('change',update);
     return ()=>preference.removeEventListener('change',update);
   },[]);
-  return <div className="reaction-overlay">{(animations||[]).slice(-6).map(reaction=><ReactionScene key={reaction.id} reaction={reaction} reduced={reduced}/>)}</div>;
+  return createPortal(<div className="reaction-overlay">{(animations||[]).slice(-6).map(reaction=><ReactionScene key={reaction.id} reaction={reaction} reduced={reduced}/>)}</div>, document.body);
 }

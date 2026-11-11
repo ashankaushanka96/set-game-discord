@@ -11,8 +11,8 @@ export function reactionMotion(emoji, from, to) {
     const x=from.x+dx*t;
     const y=from.y+dy*t-4*arc*t*(1-t);
     const rotate = kind==='hammer' ? angle+45+direction*(-35+35*t) : kind==='bomb' ? direction*t*300 : kind==='tomato' ? direction*t*210 : kind==='fire' ? angle+90 : kind==='lightning' ? angle-45 : Math.sin(t*Math.PI)*direction*10;
-    const scale = .65 + .35*Math.sin(t*Math.PI/2);
-    return {transform:`translate3d(${x}px,${y}px,0) rotate(${rotate}deg) scale(${scale})`,opacity:Math.min(1,t*8+.2),offset:t};
+    const scale = .9 + .1*Math.sin(t*Math.PI/2);
+    return {transform:`translate3d(${x}px,${y}px,0) rotate(${rotate}deg) scale(${scale})`,opacity:1,offset:t};
   });
   return {kind,direction,angle,duration,frames};
 }
