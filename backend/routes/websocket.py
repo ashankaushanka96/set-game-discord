@@ -322,7 +322,12 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
 
             elif t == "request_abort":
                 res = game.request_abort(p["requester_id"])
-                await WebSocketService.broadcast(room_id, "abort_requested", {**res, "state": game.state.model_dump()})
+                if res.get("success") and game._vote_passed(game.state.abort_votes):
+                    # Every team with a human has voted (e.g. one human playing with bots)
+                    res = game._execute_abort()
+                    await WebSocketService.broadcast(room_id, "game_aborted", {**res, "state": game.state.model_dump()})
+                else:
+                    await WebSocketService.broadcast(room_id, "abort_requested", {**res, "state": game.state.model_dump()})
 
             elif t == "vote_abort":
                 res = game.vote_abort(p["voter_id"], p["vote"])

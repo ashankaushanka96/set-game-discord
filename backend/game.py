@@ -304,6 +304,49 @@ class Game:
             p.spectator_request_pending = False
         self.state.spectator_requests = {}
 
+    @staticmethod
+    def is_bot(player_id: str) -> bool:
+        """Test-mode bots are added by the lobby with ids starting with "ai_"."""
+        return player_id.startswith("ai_")
+
+    def _human_voters(self, team: str) -> list:
+        return [pid for pid, p in self.state.players.items()
+                if p.team == team and not p.is_spectator and not self.is_bot(pid)]
+
+    def _team_yes_votes(self, votes: dict, team: str) -> int:
+        voters = set(self._human_voters(team))
+        return sum(1 for pid, v in (votes or {}).items() if v and pid in voters)
+
+    def _vote_passed(self, votes: dict) -> bool:
+        """One yes from each team that has human players; bots never vote."""
+        teams = [t for t in ("A", "B") if self._human_voters(t)]
+        return bool(teams) and all(self._team_yes_votes(votes, t) >= 1 for t in teams)
+
+    def _return_to_lobby(self):
+        self.state.phase = "lobby"
+        self.state.lobby_locked = False
+        self._release_spectators_to_lobby()
+        self.state.back_to_lobby_votes = {}
+        self.state.abort_votes = {}
+
+        # Reset game state
+        self.state.turn_player = None
+        self.state.ask_chain_from = None
+        self.state.deck_count = 0
+        self.state.current_dealer = None
+        self.state.table_sets = []
+
+        # Bots only fill seats for one game; the lobby starts with humans only.
+        for pid in [pid for pid in self.state.players if self.is_bot(pid)]:
+            for seat, occupant in self.state.seats.items():
+                if occupant == pid:
+                    self.state.seats[seat] = None
+            del self.state.players[pid]
+
+        # Clear all players' hands
+        for player in self.state.players.values():
+            player.hand = []
+
     def request_back_to_lobby(self, requester_id: str) -> dict:
         """
         Request to return to lobby from game. Requires majority vote.
@@ -325,30 +368,13 @@ class Game:
         # Count votes by team
         total_players = len(self.state.players)
         yes_votes = sum(1 for vote in self.state.back_to_lobby_votes.values() if vote)
-        team_a_yes = sum(1 for pid, vote in self.state.back_to_lobby_votes.items() 
-                        if vote and self.state.players[pid].team == "A")
-        team_b_yes = sum(1 for pid, vote in self.state.back_to_lobby_votes.items() 
-                        if vote and self.state.players[pid].team == "B")
+        team_a_yes = self._team_yes_votes(self.state.back_to_lobby_votes, "A")
+        team_b_yes = self._team_yes_votes(self.state.back_to_lobby_votes, "B")
         
         # Check if we have one vote from each team
-        if team_a_yes >= 1 and team_b_yes >= 1:
+        if self._vote_passed(self.state.back_to_lobby_votes):
             # Return to lobby
-            self.state.phase = "lobby"
-            self.state.lobby_locked = False
-            self._release_spectators_to_lobby()
-            self.state.back_to_lobby_votes = {}
-            self.state.abort_votes = {}
-            
-            # Reset game state
-            self.state.turn_player = None
-            self.state.ask_chain_from = None
-            self.state.deck_count = 0
-            self.state.current_dealer = None
-            self.state.table_sets = []
-            
-            # Clear all players' hands
-            for player in self.state.players.values():
-                player.hand = []
+            self._return_to_lobby()
             
             logger.info(f"Returned to lobby by team vote in room {self.state.room_id}")
             return {
@@ -399,29 +425,12 @@ class Game:
         no_votes = sum(1 for v in self.state.back_to_lobby_votes.values() if not v)
         
         # Check if we have one vote from each team
-        team_a_yes = sum(1 for pid, vote in self.state.back_to_lobby_votes.items() 
-                        if vote and self.state.players[pid].team == "A")
-        team_b_yes = sum(1 for pid, vote in self.state.back_to_lobby_votes.items() 
-                        if vote and self.state.players[pid].team == "B")
+        team_a_yes = self._team_yes_votes(self.state.back_to_lobby_votes, "A")
+        team_b_yes = self._team_yes_votes(self.state.back_to_lobby_votes, "B")
         
-        if team_a_yes >= 1 and team_b_yes >= 1:
+        if self._vote_passed(self.state.back_to_lobby_votes):
             # Return to lobby
-            self.state.phase = "lobby"
-            self.state.lobby_locked = False
-            self._release_spectators_to_lobby()
-            self.state.back_to_lobby_votes = {}
-            self.state.abort_votes = {}
-            
-            # Reset game state
-            self.state.turn_player = None
-            self.state.ask_chain_from = None
-            self.state.deck_count = 0
-            self.state.current_dealer = None
-            self.state.table_sets = []
-            
-            # Clear all players' hands
-            for player in self.state.players.values():
-                player.hand = []
+            self._return_to_lobby()
             
             logger.info(f"Returned to lobby by team vote in room {self.state.room_id}")
             return {
@@ -433,8 +442,8 @@ class Game:
         
         # Check if voting failed (impossible to get one from each team)
         # Count total players per team
-        team_a_players = sum(1 for p in self.state.players.values() if p.team == "A")
-        team_b_players = sum(1 for p in self.state.players.values() if p.team == "B")
+        team_a_players = len(self._human_voters("A"))
+        team_b_players = len(self._human_voters("B"))
         
         # Check if it's impossible to get one vote from each team
         team_a_remaining = team_a_players - sum(1 for pid, vote in self.state.back_to_lobby_votes.items() 
@@ -442,7 +451,7 @@ class Game:
         team_b_remaining = team_b_players - sum(1 for pid, vote in self.state.back_to_lobby_votes.items() 
                                                if self.state.players[pid].team == "B")
         
-        if (team_a_yes == 0 and team_a_remaining == 0) or (team_b_yes == 0 and team_b_remaining == 0):
+        if (team_a_players and team_a_yes == 0 and team_a_remaining == 0) or (team_b_players and team_b_yes == 0 and team_b_remaining == 0):
             self.state.back_to_lobby_votes = {}
             logger.info(f"Back to lobby voting failed in room {self.state.room_id}")
             return {
@@ -969,10 +978,8 @@ class Game:
         # Count votes by team
         total_players = len(self.state.players)
         votes_for_abort = len(self.state.abort_votes)
-        team_a_yes = sum(1 for pid, vote in self.state.abort_votes.items() 
-                        if vote and self.state.players[pid].team == "A")
-        team_b_yes = sum(1 for pid, vote in self.state.abort_votes.items() 
-                        if vote and self.state.players[pid].team == "B")
+        team_a_yes = self._team_yes_votes(self.state.abort_votes, "A")
+        team_b_yes = self._team_yes_votes(self.state.abort_votes, "B")
         
         return {
             "success": True, 
@@ -1031,24 +1038,22 @@ class Game:
         votes_against = sum(1 for v in self.state.abort_votes.values() if v is False)
         
         # Check if we have one vote from each team
-        team_a_yes = sum(1 for pid, vote in self.state.abort_votes.items() 
-                        if vote and self.state.players[pid].team == "A")
-        team_b_yes = sum(1 for pid, vote in self.state.abort_votes.items() 
-                        if vote and self.state.players[pid].team == "B")
+        team_a_yes = self._team_yes_votes(self.state.abort_votes, "A")
+        team_b_yes = self._team_yes_votes(self.state.abort_votes, "B")
         
-        if team_a_yes >= 1 and team_b_yes >= 1:
+        if self._vote_passed(self.state.abort_votes):
             return self._execute_abort()
         
         # Check if voting has failed (impossible to get one from each team)
-        team_a_players = sum(1 for p in self.state.players.values() if p.team == "A")
-        team_b_players = sum(1 for p in self.state.players.values() if p.team == "B")
+        team_a_players = len(self._human_voters("A"))
+        team_b_players = len(self._human_voters("B"))
         
         team_a_remaining = team_a_players - sum(1 for pid, vote in self.state.abort_votes.items() 
                                                if self.state.players[pid].team == "A")
         team_b_remaining = team_b_players - sum(1 for pid, vote in self.state.abort_votes.items() 
                                                if self.state.players[pid].team == "B")
         
-        if (team_a_yes == 0 and team_a_remaining == 0) or (team_b_yes == 0 and team_b_remaining == 0):
+        if (team_a_players and team_a_yes == 0 and team_a_remaining == 0) or (team_b_players and team_b_yes == 0 and team_b_remaining == 0):
             return self._handle_voting_failure("insufficient_support")
         
         return {
