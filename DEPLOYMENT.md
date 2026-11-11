@@ -74,11 +74,16 @@ the free tier.
 
 ### 4. Cloudflare
 
-1. **Tunnel for the VM**: Zero Trust → Networks → Tunnels → Create a tunnel → *Cloudflared*
-   - Name: `app-server` (one tunnel for the whole VM; other projects add hostnames to it later)
-   - Copy the token from the install command shown (the long `eyJ…` string). You need it in step 5.
-   - Public hostname: subdomain `set-game-backend`, domain `ashankaushanka.dev`,
-     service **HTTP** `localhost:8001`.
+1. **Tunnel for the VM**, with the script in `gcp-infra` (one tunnel, `app-server`, for the whole VM).
+   Create a Cloudflare API token (My Profile → API Tokens → Create Custom Token) with
+   *Account › Cloudflare Tunnel › Edit* and *Zone › DNS › Edit* for `ashankaushanka.dev`, then:
+   ```bash
+   cd ~/Projects/gcp-infra
+   read -rsp "Cloudflare API token: " CLOUDFLARE_API_TOKEN; echo; export CLOUDFLARE_API_TOKEN
+   ./cloudflare-tunnel.sh set-game-backend.ashankaushanka.dev=http://localhost:8001
+   ```
+   It creates the tunnel, the hostname and its DNS record, and saves the tunnel token to
+   `~/.cloudflared/app-server.token` for step 5.
 2. **Pages project** (once):
    ```bash
    cd frontend
