@@ -79,7 +79,7 @@ the free tier.
    *Account › Cloudflare Tunnel › Edit* and *Zone › DNS › Edit* for `ashankaushanka.dev`, then:
    ```bash
    cd ~/Projects/gcp-infra
-   read -rsp "Cloudflare API token: " CLOUDFLARE_API_TOKEN; echo; export CLOUDFLARE_API_TOKEN
+   printf "Cloudflare API token: "; read -rs CLOUDFLARE_API_TOKEN; echo; export CLOUDFLARE_API_TOKEN
    ./cloudflare-tunnel.sh set-game-backend.ashankaushanka.dev=http://localhost:8001
    ```
    It creates the tunnel, the hostname and its DNS record, and saves the tunnel token to
