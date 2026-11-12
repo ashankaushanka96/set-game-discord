@@ -70,3 +70,12 @@ body .playing-card.playing-card--art > img { display:block; width:100%; height:1
   .card-room.room-3d .bot-wait { padding:4px 4px 4px 12px; gap:8px; }
   .card-room.room-3d .bot-wait button { padding:6px 12px; }
 }
+
+/* 3D table: Turn Play arrows and the asked player's highlight are drawn in the 3D scene instead. */
+.room-3d .ask-arrow { display:none; }
+/* 3D table: whose turn it is shows as a spotlight in the scene, so the seat's 2D glow is dropped. */
+.room-3d .game-seat--turn { border-color:#84b2dc66 !important; box-shadow:none; animation:none; }
+.room-3d .game-seat--turn.game-seat--b { border-color:#dc9b9a66 !important; }
+/* 3D table: the asked card(s) float over to the asked player, so the "Do you have…" bubble would only repeat it.
+   Answer bubbles ("No." and the rest) still show. */
+.room-3d .club-bubble--ask { display:none; }

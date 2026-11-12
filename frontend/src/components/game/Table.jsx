@@ -331,10 +331,12 @@ export default function Table() {
           teams={[0,1,2,3,4,5].map((rel) => players[seats[(rel + mySeatIndex) % 6]]?.team || null)}
           sets={state.table_sets || []}
           dealing={!!dealingAnimation}
+          turnId={turnPlayer && !awaitingStart ? turnPlayer.id : null}
           dealId={dealingAnimation?.id}
           dealOrder={dealingAnimation?.dealingSequence?.map(d => (Number(d.seat) - mySeatIndex + 6) % 6)}
           dealerRel={(() => { if (dealingAnimation?.dealerSeat != null) return (Number(dealingAnimation.dealerSeat) - mySeatIndex + 6) % 6; const seat = Object.keys(seats).find((k) => seats[k] === state.current_dealer); return seat == null ? 0 : (Number(seat) - mySeatIndex + 6) % 6; })()}
           mySeatIndex={mySeatIndex}
+          ask={pendingAsk}
           hand={handSorted}
           selectedKeys={selectedCardsToPass.map((c) => `${c.suit}-${c.rank}`)}
           handTappable={!dealingAnimation && state.phase === 'playing' && ws?.readyState === 1 && !layOpen && (isTurnPlay ? myTurn : true)}

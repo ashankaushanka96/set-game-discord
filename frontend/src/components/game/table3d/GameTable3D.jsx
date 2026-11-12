@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { createGameTable3D } from './tableScene';
 import Card from '../../cards/Card';
 import { nearestPlayerAt } from '../cardDropTarget';
+import { useStore } from '../../../store';
 
 // Things on the page that must keep their own taps and drags; anywhere else turns the table.
 const UI = 'button, a, input, textarea, select, [role="dialog"], .club-modal, .table-chat, .laydown-tablepick, .hand-selection-actions, .reaction-aim, .bot-wait';
@@ -16,8 +17,26 @@ const UI = 'button, a, input, textarea, select, [role="dialog"], .club-modal, .t
 // (`dragPass`; the drag callbacks match PlayerHand's).
 export default function GameTable3D({ arenaRef, ids, counts, teams, sets, dealing, dealerRel, dealOrder, dealId, mySeatIndex = 0,
   hand = [], selectedKeys = [], handTappable = false, onCardTap, onLayout, onFail,
-  dragPass = false, resolveDropTarget, onDragStart, onDragHover, onDragEnd, onCardsDrop }) {
+  dragPass = false, resolveDropTarget, onDragStart, onDragHover, onDragEnd, onCardsDrop, ask = null, turnId = null }) {
   const host = useRef(null);
+  // Turn Play pointers drawn in 3D (the asked card gliding over): the waiting ask, plus the store's laydown and turn arrows
+  // while their time window is open (delayed ones appear when their start comes).
+  const flowArrows = useStore((s) => s.flowArrows);
+  const [clock, setClock] = useState(() => Date.now());
+  useEffect(() => {
+    if (!flowArrows?.length) return;
+    const id = setInterval(() => setClock(Date.now()), 300);
+    return () => clearInterval(id);
+  }, [flowArrows]);
+  const relOf = (pid) => (pid ? ids.indexOf(pid) : -1);
+  const pointers = [
+    ...(ask?.asker_id && ask?.target_id ? [{ key: 'ask', from: relOf(ask.asker_id), to: relOf(ask.target_id), tone: 'ask',
+      cards: ask.suit && ask.ranks?.length ? ask.ranks.map((rank) => ({ suit: ask.suit, rank })) : undefined }] : []),
+    ...(flowArrows || []).filter((a) => (a.start || 0) <= clock && a.until > clock)
+      .map((a) => ({ key: a.id, from: relOf(a.from), to: relOf(a.to), tone: a.tone, label: a.label })),
+  ].filter((p) => p.from >= 0 && p.to >= 0 && p.from !== p.to);
+  const pointerKey = JSON.stringify(pointers);
+  const turnRel = turnId && ids.indexOf(turnId) >= 0 ? ids.indexOf(turnId) : null;
   const table = useRef(null);
   const [portrait, setPortrait] = useState(null);
   const [turned, setTurned] = useState(false);
@@ -28,7 +47,7 @@ export default function GameTable3D({ arenaRef, ids, counts, teams, sets, dealin
   useEffect(() => { setRoomEl(host.current?.closest('.card-room') || null); }, []);
   const data = useRef({});
   data.current = { ids, counts, teams, sets, dealing, dealerRel, dealOrder, dealId, mySeatIndex, hand, selectedKeys, handTappable, onCardTap, onLayout,
-    dragPass, resolveDropTarget, onDragStart, onDragHover, onDragEnd, onCardsDrop };
+    dragPass, resolveDropTarget, onDragStart, onDragHover, onDragEnd, onCardsDrop, pointers, turnRel };
 
   const rectIn = (el) => {
     const a = el?.getBoundingClientRect(), h = host.current?.getBoundingClientRect();
@@ -95,6 +114,8 @@ export default function GameTable3D({ arenaRef, ids, counts, teams, sets, dealin
     const relayout = () => { report(t.layout(rectIn(arenaRef.current))); pushHand(); };
     const d = data.current;
     t.update({ counts: d.counts, teams: d.teams, sets: d.sets });
+    t.setPointers(d.pointers);
+    t.setTurn(d.turnRel);
     relayout();
     if (d.dealing) t.startDeal(d.dealerRel, d.dealOrder);
     const ro = new ResizeObserver(relayout);
@@ -248,6 +269,9 @@ export default function GameTable3D({ arenaRef, ids, counts, teams, sets, dealin
     if (!t) return;
     if (dealing) { pushHand(); t.startDeal(dealerRel, dealOrder); } else t.stopDeal();
   }, [dealing, dealId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { table.current?.setPointers(pointers); }, [pointerKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { table.current?.setTurn(turnRel); }, [turnRel]);
 
   const handKey = JSON.stringify([hand.map((c) => `${c.suit}-${c.rank}`), selectedKeys, dealing]);
   useEffect(() => { pushHand(); }, [handKey]); // eslint-disable-line react-hooks/exhaustive-deps

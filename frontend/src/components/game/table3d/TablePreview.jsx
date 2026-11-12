@@ -16,6 +16,8 @@ export default function TablePreview() {
   const [layout, setLayout] = useState(null);
   const [hand, setHand] = useState(initialHand);
   const [selected, setSelected] = useState([]);
+  const [ask, setAsk] = useState(null);
+  const [turn, setTurn] = useState(ids[0]);
   const [counts, setCounts] = useState([7, 8, 8, 8, 8, 8]);
   const [sets, setSets] = useState([]);
   const [dealing, setDealing] = useState(false);
@@ -25,17 +27,22 @@ export default function TablePreview() {
   useEffect(() => () => clearTimeout(timer.current), []);
   const finish = (ms, action) => { timer.current = setTimeout(() => { action?.(); setBusy(false); }, ms); };
   const deal = () => {
-    setBusy(true); setHand(initialHand); setSelected([]); setSets([]); setCounts([7, 8, 8, 8, 8, 8]);
+    setBusy(true); setTurn(ids[0]); setHand(initialHand); setSelected([]); setSets([]); setCounts([7, 8, 8, 8, 8, 8]);
     emit('dismiss_passed_cards'); setDealing(true); setMessage('Dealing around the table · cards arrive one by one');
     finish(31000, () => { setDealing(false); setMessage('All dealt. Your turn.'); });
   };
   const pass = () => {
-    setBusy(true); setMessage('Suwada passes you the queen of hearts');
-    const card = { rank: 'Q', suit: 'hearts' };
-    emit('pass_anim', { from_player: ids[4], to_player: ids[0], cards: [card] });
-    setHand(h => h.some(c => c.rank === 'Q' && c.suit === 'hearts') ? h : [...h, card]);
-    setCounts(c => c.map((n, i) => i === 4 ? Math.max(0, n - 1) : i === 0 ? n + 1 : n));
-    finish(1800, () => setMessage('Card received · tap a card to lift it from your hand'));
+    // You ask Suwada: the queen of hearts floats over to Suwada while they decide, then they pass the card.
+    setBusy(true); setMessage('You ask Suwada for the queen, king and ace of hearts');
+    setAsk({ asker_id: ids[0], target_id: ids[4], suit: 'hearts', ranks: ['Q', 'K', 'A'] });
+    finish(2600, () => {
+      setAsk(null); setBusy(true); setMessage('Suwada passes you the queen of hearts');
+      const card = { rank: 'Q', suit: 'hearts' };
+      emit('pass_anim', { from_player: ids[4], to_player: ids[0], cards: [card] });
+      setHand(h => h.some(c => c.rank === 'Q' && c.suit === 'hearts') ? h : [...h, card]);
+      setCounts(c => c.map((n, i) => i === 4 ? Math.max(0, n - 1) : i === 0 ? n + 1 : n));
+      finish(1800, () => setMessage('Card received · tap a card to lift it from your hand'));
+    });
   };
   const lay = () => {
     setBusy(true); setMessage('Team A lays down the low clubs');
@@ -47,10 +54,10 @@ export default function TablePreview() {
     ] });
     setHand(h => h.filter(c => !(c.suit === 'clubs' && c.rank === '4')));
     setSelected([]);
-    finish(6500, () => setMessage('Set collected for Team A · shuffle to start again'));
+    finish(6500, () => { setTurn(ids[1]); setMessage("Set collected for Team A · Kachal's turn · shuffle to start again"); });
   };
   return <main className="card-room table-preview">
-    <GameTable3D arenaRef={arena} ids={ids} counts={counts} teams={teams} sets={sets}
+    <GameTable3D arenaRef={arena} ids={ids} counts={counts} teams={teams} sets={sets} ask={ask} turnId={turn}
       dealing={dealing} dealerRel={3} hand={hand} selectedKeys={selected} handTappable={!busy}
       onCardTap={c => { const k = `${c.suit}-${c.rank}`; setSelected(s => s.includes(k) ? s.filter(x => x !== k) : [...s, k]); }}
       dragPass={!busy} resolveDropTarget={id => id !== ids[0] && ids.includes(id)}

@@ -227,7 +227,34 @@ export function createGameTable3D(container, { portrait }) {
   const timers = new Set();
   let raf = 0, lastT = 0;
   const ease = (k) => (k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
-  function render() { renderer.render(scene, camera); handRenderer.render(handScene, camera); }
+  // Spotlight cones: one straight cone from a lamp above the player's head (tilted halfway between
+  // straight up and the camera's "up", so on side seats it doesn't lean away from the head) down to
+  // the floor right under their chair, where the pool of light lies. The cone is wide enough at head
+  // height to cover the head.
+  const FLOOR_Y = -1.6, HEAD_Y = 0.98, LAMP = 1.9;
+  function makeBeam(mat) {
+    const g = new THREE.CylinderGeometry(0.2, 1.05, 1, 40, 1, true);
+    const m = new THREE.Mesh(g, mat); m.userData = { x: 0, z: 0, pool: null }; aimed.add(m);
+    return m;
+  }
+  const aimed = new Set(), camUp = new THREE.Vector3(), dir = new THREE.Vector3(), Y_AXIS = new THREE.Vector3(0, 1, 0);
+  const apex = new THREE.Vector3(), base = new THREE.Vector3();
+  function aimBeams() {
+    if (!aimed.size) return;
+    camUp.copy(camera.up).applyQuaternion(camera.quaternion).normalize();
+    dir.copy(camUp).add(Y_AXIS).normalize();
+    for (const m of aimed) {
+      const { x, z, pool } = m.userData;
+      apex.set(x, HEAD_Y, z).addScaledVector(dir, LAMP);
+      base.set(x, FLOOR_Y, z);
+      const len = apex.distanceTo(base);
+      m.quaternion.setFromUnitVectors(Y_AXIS, base.subVectors(apex, base).normalize());
+      base.set(x, FLOOR_Y, z);
+      m.position.addVectors(apex, base).multiplyScalar(0.5); m.scale.y = len;
+      if (pool) { pool.position.x = base.x; pool.position.z = base.z; }
+    }
+  }
+  function render() { aimBeams(); renderer.render(scene, camera); handRenderer.render(handScene, camera); }
   // a card picture finished loading: draw it (once per frame at most; nothing after dispose)
   let alive = true, repaintQueued = false;
   const repaint = () => { if (!alive || repaintQueued) return; repaintQueued = true; requestAnimationFrame(() => { repaintQueued = false; if (alive) render(); }); };
@@ -259,8 +286,10 @@ export function createGameTable3D(container, { portrait }) {
       if (tw.s1) tw.mesh.scale.setScalar(tw.s0 + (tw.s1 - tw.s0) * k);
       if (raw >= 1) { tweens.splice(i, 1); tw.onDone?.(); }
     }
+    if (pointers.size) animatePointers(now);
+    if (turnAnim) animateTurn(now);
     render();
-    raf = tweens.length ? requestAnimationFrame(tick) : 0;
+    raf = tweens.length || pointers.size || turnAnim ? requestAnimationFrame(tick) : 0;
   }
   function kick() { if (!raf) { lastT = performance.now(); raf = requestAnimationFrame(tick); } }
   function fly(mesh, from, to, o = {}) {
@@ -272,6 +301,204 @@ export function createGameTable3D(container, { portrait }) {
     kick();
   }
   function later(seconds, fn) { const id = setTimeout(() => { timers.delete(id); fn(); }, seconds * 1000); timers.add(id); return id; }
+
+  // ---- Turn Play pointers: instead of an arrow, the thing being passed travels across the table.
+  // An ask sends a copy of the asked-for card gliding from the asker to hover in front of the asked
+  // player; laydown arrows send a card back, turn passes send a "TURN" chip. The player it goes to
+  // stands in a soft spotlight (a cone of light and a pool on the floor); the sender gets a faint glow. ----
+  const TONE3D = { ask: 0xffd27a, lay: 0x7ee2a0, turn: 0x7cc8f0 };
+  const pointers = new Map();      // key -> pointer
+  const beamTex = canvasTexture(8, 128, (g) => {
+    const grad = g.createLinearGradient(0, 0, 0, 128);
+    grad.addColorStop(0, 'rgba(255,255,255,0)'); grad.addColorStop(.3, 'rgba(255,255,255,.5)'); grad.addColorStop(1, 'rgba(255,255,255,.6)');
+    g.fillStyle = grad; g.fillRect(0, 0, 8, 128);
+  });
+  const poolTex = canvasTexture(128, 128, (g) => {
+    const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    grad.addColorStop(0, 'rgba(255,255,255,.85)'); grad.addColorStop(.45, 'rgba(255,255,255,.4)'); grad.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grad; g.fillRect(0, 0, 128, 128);
+  });
+  const toCentre = (sp) => new THREE.Vector3(-sp.pos.x, 0, -sp.pos.z).normalize();
+  function labelSprite(text, color) {
+    const tex = canvasTexture(256, 80, (g) => {
+      g.fillStyle = 'rgba(13,26,22,.92)'; g.beginPath(); g.roundRect(4, 4, 248, 72, 36); g.fill();
+      g.strokeStyle = `#${color.toString(16).padStart(6, '0')}`; g.lineWidth = 5; g.stroke();
+      g.fillStyle = '#fff'; g.font = 'bold 38px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(String(text).toUpperCase(), 128, 42);
+    });
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+    sp.scale.set(0.9, 0.28, 1); sp.renderOrder = 5; return sp;
+  }
+  const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+  // a point part-way between two seats, going around the table rather than straight across it
+  function arcPos(from, to, k) {
+    const a0 = Math.atan2(from.z, from.x), r0 = Math.hypot(from.x, from.z);
+    let d = Math.atan2(to.z, to.x) - a0; d = Math.atan2(Math.sin(d), Math.cos(d));
+    const r = r0 + (Math.hypot(to.x, to.z) - r0) * k, ang = a0 + d * k;
+    return new THREE.Vector3(Math.cos(ang) * r, 0, Math.sin(ang) * r);
+  }
+  const glowMat = (color, map, opacity) => new THREE.MeshBasicMaterial({ color, map, transparent: true, opacity, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
+  // Where the travelling card(s) hover: over the table in front of the receiver, pushed further in
+  // until, as seen on screen, the cards no longer overlap that player's avatar, name or badge.
+  const AVATAR_CLEAR = 46;                                      // css px around the head kept free
+  function hoverPoint(b, nCards) {
+    const up = new THREE.Vector3().copy(camera.up).applyQuaternion(camera.quaternion).normalize();
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion).normalize();
+    const half = nCards ? CH * (nCards > 1 ? 1.35 : 1.6) / 2 + (nCards > 1 ? 0.15 : 0.05) : 0.2;
+    const halfW = nCards ? CW * (nCards > 1 ? 1.35 : 1.6) / 2 * (1 + 0.45 * (nCards - 1)) : 0.55;
+    const head = project(new THREE.Vector3(b.pos.x, 0.98, b.pos.z));
+    let pt = null;
+    for (let d = 1.4; d <= 3.4; d += 0.1) {
+      pt = b.pos.clone().addScaledVector(toCentre(b), d).setY(0.85);
+      const top = project(pt.clone().addScaledVector(up, half)).y, bottom = project(pt.clone().addScaledVector(up, -half)).y;
+      const l = project(pt.clone().addScaledVector(right, -halfW)).x, r = project(pt.clone().addScaledVector(right, halfW)).x;
+      if (top > head.y + AVATAR_CLEAR || bottom < head.y - AVATAR_CLEAR || l > head.x + AVATAR_CLEAR || r < head.x - AVATAR_CLEAR) break;
+    }
+    return pt;
+  }
+  function makePointer(pt) {
+    const a = spots[pt.from], b = spots[pt.to];
+    const color = TONE3D[pt.tone] || TONE3D.ask;
+    const start = a.pos.clone().addScaledVector(toCentre(a), 0.6).setY(0.7);
+    const nCards = pt.tone === 'turn' ? 0 : Math.max(1, Math.min(6, pt.cards?.length || 1));
+    const end = hoverPoint(b, nCards);
+    const mid = start.clone().add(end).multiplyScalar(0.5).multiplyScalar(0.7);
+    mid.y = 1.3 + start.distanceTo(end) * 0.12;
+    const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
+    const group = new THREE.Group(), owned = [];
+    // the travelling object: the asked card's face, a card back, or a chip
+    const flyer = new THREE.Group(), cards = new THREE.Group();   // cards may be lifted onto the hand layer (see animatePointers)
+    if (pt.tone === 'turn') {
+      const chip = labelSprite(pt.label || 'turn', color); chip.scale.set(1.1, 0.34, 1); flyer.add(chip); owned.push(chip.material.map, chip.material);
+    } else {
+      // one card, or a small fan when several cards are asked for at once
+      const list = (pt.cards?.length ? pt.cards : pt.card ? [pt.card] : [null]).slice(0, 6);
+      const n = list.length, size = n > 1 ? 1.35 : 1.6, step = n > 1 ? Math.min(0.24, 0.9 / (n - 1)) : 0;
+      list.forEach((c, i) => {
+        const face = c?.rank && c?.suit ? faceMat(c.rank, c.suit) : backMat;
+        const card = new THREE.Mesh(cardGeo, [edgeMat, edgeMat, face, backMat, edgeMat, edgeMat]);
+        card.rotation.x = Math.PI / 2; card.scale.setScalar(size); card.castShadow = true;
+        const holder = new THREE.Group();                         // pivots below the card so the fan opens like a hand
+        card.position.y = CH * size * 0.9; holder.position.set(0, -CH * size * 0.9 + (n > 1 ? 0.05 : 0), i * 0.012);
+        holder.rotation.z = -(i - (n - 1) / 2) * step;
+        holder.add(card); cards.add(holder);
+      });
+      const halo = new THREE.Mesh(new THREE.PlaneGeometry(CW * (3.2 + (n - 1) * 0.7), CH * 2.7), glowMat(color, poolTex, 0.7));
+      halo.position.z = -0.03; owned.push(halo.geometry, halo.material);
+      flyer.add(halo);
+      if (pt.label) { const l = labelSprite(pt.label, color); l.position.y = -0.75; flyer.add(l); owned.push(l.material.map, l.material); }
+    }
+    // spotlight on the receiver: a cone of light from above and a pool on the floor; a faint pool under the sender
+    const beamMat = glowMat(color, beamTex, 0.6);
+    const beam = makeBeam(beamMat);
+    Object.assign(beam.userData, { x: a.pos.x, z: a.pos.z });
+    const poolMat = glowMat(color, poolTex, 0.7);
+    const pool = new THREE.Mesh(new THREE.CircleGeometry(1.4, 48), poolMat);
+    pool.rotation.x = -Math.PI / 2; pool.position.set(a.pos.x, FLOOR_Y + 0.02, a.pos.z);
+    const fromMat = glowMat(color, poolTex, 0.3);
+    const fromPool = new THREE.Mesh(new THREE.CircleGeometry(0.85, 40), fromMat);
+    fromPool.rotation.x = -Math.PI / 2; fromPool.position.set(a.pos.x, FLOOR_Y + 0.02, a.pos.z);
+    owned.push(beam.geometry, beamMat, pool.geometry, poolMat, fromPool.geometry, fromMat);
+    group.add(beam, pool, fromPool, flyer, cards);
+    scene.add(group);
+    beam.userData.pool = pool;
+    return { key: pt.key, group, flyer, cards, cardR: nCards ? CH * (nCards > 1 ? 1.35 : 1.6) / 2 + 0.1 : 0.25, beam, beamMat, poolMat, pool, curve, aPos: a.pos.clone(), bPos: b.pos.clone(), owned, born: performance.now(), sig: sigOf(pt) };
+  }
+  const sigOf = (pt) => `${pt.from}>${pt.to}:${pt.tone}:${pt.label || ''}:${(pt.cards || (pt.card ? [pt.card] : [])).map((c) => c.rank + c.suit).join(',')}`;
+  function dropPointer(p) {
+    scene.remove(p.group); p.cards.parent?.remove(p.cards); aimed.delete(p.beam);
+    p.owned.forEach((o) => o.dispose());
+  }
+  const reduceMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const FLY = 0.95;
+  const headPts = spots.map((sp) => new THREE.Vector3(sp.pos.x, 0.98, sp.pos.z));
+  const HEAD_PX = 44;
+  function cardsInFront(pos, radius) {
+    const c = project(pos), edge = project(pos.clone().addScaledVector(camUp.copy(camera.up).applyQuaternion(camera.quaternion), radius));
+    const r = Math.abs(edge.y - c.y) + HEAD_PX, dCard = camera.position.distanceTo(pos);
+    let front = false;
+    for (const h of headPts) {
+      const hp = project(h);
+      if (Math.abs(hp.x - c.x) > r || Math.abs(hp.y - c.y) > r) continue;
+      if (camera.position.distanceTo(h) < dCard) return false;   // a nearer head covers the cards
+      front = true;
+    }
+    return front;
+  }
+  function animatePointers(now) {
+    for (const p of pointers.values()) {
+      const el = (now - p.born) / 1000;
+      const t = reduceMotion ? 1 : Math.min(1, el / FLY);
+      const k = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;      // ease in and out
+      const at = arcPos(p.aPos, p.bPos, k);                                    // the spotlight sweeps over with the card
+      p.beam.userData.x = at.x; p.beam.userData.z = at.z;
+      p.flyer.position.copy(p.curve.getPoint(k));
+      const hover = reduceMotion ? 0 : Math.max(0, el - FLY);
+      p.flyer.position.y += 0.06 * Math.sin(hover * 2.4);
+      p.flyer.quaternion.copy(camera.quaternion);                                 // always faces the player
+      if (!reduceMotion) p.flyer.rotateY(t < 1 ? (1 - k) * Math.PI * 2 : 0.18 * Math.sin(hover * 1.6));
+      const s = 0.55 + 0.45 * k; p.flyer.scale.setScalar(s);
+      p.cards.position.copy(p.flyer.position); p.cards.quaternion.copy(p.flyer.quaternion); p.cards.scale.setScalar(s);
+      // Avatars are HTML drawn over the 3D table. When the cards overlap a player's head on screen and
+      // are nearer to us than that head, they belong in front of it, so they move to the hand layer
+      // (which sits above the seats); behind a nearer head they stay in the table scene, under it.
+      const parent = cardsInFront(p.flyer.position, p.cardR * s) ? handScene : p.group;
+      if (p.cards.parent !== parent) parent.add(p.cards);
+      const on = Math.min(1, el / 0.4), pulse = 0.5 + 0.5 * Math.sin(el * 2 * Math.PI / 1.6);
+      p.beamMat.opacity = on * (0.85 + 0.15 * pulse);
+      p.poolMat.opacity = on * (0.8 + 0.2 * pulse);
+      p.pool.scale.setScalar(1 + 0.06 * pulse);
+    }
+  }
+  // ---- Whose turn it is (Turn Play): a cool spotlight on that player, a cone of light from above
+  // and a pool at their chair. When the turn passes it glides around the table to the next player
+  // (dimming a little on the way), and it fades in and out when Turn Play starts or stops. ----
+  const TURN_COLOR = 0x8fd3ff;
+  const turnBeamMat = glowMat(TURN_COLOR, beamTex, 0), turnPoolMat = glowMat(TURN_COLOR, poolTex, 0);
+  const turnBeam = makeBeam(turnBeamMat);
+  const turnPool = new THREE.Mesh(new THREE.CircleGeometry(1.4, 48), turnPoolMat);
+  turnPool.rotation.x = -Math.PI / 2;
+  turnPool.position.y = FLOOR_Y + 0.01;
+  turnBeam.userData.pool = turnPool;
+  const turnLight = new THREE.Group(); turnLight.add(turnBeam, turnPool); turnLight.visible = false; scene.add(turnLight);
+  const turnBeamFor = (rel) => (rel === 0 ? 0.35 : 0.75);     // your own seat is right by the camera, so keep it softer
+  let turnNow = { pos: null, alpha: 0, beam: 0.75 }, turnAnim = null;
+  function setTurn(rel) {
+    const sp = rel == null ? null : spots[rel];
+    const from = turnNow.pos || (sp ? sp.pos.clone() : null);
+    if (!from) return;
+    const to = sp ? sp.pos.clone() : from.clone();
+    const moving = sp && turnNow.alpha > 0.01 && from.distanceTo(to) > 0.01;
+    turnAnim = { from: from.clone(), to, a0: turnNow.alpha, a1: sp ? 1 : 0, b0: turnNow.beam, b1: sp ? turnBeamFor(rel) : turnNow.beam,
+      moving, t0: performance.now(), dur: reduceMotion ? 0 : moving ? 0.85 : 0.45 };
+    kick();
+  }
+  function animateTurn(now) {
+    const t = turnAnim.dur ? Math.min(1, (now - turnAnim.t0) / 1000 / turnAnim.dur) : 1;
+    const k = easeInOut(t);
+    const pos = arcPos(turnAnim.from, turnAnim.to, k);
+    let alpha = turnAnim.a0 + (turnAnim.a1 - turnAnim.a0) * k;
+    if (turnAnim.moving) alpha *= 1 - 0.3 * Math.sin(Math.PI * k);
+    const beam = turnAnim.b0 + (turnAnim.b1 - turnAnim.b0) * k;
+    turnNow = { pos, alpha, beam };
+    turnBeam.userData.x = pos.x; turnBeam.userData.z = pos.z;
+    turnBeamMat.opacity = beam * alpha; turnPoolMat.opacity = 0.85 * alpha;
+    const grow = turnAnim.moving ? 1 : 0.5 + 0.5 * alpha;          // the pool opens up as the light comes on
+    turnPool.scale.setScalar(grow); turnBeam.scale.x = turnBeam.scale.z = grow;
+    turnLight.visible = alpha > 0.01;
+    if (t >= 1) turnAnim = null;
+  }
+  /** pts: [{ key, from, to, tone: 'ask'|'lay'|'turn', label?, card?: {rank, suit}, cards?: [{rank, suit}] }] with seats relative to the player. */
+  function setPointers(pts) {
+    const want = new Map();
+    for (const pt of pts || []) if (pt && spots[pt.from] && spots[pt.to] && pt.from !== pt.to) want.set(pt.key, pt);
+    for (const [key, p] of pointers) {
+      const pt = want.get(key);
+      if (!pt || p.sig !== sigOf(pt)) { dropPointer(p); pointers.delete(key); }
+    }
+    for (const [key, pt] of want) if (!pointers.has(key)) pointers.set(key, makePointer(pt));
+    if (pointers.size) kick(); else render();
+  }
 
   // ---- state ----
   let state = { counts: [0, 0, 0, 0, 0, 0], teams: [], sets: [] };
@@ -679,9 +906,9 @@ export function createGameTable3D(container, { portrait }) {
     pickHand, hoverHand, dragHand, endDragHand,
     /** contributors: [{ rel, cards }] */
     lay,
-    startDeal, stopDeal, pass, clearRest,
+    startDeal, stopDeal, pass, clearRest, setPointers, setTurn,
     dispose() {
-      alive = false; cancelAnimationFrame(raf); timers.forEach((id) => clearTimeout(id)); tweens.length = 0;
+      alive = false; cancelAnimationFrame(raf); pointers.forEach(dropPointer); pointers.clear(); beamTex.dispose(); poolTex.dispose(); turnBeam.geometry.dispose(); turnPool.geometry.dispose(); turnBeamMat.dispose(); turnPoolMat.dispose(); timers.forEach((id) => clearTimeout(id)); tweens.length = 0;
       scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); for (const m of [].concat(o.material || [])) { m.map?.dispose(); m.dispose(); } });
       faceMats.forEach((m) => { m.map?.dispose(); m.dispose(); });
       handFaceMats.forEach((m) => { m.map?.dispose(); m.dispose(); });
