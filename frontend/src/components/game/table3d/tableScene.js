@@ -255,41 +255,100 @@ export function createGameTable3D(container, { portrait }) {
     resting.set(toRel, { meshes, timer });
   }
 
-  // ---- camera: looks down the table from the player's seat, as close as the seats allow ----
+  // ---- camera: looks down the table from the player's seat, as close as the seats allow.
+  // The player can drag to turn the table and pinch or scroll to zoom. ----
   const target = new THREE.Vector3(0, 0, portrait ? 0.15 : 0.25);
-  const viewDir = (portrait ? new THREE.Vector3(0, 0.83, 0.56) : new THREE.Vector3(0, 0.78, 0.63)).normalize();
+  const POLAR0 = portrait ? 0.59 : 0.68;                 // angle down from straight overhead
   const anchors = spots.map((s) => new THREE.Vector3(s.pos.x, 0.2, s.pos.z));
-  let size = { w: 1, h: 1 };
+  const view = { az: 0, polar: POLAR0, zoom: 1, dist0: 12, ox: 0, oy: 0 };
+  let size = { w: 1, h: 1 }, area = null;
   function project(v) {
     const p = v.clone().project(camera);
     return { x: (p.x * 0.5 + 0.5) * size.w, y: (-p.y * 0.5 + 0.5) * size.h };
   }
-  /** `area` is where the seats must fit, in px inside the container (the canvas fills the container). */
-  function fit(area) {
+  function place(d, az, polar) {
+    const dir = new THREE.Vector3(Math.sin(polar) * Math.sin(az), Math.cos(polar), Math.sin(polar) * Math.cos(az));
+    camera.position.copy(target).addScaledVector(dir, d);
+    camera.lookAt(target);
+    camera.clearViewOffset(); camera.updateProjectionMatrix(); camera.updateMatrixWorld();
+    // slide the picture so the table's middle sits in the middle of the players' area
+    view.ox = size.w / 2 - (area.left + area.width / 2);
+    view.oy = size.h / 2 - (area.top + area.height / 2);
+    camera.setViewOffset(size.w, size.h, view.ox, view.oy, size.w, size.h);
+    camera.updateProjectionMatrix();
+  }
+  const applyView = () => place(view.dist0 * view.zoom, view.az, view.polar);
+  /** `a` is where the seats must fit, in px inside the container (the canvas fills the container). */
+  function fit(a) {
     const w = container.clientWidth, h = container.clientHeight;
-    if (!w || !h || !area?.width || !area?.height) return false;
-    size = { w, h };
+    if (!w || !h || !a?.width || !a?.height) return false;
+    size = { w, h }; area = a;
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
-    const padX = Math.min(38, area.width * 0.1), padTop = 38, padBottom = 34;
-    const cx = area.left + area.width / 2, cy = area.top + area.height / 2;
-    const place = (d) => {
-      camera.position.copy(target).addScaledVector(viewDir, d);
-      camera.lookAt(target);
-      camera.clearViewOffset(); camera.updateProjectionMatrix(); camera.updateMatrixWorld();
-      // slide the picture so the table's middle sits in the middle of the area
-      const c = project(target);
-      camera.setViewOffset(w, h, c.x - cx, c.y - cy, w, h);
-      camera.updateProjectionMatrix();
-    };
+    const padX = Math.min(38, a.width * 0.1), padTop = 38, padBottom = 34;
     let lo = 4, hi = 44;
     for (let i = 0; i < 18; i++) {
-      const d = (lo + hi) / 2; place(d);
-      const ok = anchors.every((a) => { const p = project(a); return p.x >= area.left + padX && p.x <= area.left + area.width - padX && p.y >= area.top + padTop && p.y <= area.top + area.height - padBottom; });
+      const d = (lo + hi) / 2; place(d, 0, POLAR0);
+      const ok = anchors.every((p3) => { const p = project(p3); return p.x >= a.left + padX && p.x <= a.left + a.width - padX && p.y >= a.top + padTop && p.y <= a.top + a.height - padBottom; });
       if (ok) hi = d; else lo = d;
     }
-    place(hi);
+    view.dist0 = hi;
+    applyView();
     return true;
+  }
+  function seatLayout() {
+    if (!area) return null;
+    const rel = (p) => ({ x: p.x - area.left, y: p.y - area.top });
+    return { seats: spots.map((s, i) => ({ rel: i, ...rel(project(anchors[i])) })), center: rel(project(new THREE.Vector3(0, 0, 0))), width: area.width, height: area.height,
+      turned: Math.abs(view.az) > 0.02 || Math.abs(view.polar - POLAR0) > 0.02 || Math.abs(view.zoom - 1) > 0.02 };
+  }
+
+  // ---- the player's own hand: a fan of cards fixed to the front of the screen ----
+  const HUD_D = 4;
+  scene.add(camera);
+  const handGroup = new THREE.Group(); camera.add(handGroup);
+  const handFaces = new Map();
+  const handFace = (rank, suit) => {
+    const key = `${rank}|${suit}`;
+    if (!handFaces.has(key)) handFaces.set(key, new THREE.MeshBasicMaterial({ map: faceTexture(rank, suit), depthTest: false, transparent: true }));
+    return handFaces.get(key);
+  };
+  const hudEdge = new THREE.MeshBasicMaterial({ color: 0xe6dcc2, depthTest: false });
+  let hand = { cards: [], selected: new Set(), rect: null, meshes: [] };
+  function hudPoint(sx, sy) {                             // screen px -> position in front of the camera
+    const half = Math.tan((camera.fov / 2) * Math.PI / 180) * HUD_D;
+    const nx = ((sx + view.ox) / size.w) * 2 - 1, ny = 1 - ((sy + view.oy) / size.h) * 2;
+    return new THREE.Vector3(nx * half * camera.aspect, ny * half, -HUD_D);
+  }
+  function drawHand() {
+    handGroup.clear(); hand.meshes = [];
+    const { cards, selected, rect } = hand;
+    const n = cards.length;
+    if (!n || !rect || !rect.width || !area) return;
+    const upp = (2 * Math.tan((camera.fov / 2) * Math.PI / 180) * HUD_D) / size.h;   // world units per screen px
+    const ch = Math.max(64, Math.min(rect.height * 0.84, 124)), cw = ch * (CW / CH);
+    const gap = n > 1 ? Math.min(cw * 0.8, (rect.width - cw - 8) / (n - 1)) : 0;
+    const mid = (n - 1) / 2, spread = Math.min(0.055, 0.5 / Math.max(1, n));
+    cards.forEach((card, i) => {
+      const k = i - mid;
+      const lift = selected.has(`${card.suit}-${card.rank}`) ? -ch * 0.2 : 0;
+      const pivot = new THREE.Group();
+      pivot.position.copy(hudPoint(rect.left + rect.width / 2 + k * gap, rect.top + rect.height / 2 + k * k * (ch * 0.012) + lift));
+      pivot.rotation.z = -k * spread;                    // the fan
+      const m = new THREE.Mesh(cardGeo, [hudEdge, hudEdge, handFace(card.rank, card.suit), hudEdge, hudEdge, hudEdge]);
+      m.scale.setScalar((cw * upp) / CW);
+      m.rotation.x = Math.PI / 2 - 0.32;                 // leaning back, like cards held over the table edge
+      m.renderOrder = 100 + i; m.userData.card = card;
+      pivot.add(m); handGroup.add(pivot); hand.meshes.push(m);
+    });
+  }
+  const raycaster = new THREE.Raycaster();
+  function pickHand(sx, sy) {
+    if (!hand.meshes.length) return null;
+    raycaster.setFromCamera(new THREE.Vector2((sx / size.w) * 2 - 1, 1 - (sy / size.h) * 2), camera);
+    const hits = raycaster.intersectObjects(hand.meshes, false);
+    if (!hits.length) return null;
+    return hits.reduce((a, b) => (b.object.renderOrder > a.object.renderOrder ? b : a)).object.userData.card;   // the one drawn on top
   }
 
   return {
@@ -300,18 +359,31 @@ export function createGameTable3D(container, { portrait }) {
       drawSets(sets);
       refresh();
     },
-    /** Refits the camera; returns each seat's screen position (px, relative to `area`) and the table centre. */
-    layout(area) {
-      if (!fit(area)) return null;
-      render();
-      const rel = (p) => ({ x: p.x - area.left, y: p.y - area.top });
-      return { seats: spots.map((s, i) => ({ rel: i, ...rel(project(anchors[i])) })), center: rel(project(new THREE.Vector3(0, 0, 0))), width: area.width, height: area.height };
+    /** Refits the camera to `a`; returns each seat's screen position (px, relative to `a`) and the table centre. */
+    layout(a) {
+      if (!fit(a)) return null;
+      drawHand(); render();
+      return seatLayout();
     },
+    /** Turn the table (radians) and/or zoom (factor); returns the new seat positions. */
+    orbit(dAz, dPolar, zoomFactor = 1) {
+      if (!area) return null;
+      view.az += dAz;
+      view.polar = Math.max(0.2, Math.min(1.25, view.polar + dPolar));
+      view.zoom = Math.max(0.55, Math.min(1.8, view.zoom * zoomFactor));
+      applyView(); render();
+      return seatLayout();
+    },
+    resetView() { view.az = 0; view.polar = POLAR0; view.zoom = 1; if (!area) return null; applyView(); render(); return seatLayout(); },
+    /** The player's cards, which are selected ("suit-rank" keys), and where on screen the fan goes (px). */
+    setHand(cards, selectedKeys, rect) { hand = { ...hand, cards, selected: new Set(selectedKeys), rect }; drawHand(); render(); },
+    pickHand,
     startDeal, stopDeal, pass, clearRest,
     dispose() {
       cancelAnimationFrame(raf); timers.forEach((id) => clearTimeout(id)); tweens.length = 0;
       scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); for (const m of [].concat(o.material || [])) { m.map?.dispose(); m.dispose(); } });
       faceMats.forEach((m) => { m.map?.dispose(); m.dispose(); });
+      handFaces.forEach((m) => { m.map?.dispose(); m.dispose(); });
       renderer.dispose();
       renderer.domElement.remove();
     },

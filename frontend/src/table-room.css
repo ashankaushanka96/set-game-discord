@@ -406,6 +406,14 @@
 /* Laid sets live in the middle of the table, so the "Sets" button moves out of their way. */
 .card-room .table-3d-on .sets-chip { position:absolute; left:50%; bottom:-6px; transform:translateX(-50%); width:auto !important; height:auto !important; min-height:0 !important; padding:4px 12px !important; border-radius:999px !important; font-size:11px !important; opacity:.92; }
 /* The hand and scores float over the room instead of sitting on a solid panel. */
-.card-room.room-3d .game-hand-dock { background:linear-gradient(180deg,#0d151200,#0d1512b3 38%,#0a1210e6) !important; border-top:0 !important; box-shadow:none !important; }
+.card-room.room-3d .game-hand-dock { background:none !important; border-top:0 !important; box-shadow:none !important; }
+.card-room.room-3d .game-hand-dock .player-hand__heading, .card-room.room-3d .game-hand-status, .card-room.room-3d .match-score-strip { text-shadow:0 1px 3px #000, 0 0 8px #000a; }
 /* The deal is drawn in the 3D scene; the flat flying cards are hidden but the skip button stays. */
 .card-room.room-3d .deal-anim-layer > :not(.deal-skip-button) { display:none !important; }
+
+/* The player's hand is a 3D fan drawn by the scene; the flat cards keep their space but are not shown. */
+.card-room.room-3d .player-hand__scroll { visibility:hidden; }
+/* Dragging anywhere that isn't a control turns the table, so the browser must not scroll the page. */
+.card-room.room-3d { touch-action:none; }
+.card-room.room-3d .club-modal__content, .card-room.room-3d .table-chat__panel { touch-action:pan-y; }
+.table3d-reset { position:fixed; left:50%; top:calc(var(--game-safe-top, 0px) + 56px); transform:translateX(-50%); z-index:45; pointer-events:auto; padding:5px 14px; border-radius:999px; border:1px solid #d7bc7c66; background:#13261de6; color:#f3ecdd; font-size:12px; font-weight:600; box-shadow:0 4px 12px #0006; }

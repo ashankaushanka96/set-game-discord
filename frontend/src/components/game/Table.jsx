@@ -229,6 +229,11 @@ export default function Table() {
   const scoreA = state.team_scores?.A ?? 0;
   const scoreB = state.team_scores?.B ?? 0;
 
+  // My cards in display order (by suit, then rank), for the 3D fan
+  const handSorted = useMemo(() => {
+    const suits = ['hearts', 'diamonds', 'clubs', 'spades'], ranks = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+    return [...(my?.hand || [])].sort((a, b) => suits.indexOf(a.suit) - suits.indexOf(b.suit) || ranks.indexOf(a.rank) - ranks.indexOf(b.rank));
+  }, [my?.hand]);
   const handleHandCardClick = (card) => {
     setSelectedCardsToPass(prev => {
       const isSelected = prev.some(c => c.suit === card.suit && c.rank === card.rank);
@@ -327,6 +332,11 @@ export default function Table() {
           sets={state.table_sets || []}
           dealing={!!dealingAnimation}
           dealerRel={(() => { const seat = Object.keys(seats).find((k) => seats[k] === state.current_dealer); return seat == null ? 0 : (Number(seat) - mySeatIndex + 6) % 6; })()}
+          mySeatIndex={mySeatIndex}
+          hand={handSorted}
+          selectedKeys={selectedCardsToPass.map((c) => `${c.suit}-${c.rank}`)}
+          handTappable={state.phase === 'playing' && ws?.readyState === 1 && !layOpen && (isTurnPlay ? myTurn : true)}
+          onCardTap={handleHandCardClick}
           onLayout={setLayout3d}
           onFail={() => setUse3d(false)}
         />
@@ -423,12 +433,12 @@ export default function Table() {
       )}
 
       {/* Card Passing Indicator */}
-      {selectedCardsToPass.length > 0 && !isDraggingCards && (
+      {selectedCardsToPass.length > 0 && !isDraggingCards && !isTurnPlay && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 bg-gradient-primary text-white px-4 py-2 rounded-lg shadow-lg border border-accent-blue/30 shadow-glow-blue">
           <div className="text-sm font-semibold">
             {selectedCardsToPass.length} card{selectedCardsToPass.length !== 1 ? 's' : ''} selected
           </div>
-          <div className="text-xs opacity-80">Drag onto an opponent to pass, or click their seat</div>
+          <div className="text-xs opacity-80">{use3d ? "Tap an opponent's seat to pass" : "Drag onto an opponent to pass, or click their seat"}</div>
         </div>
       )}
 
