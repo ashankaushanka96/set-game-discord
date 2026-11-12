@@ -334,7 +334,7 @@ const DealingAnimation = () => {
     <div className="fixed inset-0 pointer-events-none z-50">
 
       {(phase === 'shuffling' || phase === 'dealing') && <ShuffleDeck shuffling={phase === 'shuffling'} position={getTableCenterPosition()} />}
-      {dealingAnimation.dealerId === me?.id && <button type="button" className="deal-skip-button" onClick={() => {
+      {(dealingAnimation.skipperId || dealingAnimation.dealerId) === me?.id && <button type="button" className="deal-skip-button" onClick={() => {
         if (ws?.readyState !== 1) return;
         send(ws,'skip_deal_animation',{animation_id:dealingAnimation.id});
         // Stop this dealer's timers immediately; the server broadcasts to everyone else.

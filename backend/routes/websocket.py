@@ -20,6 +20,8 @@ BOT_WAIT_SECONDS = 10.0
 DEAL_ANIMATION_SECONDS = 31.5
 # Pause between the steps of a bot's laydown (announce, set, own cards, each teammate).
 BOT_LAY_STEP_SECONDS = 1.8
+# A bot dealer waits this long after the round is ready before it shuffles and deals.
+BOT_DEAL_DELAY_SECONDS = 2.5
 
 
 async def wait_for_players(game, room_id: str, bot_id: str, kind: str):
@@ -183,6 +185,36 @@ async def send_bubble_replay(ws: WebSocket, game):
         await ws.send_text(json.dumps({"type": "bubble_replay", "payload": {
             "bubbles": bubbles, "pending_ask": game.state.pending_ask,
         }}))
+
+
+async def bot_deal(game, room_id: str):
+    """A bot is the dealer: nobody can press Shuffle & Deal for it, so it deals by itself."""
+    await asyncio.sleep(BOT_DEAL_DELAY_SECONDS)
+    st = game.state
+    if st.phase != "ready" or st.match_finished or not st.current_dealer or not game.is_bot(st.current_dealer):
+        return
+    res = game.shuffle_deal_new_game(st.current_dealer)
+    if not res.get("success"):
+        logger.error(f"Bot dealer could not deal in room {room_id}: {res.get('reason')}")
+        return
+    # A bot can't press "skip" either, so a seated human (the admin if seated) may skip its deal.
+    humans = [pid for pid, p in st.players.items() if p.team and not p.is_spectator and not game.is_bot(pid) and p.connected]
+    skipper = st.admin_player_id if st.admin_player_id in humans else (humans[0] if humans else None)
+    game.deal_animation_id = uuid4().hex
+    game.deal_animation_dealer = skipper
+    game.deal_animation_until = time.monotonic() + DEAL_ANIMATION_SECONDS
+    await WebSocketService.broadcast(room_id, "new_game_started", {
+        **res, "animation_id": game.deal_animation_id, "skip_allowed_id": skipper, "state": game.state.model_dump()})
+    maybe_run_bots(game, room_id)
+
+
+def maybe_bot_deal(game, room_id: str):
+    task = getattr(game, "bot_deal_task", None)
+    if task and not task.done():
+        return
+    st = game.state
+    if st.phase == "ready" and not st.match_finished and st.current_dealer and game.is_bot(st.current_dealer):
+        game.bot_deal_task = asyncio.create_task(bot_deal(game, room_id))
 
 
 def maybe_run_bots(game, room_id: str):
@@ -723,6 +755,7 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                 await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
 
             maybe_run_bots(game, room_id)
+            maybe_bot_deal(game, room_id)
 
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected: room={room_id}, player={player_id}")

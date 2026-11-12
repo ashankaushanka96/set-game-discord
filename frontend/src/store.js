@@ -577,6 +577,8 @@ export const useStore = create((set, get) => ({
         id: msg.payload.animation_id,
         dealerSeat: msg.payload.original_dealer_seat ?? msg.payload.dealer_seat,
         dealerId: msg.payload.original_dealer_id || msg.payload.dealer_id,
+        // who may skip the animation: the dealer, or a seated player when a bot dealt
+        skipperId: msg.payload.skip_allowed_id || msg.payload.original_dealer_id || msg.payload.dealer_id,
         players: s.players || {},
         seats: s.seats || {},
         dealingSequence: msg.payload.dealing_sequence || []
