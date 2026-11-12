@@ -101,7 +101,7 @@ export function createGameTable3D(container, { portrait, onLift }) {
   const wood = new THREE.MeshStandardMaterial({ color: 0x49382b, roughness: 0.75, metalness: 0.02 });
   const disc = (r, h, mat, y) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 96), mat); m.scale.set(RX, 1, RZ); m.position.y = y; m.receiveShadow = true; return m; };
   const rim = disc(1.09, 0.22, wood, -0.13); rim.castShadow = true; scene.add(rim);
-  scene.add(disc(1.0, 0.06, [wood, new THREE.MeshStandardMaterial({ map: feltTexture(), roughness: 0.95 }), wood], -0.03));
+  const felt = disc(1.0, 0.06, [wood, new THREE.MeshStandardMaterial({ map: feltTexture(), roughness: 0.95 }), wood], -0.03); scene.add(felt);
   const trim = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.012, 8, 120), new THREE.MeshStandardMaterial({ color: 0xc9a25f, metalness: 0.7, roughness: 0.3 }));
   trim.rotation.x = Math.PI / 2; trim.scale.set(RX, RZ, 1); trim.position.y = 0.003; scene.add(trim);
   const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.9, 1.4, 32), wood); leg.position.y = -0.92; leg.castShadow = true; scene.add(leg);
@@ -161,11 +161,11 @@ export function createGameTable3D(container, { portrait, onLift }) {
     scene.add(figure);
     const ring = new THREE.Mesh(new THREE.TorusGeometry(0.56, 0.04, 10, 60), new THREE.MeshStandardMaterial({ color: 0xffd34d, emissive: 0xffb300, emissiveIntensity: 1.5 }));
     ring.rotation.x = Math.PI / 2; ring.position.set(pos.x, -0.18, pos.z); ring.visible = false; scene.add(ring);
-    return { rel, angle: a, dir, pos, chair, chairMat, ring, fanRoot, body, glow: 0, tangent: new THREE.Vector3(-dir.z, 0, dir.x) };
+    return { rel, angle: a, dir, pos, chair, chairMat, ring, fanRoot, body, figure, glow: 0, tangent: new THREE.Vector3(-dir.z, 0, dir.x) };
   });
 
   // ---- voice: who is talking ----
-  // The talker's upper body nods and sways, and glassy bubbles swell out of their head and fade.
+  // Glassy green bubbles swell out around the talker's head and fade.
   const speaking = new Set();
   let voiceIdle = true;
   const BUBBLE_Y = 1.02, BUBBLE_R = 0.5;                // around the avatar at head height
@@ -186,10 +186,6 @@ export function createGameTable3D(container, { portrait, onLift }) {
       v.level += ((on ? 1 : 0) - v.level) * 0.12;                   // fade in and out
       if (v.level < 0.002) v.level = 0;
       const k = v.level, lv = on ? voiceLevel(t, rel) : 0;
-      // small nods with the syllables, a slow sway, leaning in a touch
-      sp.body.rotation.x = k * (0.05 + lv * 0.06);
-      sp.body.rotation.z = k * Math.sin(t * 1.7 + rel) * 0.04;
-      sp.body.position.y = k * lv * 0.025;
       v.bubbles.forEach((m) => {
         m.visible = k > 0.01; if (!m.visible) return;
         const ph = (t * 0.7 + m.userData.i / 3) % 1;
@@ -937,6 +933,12 @@ export function createGameTable3D(container, { portrait, onLift }) {
   }
   const raycaster = new THREE.Raycaster();
   // (the camera's view offset is part of its projection, so screen px map straight to rays)
+  /** Whether a point on screen is on the table, a chair or a player: only those turn the view when dragged. */
+  function hitsTable(sx, sy) {
+    aim(sx, sy);
+    const parts = [rim, felt, trim, leg, ...spots.flatMap((sp) => [sp.chair, sp.figure])];
+    return raycaster.intersectObjects(parts, true).length > 0;
+  }
   const aim = (sx, sy) => raycaster.setFromCamera(new THREE.Vector2((sx / size.w) * 2 - 1, 1 - (sy / size.h) * 2), camera);
   function pickHand(sx, sy) {
     // Hit-test the cards' resting places, not the meshes: a hover tween hides a card for a frame
@@ -984,6 +986,7 @@ export function createGameTable3D(container, { portrait, onLift }) {
   }
 
   /** Seats (rel) whose player is talking. */
+  let resetRaf = 0;
   function setSpeaking(rels) {
     speaking.clear(); (rels || []).forEach((r) => speaking.add(r));
     voiceIdle = false; kick();
@@ -1006,13 +1009,29 @@ export function createGameTable3D(container, { portrait, onLift }) {
     /** Turn the table (radians) and/or zoom (factor); returns the new seat positions. */
     orbit(dAz, dPolar, zoomFactor = 1) {
       if (!area) return null;
+      cancelAnimationFrame(resetRaf); resetRaf = 0;     // grabbing the table stops a reset glide
       view.az += dAz;
       view.polar = Math.max(0.2, Math.min(1.2, view.polar + dPolar));
       view.zoom = Math.max(0.55, Math.min(1.8, view.zoom * zoomFactor));
       applyView(); drawHand(); render();
       return seatLayout();
     },
-    resetView() { view.az = 0; view.polar = POLAR0; view.zoom = 1; if (!area) return null; applyView(); drawHand(); render(); return seatLayout(); },
+    /** Glide the camera back to the starting view; onStep(layout, done) runs every frame so the seats follow. */
+    resetView(onStep) {
+      if (!area) return null;
+      cancelAnimationFrame(resetRaf);
+      const az0 = Math.atan2(Math.sin(view.az), Math.cos(view.az)), p0 = view.polar, z0 = view.zoom, t0 = performance.now();
+      const dur = reduceMotion ? 0 : 0.5 + Math.min(0.5, Math.abs(az0) * 0.25 + Math.abs(z0 - 1) * 0.6);
+      const step = (now) => {
+        const t = dur ? Math.min(1, (now - t0) / 1000 / dur) : 1, k = easeInOut(t);
+        view.az = az0 * (1 - k); view.polar = p0 + (POLAR0 - p0) * k; view.zoom = z0 + (1 - z0) * k;
+        applyView(); drawHand(); render();
+        onStep?.(seatLayout(), t >= 1);
+        resetRaf = t < 1 ? requestAnimationFrame(step) : 0;
+      };
+      resetRaf = requestAnimationFrame(step);
+      return null;
+    },
     /** Top edge of the held cards in px inside the container (raised cards included), or null with no hand. */
     /** The player's cards and which are selected ("suit-rank" keys). */
     setHand(cards, selectedKeys) {
@@ -1027,12 +1046,12 @@ export function createGameTable3D(container, { portrait, onLift }) {
     getLayout: seatLayout,
     /** The hand's own layer: the page places it above the seats (same size as the container). */
     handLayer: handRenderer.domElement,
-    pickHand, hoverHand, dragHand, endDragHand,
+    pickHand, hoverHand, hitsTable, dragHand, endDragHand,
     /** contributors: [{ rel, cards }] */
     lay,
     startDeal, stopDeal, pass, clearRest, setPointers, setTurn,
     dispose() {
-      alive = false; cancelAnimationFrame(raf); pointers.forEach(dropPointer); pointers.clear(); beamTex.dispose(); poolTex.dispose(); askHook.dispose(); askDot.dispose(); askCap.dispose(); askGold.dispose(); turnBeam.geometry.dispose(); turnPool.geometry.dispose(); turnBeamMat.dispose(); turnPoolMat.dispose(); timers.forEach((id) => clearTimeout(id)); tweens.length = 0;
+      alive = false; cancelAnimationFrame(raf); cancelAnimationFrame(resetRaf); pointers.forEach(dropPointer); pointers.clear(); beamTex.dispose(); poolTex.dispose(); askHook.dispose(); askDot.dispose(); askCap.dispose(); askGold.dispose(); turnBeam.geometry.dispose(); turnPool.geometry.dispose(); turnBeamMat.dispose(); turnPoolMat.dispose(); timers.forEach((id) => clearTimeout(id)); tweens.length = 0;
       scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); for (const m of [].concat(o.material || [])) { m.map?.dispose(); m.dispose(); } });
       faceMats.forEach((m) => { m.map?.dispose(); m.dispose(); });
       handFaceMats.forEach((m) => { m.map?.dispose(); m.dispose(); });

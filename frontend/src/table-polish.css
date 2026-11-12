@@ -35,6 +35,7 @@
   .room-3d .table-top-scores { position:absolute; top:8px; left:25%; right:25%; padding:0; }
   .room-3d .table-top-scores .match-score-strip { display:none; }
   .room-3d .game-hand-dock { min-height:42px; padding:0 80px 6px; }
+  .room-3d .game-room-heading { display:none; }   /* no room above the scores here; they sit where it would */
 }
 
 /* The hand is now the player's POV; a second avatar behind it only obscures cards. */

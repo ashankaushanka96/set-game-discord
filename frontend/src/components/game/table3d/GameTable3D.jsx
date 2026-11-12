@@ -33,11 +33,16 @@ export default function GameTable3D({ arenaRef, ids, counts, teams, sets, dealin
     ...(ask?.asker_id && ask?.target_id ? [{ key: 'ask', from: relOf(ask.asker_id), to: relOf(ask.target_id), tone: 'ask',
       cards: ask.suit && ask.ranks?.length ? ask.ranks.map((rank) => ({ suit: ask.suit, rank })) : undefined }] : []),
     // (laydowns show their own cards flying onto the table, so they get no flyer here)
-    ...(flowArrows || []).filter((a) => a.tone !== 'lay' && (a.start || 0) <= clock && a.until > clock)
+    // (turn changes are shown by the spotlight itself moving, so turn arrows get no flyer either)
+    ...(flowArrows || []).filter((a) => a.tone !== 'lay' && a.tone !== 'turn' && (a.start || 0) <= clock && a.until > clock)
       .map((a) => ({ key: a.id, from: relOf(a.from), to: relOf(a.to), tone: a.tone, label: a.label })),
   ].filter((p) => p.from >= 0 && p.to >= 0 && p.from !== p.to);
   const pointerKey = JSON.stringify(pointers);
-  const turnRel = turnId && ids.indexOf(turnId) >= 0 ? ids.indexOf(turnId) : null;
+  // After a laydown the turn arrow waits for the laydown to play out; the spotlight waits with it
+  // on the declarer, then moves once.
+  const heldTurn = (flowArrows || []).find((a) => a.tone === 'turn' && a.to === turnId && (a.start || 0) > clock && a.until > clock);
+  const shownTurnId = heldTurn ? heldTurn.from : turnId;
+  const turnRel = shownTurnId && ids.indexOf(shownTurnId) >= 0 ? ids.indexOf(shownTurnId) : null;
   const table = useRef(null);
   const [portrait, setPortrait] = useState(null);
   const [turned, setTurned] = useState(false);
@@ -175,6 +180,8 @@ export default function GameTable3D({ arenaRef, ids, counts, teams, sets, dealin
       }
       grip = null;
       if (e.target.closest?.(UI)) return;               // a seat button: its own tap
+      // Only the table, chairs and players turn the view (a second finger can always join a pinch).
+      if (!pointers.size && !onSeat(e)) { const { x, y } = local(e); if (!t.hitsTable(x, y)) return; }
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY });
       moved = pointers.size > 1; pinch = 0;
     };
@@ -328,7 +335,7 @@ export default function GameTable3D({ arenaRef, ids, counts, teams, sets, dealin
       </section>}
     </>, roomEl)}
     {turned && roomEl && createPortal(
-      <button type="button" className="table3d-reset" onClick={() => { const l = table.current?.resetView(); moveSeats(l); if (l) { setTurned(false); onLayout?.(l); } }}>⟲ Reset view</button>,
+      <button type="button" className="table3d-reset" onClick={() => table.current?.resetView((l, done) => { moveSeats(l); if (done && l) { setTurned(false); onLayout?.(l); } })}>⟲ Reset view</button>,
       roomEl)}
   </>;
 }

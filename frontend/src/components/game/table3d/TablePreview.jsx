@@ -72,7 +72,7 @@ export default function TablePreview() {
     <header className="preview-header"><Link to="/">← Lobby</Link><div><span className="preview-eyebrow">THE EVENING TABLE</span><h1>Set Club</h1></div><span className="preview-mode"><i /> 3D preview</span></header>
     <div className="preview-announcement" role="status">{message}</div>
     <div ref={arena} className="preview-arena">
-      {layout && players.map(([name, avatar], i) => <div key={name} data-seat={i} data-player-id={ids[i]} className={`table-seat-position preview-seat preview-seat--${teams[i]} ${i === 0 ? 'preview-seat--you' : ''} ${speaking.includes(ids[i]) ? 'preview-seat--talking' : ''}`} style={{ left: layout.seats[i].x, top: layout.seats[i].y }}>
+      {layout && players.map(([name, avatar], i) => <div key={name} data-seat={i} data-player-id={ids[i]} className={`table-seat-position preview-seat preview-seat--${teams[i]} ${i === 0 ? 'preview-seat--you' : ''}`} style={{ left: layout.seats[i].x, top: layout.seats[i].y }}>
         <span className="preview-avatar">{avatar}</span><strong>{name}</strong><small>TEAM {teams[i]}</small>
       </div>)}
     </div>
