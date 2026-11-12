@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store';
 import { send } from '../../ws';
@@ -41,6 +41,8 @@ import Card from '../cards/Card';
 import { RANKS_LOWER, RANKS_UPPER, SUITS } from '../../lib/deck';
 import { loadLaydownDraft } from '../modals/LaydownModal';
 
+// The 3D table (three.js) is a separate download, fetched only when it is switched on.
+const GameTable3D = lazy(() => import('./table3d/GameTable3D.jsx'));
 const SUIT_GLYPH = { hearts: '♥', diamonds: '♦', clubs: '♣', spades: '♠' };
 const TEAM_RING = {
   A: 'ring-blue-500/70',
@@ -176,6 +178,22 @@ export default function Table() {
      return pos;
    }, [mySeatIndex, arenaAspect, wideTable]);
 
+   // The table is 3D.
+   const [use3d, setUse3d] = useState(true);   // the flat table is only a fallback for devices that can't draw 3D
+   const [layout3d, setLayout3d] = useState(null);
+   useEffect(() => { if (!use3d) setLayout3d(null); }, [use3d]);
+   useEffect(() => { setSeatVersion(v => v + 1); }, [layout3d, use3d]);
+   // In 3D the players sit where the scene says their chairs are.
+   const seatPlace = useMemo(() => {
+     if (!use3d || !layout3d) return seatPositions;
+     const pos = {};
+     for (let i = 0; i < 6; i++) {
+       const s = layout3d.seats[(i - mySeatIndex + 6) % 6];
+       pos[i] = { left: `${s.x}px`, top: `${s.y}px`, transform: 'translate(-50%, -50%)' };
+     }
+     return pos;
+   }, [use3d, layout3d, seatPositions, mySeatIndex]);
+
   const eligibleSets = useMemo(() => {
     if (!my) return [];
     const res = [];
@@ -299,11 +317,24 @@ export default function Table() {
   }
 
   return (
-    <div className="card-room h-screen w-screen overflow-hidden flex flex-col bg-gradient-vibrant" onClick={handleTableClick}>
+    <div className={`card-room h-screen w-screen overflow-hidden flex flex-col bg-gradient-vibrant ${use3d ? 'room-3d' : ''}`} onClick={handleTableClick}>
+      {use3d && <Suspense fallback={null}>
+        <GameTable3D
+          arenaRef={arenaRef}
+          ids={[0,1,2,3,4,5].map((rel) => seats[(rel + mySeatIndex) % 6] || null)}
+          counts={[0,1,2,3,4,5].map((rel) => { const pid = seats[(rel + mySeatIndex) % 6]; return !pid || state.phase !== 'playing' ? 0 : handCount(pid); })}
+          teams={[0,1,2,3,4,5].map((rel) => players[seats[(rel + mySeatIndex) % 6]]?.team || null)}
+          sets={state.table_sets || []}
+          dealing={!!dealingAnimation}
+          dealerRel={(() => { const seat = Object.keys(seats).find((k) => seats[k] === state.current_dealer); return seat == null ? 0 : (Number(seat) - mySeatIndex + 6) % 6; })()}
+          onLayout={setLayout3d}
+          onFail={() => setUse3d(false)}
+        />
+      </Suspense>}
       <div className="game-room-heading"><span className="club-eyebrow">SET CLUB <i className="room-live-dot" /></span><span>{state.phase === 'playing' ? 'Round in play' : state.phase === 'ready' ? 'Waiting for the deal' : 'Round complete'}</span></div>
       <Celebration tableCenterRef={tableCenterRef} />
       <DealingAnimation />
-      <PassedCardsAnimation seatEls={seatEls} phase={state.phase} />
+      {!use3d && <PassedCardsAnimation seatEls={seatEls} phase={state.phase} />}
       <LaydownAnimation seatEls={seatEls} tableCenterRef={tableCenterRef} onActiveChange={setLayAnimActive}
         onViewResult={() => { if (useStore.getState().laydownResult || useStore.getState().gameResult) setResultsOpen(true); }} />
       
@@ -426,11 +457,11 @@ export default function Table() {
         </div>
 
          <div className="game-table-arena">
-           <div ref={arenaRef} className="relative w-full h-full">
-             <TableSceneDetails />
-             <div className="table-plinth" aria-hidden="true" />
+           <div ref={arenaRef} className={`relative w-full h-full ${use3d ? 'table-3d-on' : ''}`}>
+             {!use3d && <TableSceneDetails />}
+             {!use3d && <div className="table-plinth" aria-hidden="true" />}
              <div ref={tableCenterRef} data-table-center="true" className="felt-table absolute rounded-full flex items-center justify-center"
-               style={{left:'50%',top:'50%',transform:'translate(-50%, -50%)'}}>
+               style={use3d && layout3d ? {left:`${layout3d.center.x}px`,top:`${layout3d.center.y}px`,transform:'translate(-50%, -50%)'} : {left:'50%',top:'50%',transform:'translate(-50%, -50%)'}}>
               <div className="table-hallmark" aria-hidden="true"><span>♠</span><strong>SET CLUB</strong><small>THE TABLE IS YOURS</small></div>
               {/* Shuffle & Deal button - show for current dealer when game is ready, ended, or when no cards are dealt, but NOT when game is actively playing */}
               {!state.match_finished && me?.id === state.current_dealer && state.phase !== 'playing' && (state.phase === 'ready' || state.phase === 'ended' || !state.deck_count || state.deck_count === 0 || !my?.hand?.length) && (
@@ -446,7 +477,7 @@ export default function Table() {
               {state.phase === 'playing' && !pendingResult && (
                 <button
                   onClick={() => setCompletedSetsOpen(true)}
-                  className="px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 bg-gradient-primary hover:shadow-glow-blue text-white shadow-lg border border-accent-blue/30 xl:hidden"
+                  className="sets-chip px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 bg-gradient-primary hover:shadow-glow-blue text-white shadow-lg border border-accent-blue/30 xl:hidden"
                   title="View completed sets"
                 >
                   Sets
@@ -472,7 +503,7 @@ export default function Table() {
               const isSpeaking = p && speakingUsers && speakingUsers[p.id];
               
               return (
-                <div key={`seatwrap-${i}-${pid || 'empty'}`} className="table-seat-position absolute" style={seatPositions[i]} ref={p ? setSeatRef(p.id) : undefined} data-seat={i} data-player-id={p?.id} data-team={p?.team || 'none'}>
+                <div key={`seatwrap-${i}-${pid || 'empty'}`} className="table-seat-position absolute" style={seatPlace[i]} ref={p ? setSeatRef(p.id) : undefined} data-seat={i} data-player-id={p?.id} data-team={p?.team || 'none'}>
                   <div className={[
                       'seat-frame relative',
                       isSpeaking ? 'seat-frame--speaking' : '', // talking lights the chair, not the player circle
@@ -502,7 +533,7 @@ export default function Table() {
                       isOut={isOut}
                     />
                   </div>
-                  {p && p.id !== my?.id && !dealingAnimation && <SeatCardStack count={handCount(pid)} />}
+                  {p && p.id !== my?.id && !dealingAnimation && !use3d && <SeatCardStack count={handCount(pid)} />}
                   {p && p.id !== my?.id && !dealingAnimation && (
                     <div className="seat-count" aria-label={`${handCount(pid)} cards`} title={`${handCount(pid)} cards`}>{handCount(pid)}</div>
                   )}

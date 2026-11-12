@@ -331,7 +331,7 @@ const DealingAnimation = () => {
   }
 
   return (
-    <div className="fixed inset-0 pointer-events-none z-50">
+    <div className="deal-anim-layer fixed inset-0 pointer-events-none z-50">
 
       {(phase === 'shuffling' || phase === 'dealing') && <ShuffleDeck shuffling={phase === 'shuffling'} position={getTableCenterPosition()} />}
       {(dealingAnimation.skipperId || dealingAnimation.dealerId) === me?.id && <button type="button" className="deal-skip-button" onClick={() => {

@@ -394,3 +394,18 @@
 .seat-card-stack { z-index:0; }
 @media (max-width:767px) { .seat-card-stack { left:calc(50% + var(--hand-x)*.8); top:calc(50% + var(--hand-y)*.8); } }
 @media (max-height:650px) and (min-width:768px) { .seat-card-stack { left:calc(50% + var(--hand-x)*.9); top:calc(50% + var(--hand-y)*.9); } }
+
+/* ---- 3D room: the scene fills the screen and draws the floor, table, chairs, opponents'
+   cards, laid sets and the cards in flight. Everything else sits on top of it. ---- */
+.table3d-host { position:fixed; inset:0; z-index:0; pointer-events:none; }
+.card-room.room-3d .game-stage, .card-room.room-3d .game-table-arena { background:none; }
+.card-room .table-3d-on .felt-table { background:none !important; border-color:transparent !important; box-shadow:none !important; transform:translate(-50%,-50%) !important; }
+.card-room .table-3d-on .felt-table::before, .card-room .table-3d-on .felt-table::after, .table-3d-on .table-hallmark { display:none !important; }
+.card-room .table-3d-on .seat-frame::before { display:none !important; }
+.card-room .table-3d-on .seat-frame--speaking::before { display:block !important; inset:-7px !important; border-radius:50% !important; transform:none; }
+/* Laid sets live in the middle of the table, so the "Sets" button moves out of their way. */
+.card-room .table-3d-on .sets-chip { position:absolute; left:50%; bottom:-6px; transform:translateX(-50%); width:auto !important; height:auto !important; min-height:0 !important; padding:4px 12px !important; border-radius:999px !important; font-size:11px !important; opacity:.92; }
+/* The hand and scores float over the room instead of sitting on a solid panel. */
+.card-room.room-3d .game-hand-dock { background:linear-gradient(180deg,#0d151200,#0d1512b3 38%,#0a1210e6) !important; border-top:0 !important; box-shadow:none !important; }
+/* The deal is drawn in the 3D scene; the flat flying cards are hidden but the skip button stays. */
+.card-room.room-3d .deal-anim-layer > :not(.deal-skip-button) { display:none !important; }
