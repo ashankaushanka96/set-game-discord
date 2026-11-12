@@ -352,7 +352,7 @@ export default function Table() {
         />
       </Suspense>}
       <div className="game-room-heading"><span className="club-eyebrow">SET CLUB <i className="room-live-dot" /></span><span>{state.phase === 'playing' ? 'Round in play' : state.phase === 'ready' ? 'Waiting for the deal' : 'Round complete'}</span></div>
-      <Celebration tableCenterRef={tableCenterRef} />
+      {!use3d && <Celebration tableCenterRef={tableCenterRef} />}
       <DealingAnimation cardsIn3d={use3d} />
       {!use3d && <PassedCardsAnimation seatEls={seatEls} phase={state.phase} />}
       <LaydownAnimation seatEls={seatEls} tableCenterRef={tableCenterRef} cardsIn3d={use3d} onActiveChange={setLayAnimActive}
@@ -464,7 +464,7 @@ export default function Table() {
        
        <div className="table-top-scores">         {/* Scoreboard */}
          <div className="game-score-strip flex items-center justify-center gap-4 text-xs sm:text-sm">
-        <div className="score-pill px-2 sm:px-3 py-1 rounded-full bg-dark-card/70 backdrop-blur-sm border border-accent-blue/20 shadow-glow-blue">
+        <div data-score-team="A" className="score-pill px-2 sm:px-3 py-1 rounded-full bg-dark-card/70 backdrop-blur-sm border border-accent-blue/20 shadow-glow-blue">
           <span className="inline-flex items-center gap-1 sm:gap-2 text-accent-blue">
             <span className="inline-block h-2 w-2 rounded-full bg-accent-blue shadow-glow-blue" />
             <span className="hidden sm:inline">Team A</span>
@@ -475,7 +475,7 @@ export default function Table() {
             <span className="text-text-muted"> ({(state.table_sets||[]).filter(s=>s.owner_team==='A').length})</span>
           </span>
         </div>
-        <div className="score-pill px-2 sm:px-3 py-1 rounded-full bg-dark-card/70 backdrop-blur-sm border border-accent-rose/20 shadow-glow-rose">
+        <div data-score-team="B" className="score-pill px-2 sm:px-3 py-1 rounded-full bg-dark-card/70 backdrop-blur-sm border border-accent-rose/20 shadow-glow-rose">
           <span className="inline-flex items-center gap-1 sm:gap-2 text-accent-rose">
             <span className="inline-block h-2 w-2 rounded-full bg-accent-rose shadow-glow-rose" />
             <span className="hidden sm:inline">Team B</span>

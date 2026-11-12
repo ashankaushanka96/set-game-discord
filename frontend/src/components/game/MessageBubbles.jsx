@@ -218,7 +218,7 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
         }
 
         const tone = m.variant === 'ask' ? 'ask' : m.variant === 'no' || m.variant === 'event_bad' ? 'error' : m.variant === 'yes' || m.variant === 'event_good' ? 'success' : m.variant?.startsWith('laydown_') ? 'vote' : 'info';
-        const theme = `club-bubble club-bubble--${tone}`;
+        const theme = `club-bubble club-bubble--${tone}${m.kind === 'laydown' ? ' club-bubble--laydown' : ''}`;
         return (
           <SeatMessageBubble key={m.id} message={m} anchor={xy} theme={theme}
             ownerName={asker?.name || m.teammate_name || 'Player'}>

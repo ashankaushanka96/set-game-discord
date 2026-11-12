@@ -43,6 +43,40 @@ function GatheringCard({ item, success }) {
   return <div ref={ref} className="laydown-flight"><div><Card suit={item.suit} rank={item.rank} size="md" /></div></div>;
 }
 
+// 3D table: the points won pop up over the table in the team's colour, then fly into that team's
+// score pill at the top, which gives a little pulse as they land.
+function PointsToScore({ scene }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const pill = document.querySelector(`[data-score-team="${scene.team}"]`);
+    const reduced = reducedMotion();
+    const pop = el.animate([
+      { opacity: 0, transform: 'translate(-50%,-30%) scale(.7)' },
+      { opacity: 1, transform: 'translate(-50%,-50%) scale(1.1)', offset: .5 },
+      { opacity: 1, transform: 'translate(-50%,-50%) scale(1)' },
+    ], { duration: reduced ? 1 : 420, delay: reduced ? 0 : 1100, easing: 'cubic-bezier(.2,.9,.3,1.2)', fill: 'both' });
+    let fly, pulse;
+    pop.onfinish = () => {
+      if (!pill) { fly = el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 400, delay: 1400, fill: 'both' }); return; }
+      const r = pill.getBoundingClientRect();
+      const dx = r.left + r.width / 2 - scene.x, dy = r.top + r.height / 2 - scene.y;
+      fly = el.animate([
+        { transform: 'translate(-50%,-50%) scale(1)', opacity: 1 },
+        { transform: `translate(calc(-50% + ${dx * .35}px), calc(-50% + ${dy * .2 - 40}px)) scale(.8)`, opacity: 1, offset: .35 },
+        { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(.3)`, opacity: .2 },
+      ], { duration: reduced ? 1 : 750, delay: reduced ? 600 : 1000, easing: 'cubic-bezier(.5,0,.6,1)', fill: 'both' });
+      fly.onfinish = () => {
+        el.style.visibility = 'hidden';
+        if (!reduced) pulse = pill.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.15)', offset: .35 }, { transform: 'scale(1)' }], { duration: 450, easing: 'ease-out' });
+      };
+    };
+    return () => { pop.cancel(); fly?.cancel(); pulse?.cancel(); };
+  }, [scene]);
+  return <div ref={ref} className={`laydown-points3d laydown-points3d--${(scene.team || 'a').toLowerCase()}`}
+    style={{ left: scene.x, top: scene.y }} role="status">+{scene.points} <span>Team {scene.team}</span></div>;
+}
+
 // With `cardsIn3d` the 3D table flies the cards itself; this only adds the glow, caption and button.
 export default function LaydownAnimation({ seatEls, tableCenterRef, onViewResult, onActiveChange, cardsIn3d = false }) {
   const [scene, setScene] = useState(null);
@@ -78,6 +112,12 @@ export default function LaydownAnimation({ seatEls, tableCenterRef, onViewResult
       const items = cards.map((card, index) => ({ ...card, index, count: cards.length, angle: (index - (cards.length - 1) / 2) * 4,
         to: { x: cx + (index - (cards.length - 1) / 2) * spread, y: cy } }));
       clearTimeout(timer.current);
+      if (cardsIn3d) {
+        // 3D table: the cards fly onto the table in 3D; all that's added is the points, in the team's colour.
+        setScene({ id: Date.now(), x: cx, y: cy, points, team, simple: true });
+        timer.current = setTimeout(() => setScene(null), reducedMotion() ? 2500 : 4200);
+        return;
+      }
       const setName = suit ? `${suit[0].toUpperCase()}${suit.slice(1)} ${set_type === 'lower' ? 'Lower' : 'Upper'}` : 'The set';
       setScene({ id: Date.now(), items, success, x: cx, y: cy, suit, points, team, setName, penalty, reduced: reducedMotion(), cardsIn3d });
       setLeaving(false); setButtonReady(false);
@@ -90,6 +130,7 @@ export default function LaydownAnimation({ seatEls, tableCenterRef, onViewResult
   }, [seatEls, tableCenterRef, cardsIn3d]);
 
   if (!scene) return null;
+  if (scene.simple) return createPortal(<PointsToScore key={scene.id} scene={scene} />, document.body);
   const { success, x, y } = scene;
   const symbol = SUIT_SYMBOL[scene.suit] || '★';
   return createPortal(<div className={`laydown-reveal ${success ? 'laydown-reveal--success' : 'laydown-reveal--failed'} ${leaving ? 'laydown-reveal--leaving' : ''}`} key={scene.id}>

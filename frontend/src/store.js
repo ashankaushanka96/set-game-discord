@@ -458,7 +458,7 @@ export const useStore = create((set, get) => ({
         // Show laydown result modal with detailed information
         get().setLaydownResult(laydownData);
         
-        get().addMessage({ player_id: msg.payload.who_id, variant: "event_good", title: `Laid down ${setName}!`, text: `+${pts} for Team ${msg.payload.owner_team}` });
+        get().addMessage({ player_id: msg.payload.who_id, kind: "laydown", variant: "event_good", title: `Laid down ${setName}!`, text: `+${pts} for Team ${msg.payload.owner_team}` });
         
         if (msg.payload?.who_id === get().me?.id && (msg.payload.handoff_eligible || []).length) {
           set({ handoffFor: { who_id: msg.payload.who_id, eligible: msg.payload.handoff_eligible } });
@@ -479,7 +479,7 @@ export const useStore = create((set, get) => ({
         // Show laydown result modal with detailed information
         get().setLaydownResult(laydownData);
         
-        get().addMessage({ player_id: msg.payload.who_id, variant: "event_bad", title: `Laydown failed: ${setName}`, text: `Goes to Team ${msg.payload.owner_team}` });
+        get().addMessage({ player_id: msg.payload.who_id, kind: "laydown", variant: "event_bad", title: `Laydown failed: ${setName}`, text: `Goes to Team ${msg.payload.owner_team}` });
         
         set({ handoffFor: null });
       }

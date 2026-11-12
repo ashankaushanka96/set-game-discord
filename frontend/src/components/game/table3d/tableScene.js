@@ -1,5 +1,5 @@
-// The game room drawn in 3D (three.js): floor, table, chairs, each opponent's face-down
-// cards, the player's own hand held at the edge of the table, the laid-down sets in the
+// The game room drawn in 3D (three.js): floor, table, chairs, the face-down fan each
+// opponent holds in their hands, the player's own hand held at the edge of the table, the laid-down sets in the
 // middle of the felt, and the cards that fly when the round is dealt, a card changes hands
 // or a set is laid down. It follows the real game state.
 // Players, bubbles, arrows and every button stay ordinary page elements on top; this
@@ -10,7 +10,7 @@ const SUIT = { hearts: ['♥', '#c0283a'], diamonds: ['♦', '#c0283a'], clubs: 
 const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 const TEAM_COLOR = { A: 0x7ca6bd, B: 0xc98f87 };
 const CW = 0.62, CH = 0.88, CT = 0.006;
-const STACK_SCALE = 0.6;   // opponents' face-down cards
+const FAN_SCALE = 0.7;    // the cards an opponent holds in their hands
 const SET_SCALE = 0.5;     // laid-down sets in the middle
 const FLY_SCALE = 0.8;     // a card on its way to someone
 const SHUFFLE_SECONDS = 3.2, DEAL_SECONDS = 27;   // same pacing as the deal sounds (dealTiming.js)
@@ -129,10 +129,19 @@ export function createGameTable3D(container, { portrait }) {
     form(shirt,0,0.23,0, .34,.48,.23); // torso
     form(shirt,0,0.54,0, .43,.17,.24); // shoulders
     form(skin,0,0.77,0, .115,.14,.11); // neck: the player avatar is the face
+    // Elbows resting on the table, forearms raised to hold the cards: one hand grips the bottom
+    // of the fan, the other steadies its side. Each limb is an ellipsoid stretched between its two joints.
+    const limb = (mat, a, b, r) => {
+      const d = new THREE.Vector3().subVectors(b, a), m = form(mat, (a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2, r, r, d.length() / 2 + r * 0.3);
+      m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), d.normalize()); return m;
+    };
+    const grip = new THREE.Vector3(0.04, 0.14, 0.64), steady = new THREE.Vector3(-0.22, 0.3, 0.62);
     for (const side of [-1,1]) {
-      const sleeve = form(shirt,side*.36,.28,.10, .13,.32,.14); sleeve.rotation.x = -.35;
-      const arm = form(skin,side*.35,.075,.36, .10,.105,.28); arm.rotation.y = side*-.2;
-      form(skin,side*.29,.08,.60, .105,.07,.14);
+      const shoulder = new THREE.Vector3(side * .36, .5, .02), elbow = new THREE.Vector3(side * .4, .06, .34);
+      const hand = side > 0 ? grip : steady;
+      limb(shirt, shoulder, elbow, .12);           // upper arm, in the sleeve
+      limb(skin, elbow, hand, .085);               // forearm
+      form(skin, hand.x, hand.y, hand.z, .085, .095, .07);
       form(trousers,side*.17,-.38,.27, .16,.16,.39); // bent thighs
       form(trousers,side*.17,-.78,.53, .12,.38,.13);
       form(trousers,side*.17,-1.13,.62, .14,.10,.23);
@@ -144,10 +153,14 @@ export function createGameTable3D(container, { portrait }) {
       const foot = new THREE.Mesh(new THREE.CylinderGeometry(.035,.045,.9,10),wood);
       foot.position.set(x,-.98,z); figure.add(foot);
     }
+    // The cards this player holds: a face-down fan held up just over the table edge, top leaned back toward them.
+    const fanRoot = new THREE.Object3D(); fanRoot.position.set(0.04, 0.11, 0.66);
+    fanRoot.rotation.set(-0.38, 0, [0.1, -0.08, 0.14, -0.12, 0.06, -0.1][rel]);   // leaned back toward them, a little crooked, different for everyone
+    figure.add(fanRoot);
     scene.add(figure);
     const ring = new THREE.Mesh(new THREE.TorusGeometry(0.56, 0.04, 10, 60), new THREE.MeshStandardMaterial({ color: 0xffd34d, emissive: 0xffb300, emissiveIntensity: 1.5 }));
     ring.rotation.x = Math.PI / 2; ring.position.set(pos.x, -0.18, pos.z); ring.visible = false; scene.add(ring);
-    return { rel, angle: a, dir, pos, chair, chairMat, ring, glow: 0, tangent: new THREE.Vector3(-dir.z, 0, dir.x) };
+    return { rel, angle: a, dir, pos, chair, chairMat, ring, fanRoot, glow: 0, tangent: new THREE.Vector3(-dir.z, 0, dir.x) };
   });
 
   // ---- cards ----
@@ -155,7 +168,7 @@ export function createGameTable3D(container, { portrait }) {
   const edgeMat = new THREE.MeshStandardMaterial({ color: 0xf0e8d2, roughness: 0.8 });
   const backMat = new THREE.MeshStandardMaterial({ map: backTexture(), roughness: 0.6, alphaTest:0.5 });
   const newBack = (scale) => { const m = new THREE.Mesh(cardGeo, [edgeMat, edgeMat, backMat, backMat, edgeMat, edgeMat]); m.castShadow = true; m.receiveShadow = true; m.visible = false; m.scale.setScalar(scale); m.rotation.order = 'XYZ'; scene.add(m); return m; };
-  const backs = Array.from({ length: 54 }, () => newBack(STACK_SCALE));
+  const backs = Array.from({ length: 54 }, () => newBack(FAN_SCALE));
   const deck = Array.from({ length: 16 }, () => newBack(FLY_SCALE));       // the pile being dealt from
   const faceMats = new Map();
   const collectedMats = new Map();
@@ -168,22 +181,34 @@ export function createGameTable3D(container, { portrait }) {
   const setGroup = new THREE.Group(); scene.add(setGroup);
   const flyGroup = new THREE.Group(); scene.add(flyGroup);
 
-  const stackBase = (s) => new THREE.Vector3(s.dir.x * RX * 0.7, 0, s.dir.z * RZ * 0.68);
   const handEdge = () => new THREE.Vector3(0, HAND_Y, HAND_Z);              // the middle of the player's own hand
-  const seatSpot = (rel) => (rel === 0 ? handEdge() : stackBase(spots[rel]).setY(0.02));
   const restSpot = (rel) => (rel === 0
     ? new THREE.Vector3(0, 0.03, RZ * 0.62)
     : new THREE.Vector3(spots[rel].dir.x * RX * 0.46, 0.03, spots[rel].dir.z * RZ * 0.44));
+
+  // Where card j of n sits in a player's hand fan, in world terms (position, Euler angles, scale).
+  const probe = new THREE.Object3D(), probeQ = new THREE.Quaternion(), probeE = new THREE.Euler(0, 0, 0, 'XYZ');
+  function fanPose(rel, j, n) {
+    const sp = spots[rel]; n = Math.max(1, Math.min(n, 13)); j = Math.max(0, Math.min(j, n - 1));
+    const spread = Math.min(1.25, 0.13 * (n - 1)), phi = n > 1 ? spread / 2 - (j / (n - 1)) * spread : 0;
+    sp.fanRoot.add(probe);
+    probe.position.set(Math.sin(-phi) * CH * FAN_SCALE * 0.42, Math.cos(phi) * CH * FAN_SCALE * 0.42, 0.004 * j);
+    probe.quaternion.setFromEuler(new THREE.Euler(0, 0, phi)).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)));
+    probe.scale.setScalar(FAN_SCALE);
+    sp.fanRoot.updateWorldMatrix(true, false); probe.updateMatrixWorld(true);
+    const p = new THREE.Vector3(); probe.matrixWorld.decompose(p, probeQ, new THREE.Vector3());
+    probeE.setFromQuaternion(probeQ, 'XYZ');
+    sp.fanRoot.remove(probe);
+    return { p, rx: probeE.x, ry: probeE.y, rz: probeE.z, s: FAN_SCALE };
+  }
 
   function drawStacks(counts) {
     let used = 0;
     spots.forEach((s) => {
       const n = s.rel === 0 ? 0 : Math.min(counts[s.rel] || 0, 13);
-      const base = stackBase(s);
       for (let j = 0; j < n && used < backs.length; j++, used++) {
-        const m = backs[used];
-        m.position.copy(base).addScaledVector(s.tangent, (j - (n - 1) / 2) * 0.075).setY(CT / 2 + j * 0.003);
-        m.rotation.set(0, -s.angle + Math.PI / 2 + (j - (n - 1) / 2) * 0.05, 0);
+        const m = backs[used], f = fanPose(s.rel, j, n);
+        m.position.copy(f.p); m.rotation.set(f.rx, f.ry, f.rz); m.scale.setScalar(f.s);
         m.visible = true;
       }
     });
@@ -550,11 +575,11 @@ export function createGameTable3D(container, { portrait }) {
       const mesh = card ? newFace(card, FLY_SCALE) : newBack(FLY_SCALE);
       flyGroup.add(mesh);
       dealing.flights.push(mesh);
-      const s = spots[rel];
-      fly(mesh, new THREE.Vector3(0, 0.22, 0), slot ? slot.p : seatSpot(rel), {
+      const fan = slot ? null : fanPose(rel, order.slice(0, k).filter((r) => r === rel).length, target[rel]);   // its place in their hand
+      fly(mesh, new THREE.Vector3(0, 0.22, 0), slot ? slot.p : fan.p, {
         delay: SHUFFLE_SECONDS + k * gap, dur: slot ? 1.1 : 0.8, arc: slot ? 1.15 : 0.9, spin: slot ? 0.35 : 1.4,
-        rx1: slot?.rx || 0, ry0: 0.2, ry1: slot ? slot.ry : -s.angle + Math.PI / 2,
-        rz0: card ? Math.PI : 0, rz1: slot?.rz || 0, s0: FLY_SCALE, s1: slot ? HAND_SCALE : FLY_SCALE,
+        rx1: slot ? slot.rx : fan.rx, ry0: 0.2, ry1: slot ? slot.ry : fan.ry,
+        rz0: card ? Math.PI : 0, rz1: slot ? slot.rz || 0 : fan.rz, s0: FLY_SCALE, s1: slot ? HAND_SCALE : FAN_SCALE,
         onDone: () => {
           mesh.visible = false;
           if (!dealing) return;
@@ -577,14 +602,15 @@ export function createGameTable3D(container, { portrait }) {
     later(seconds, () => { rels.forEach((rel) => { const sp = spots[rel]; if (!sp) return; sp.glow = Math.max(0, sp.glow - 1); sp.ring.visible = sp.glow > 0; }); render(); });
   }
 
-  // Where a card leaves from: the player's own hand (where it was last held) or a seat's pile.
+  // Where a card leaves from: the player's own hand (where it was last held) or the middle of a seat's fan.
   function startOf(rel, card) {
     if (rel === 0) {
       const last = hand.last.get(keyOf(card));
       if (last) return { p: last.p.clone(), rx: last.rx, ry: last.ry, rz: last.rz || 0, s: HAND_SCALE };
       return { p: handEdge(), rx: HAND_LEAN, ry: 0, rz: 0, s: HAND_SCALE };
     }
-    return { p: stackBase(spots[rel]).setY(0.04), rx: 0, ry: -spots[rel].angle + Math.PI / 2, rz: Math.PI, s: STACK_SCALE };
+    const n = Math.max(1, state.counts[rel] || 1);
+    return fanPose(rel, Math.floor(n / 2), n);
   }
 
   function pass(fromRel, toRel, cards) {
@@ -607,7 +633,7 @@ export function createGameTable3D(container, { portrait }) {
       return;
     }
     // To anyone else: it flies over, lands face up in front of them for a moment, then
-    // turns over into their pile.
+    // goes up into the fan in their hands.
     const s = spots[toRel], rest = restSpot(toRel);
     const meshes = shown.map((card, i) => {
       const st = startOf(fromRel, card);
@@ -621,7 +647,9 @@ export function createGameTable3D(container, { portrait }) {
     const timer = later(REST_SECONDS, () => {
       const it = resting.get(toRel); if (!it) return;
       resting.delete(toRel);
-      it.meshes.forEach((m, i) => fly(m, m.position.clone(), seatSpot(toRel), { delay: i * 0.05, dur: 0.5, arc: 0.3, ry0: m.rotation.y, ry1: m.rotation.y, rz0: 0, rz1: Math.PI, s0: FLY_SCALE, s1: STACK_SCALE, onDone: () => { flyGroup.remove(m); render(); } }));
+      const n = Math.max(1, state.counts[toRel] || it.meshes.length);
+      it.meshes.forEach((m, i) => { const f = fanPose(toRel, n - it.meshes.length + i, n);
+        fly(m, m.position.clone(), f.p, { delay: i * 0.05, dur: 0.6, arc: 0.35, rx0: m.rotation.x, rx1: f.rx, ry0: m.rotation.y, ry1: f.ry, rz0: m.rotation.z, rz1: f.rz, s0: FLY_SCALE, s1: FAN_SCALE, onDone: () => { flyGroup.remove(m); render(); } }); });
     });
     resting.set(toRel, { meshes, timer });
   }

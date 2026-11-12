@@ -79,3 +79,30 @@ body .playing-card.playing-card--art > img { display:block; width:100%; height:1
 /* 3D table: the asked card(s) float over to the asked player, so the "Do you have…" bubble would only repeat it.
    Answer bubbles ("No." and the rest) still show. */
 .room-3d .club-bubble--ask { display:none; }
+
+/* Desktop / landscape: the ask dialog lies flat across the top (suits side by side, the cards and the
+   Ask button on one row) and doesn't blur what's behind it, so your hand stays in view below it. */
+@media (min-width:900px) and (orientation:landscape) {
+  .club-modal.club-modal--docked:has(.ask-sheet) { max-width:min(820px, calc(100vw - 340px)); backdrop-filter:none; -webkit-backdrop-filter:none; }
+  .club-modal--docked:has(.ask-sheet) .club-modal__content { padding:14px 18px 12px; }
+  .club-modal--docked .ask-sheet { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px 16px; align-items:end; }
+  .club-modal--docked .ask-sheet > div:first-child { grid-column:1 / -1; padding-right:64px; }
+  .club-modal--docked .ask-sheet h2 { font-size:18px; }
+  .club-modal--docked .ask-sheet > div:first-child p { font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .club-dock-area:has(.ask-sheet) { padding-top:44px; }
+  .club-modal--docked .ask-sheet__grid { grid-column:1 / -1; grid-auto-flow:column; grid-template-rows:repeat(3, auto); grid-template-columns:auto repeat(4, minmax(0,1fr)); gap:5px 8px; }
+  .club-modal--docked .ask-sheet__colhead { text-align:right; padding-right:4px; }
+  .club-modal--docked .ask-sheet__rowhead { text-align:center; }
+  .club-modal--docked .ask-sheet__grid .ask-sheet__set { padding:6px; }
+  .club-modal--docked .ask-sheet__cards { justify-content:flex-start; gap:6px; }
+  .club-modal--docked .ask-sheet__actions { align-self:center; }
+}
+
+/* 3D table laydowns: the cards fly onto the table in 3D; the only overlay is the points won, in the
+   team's colour (no confetti, rings or result bubble on top of the cards). */
+.room-3d .club-bubble--laydown { display:none; }
+.laydown-points3d { position:fixed; z-index:95; transform:translate(-50%,-50%); pointer-events:none; white-space:nowrap;
+  font:700 40px Georgia, serif; letter-spacing:.01em; opacity:0; }
+.laydown-points3d span { font:600 17px system-ui, sans-serif; letter-spacing:.04em; margin-left:4px; vertical-align:middle; }
+.laydown-points3d--a { color:#8cc4ff; text-shadow:0 2px 0 #1d3f63, 0 0 22px #5fa8f0aa; }
+.laydown-points3d--b { color:#ff9fae; text-shadow:0 2px 0 #6b2430, 0 0 22px #f07a8caa; }

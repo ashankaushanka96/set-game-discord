@@ -32,7 +32,8 @@ export default function GameTable3D({ arenaRef, ids, counts, teams, sets, dealin
   const pointers = [
     ...(ask?.asker_id && ask?.target_id ? [{ key: 'ask', from: relOf(ask.asker_id), to: relOf(ask.target_id), tone: 'ask',
       cards: ask.suit && ask.ranks?.length ? ask.ranks.map((rank) => ({ suit: ask.suit, rank })) : undefined }] : []),
-    ...(flowArrows || []).filter((a) => (a.start || 0) <= clock && a.until > clock)
+    // (laydowns show their own cards flying onto the table, so they get no flyer here)
+    ...(flowArrows || []).filter((a) => a.tone !== 'lay' && (a.start || 0) <= clock && a.until > clock)
       .map((a) => ({ key: a.id, from: relOf(a.from), to: relOf(a.to), tone: a.tone, label: a.label })),
   ].filter((p) => p.from >= 0 && p.to >= 0 && p.from !== p.to);
   const pointerKey = JSON.stringify(pointers);
