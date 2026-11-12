@@ -17,7 +17,7 @@ const UI = 'button, a, input, textarea, select, [role="dialog"], .club-modal, .t
 // (`dragPass`; the drag callbacks match PlayerHand's).
 export default function GameTable3D({ arenaRef, ids, counts, teams, sets, dealing, dealerRel, dealOrder, dealId, mySeatIndex = 0,
   hand = [], selectedKeys = [], handTappable = false, onCardTap, onLayout, onFail,
-  dragPass = false, resolveDropTarget, onDragStart, onDragHover, onDragEnd, onCardsDrop, ask = null, turnId = null }) {
+  dragPass = false, resolveDropTarget, onDragStart, onDragHover, onDragEnd, onCardsDrop, ask = null, turnId = null, speakingIds = null }) {
   const host = useRef(null);
   // Turn Play pointers drawn in 3D (the asked card gliding over): the waiting ask, plus the store's laydown and turn arrows
   // while their time window is open (delayed ones appear when their start comes).
@@ -46,7 +46,7 @@ export default function GameTable3D({ arenaRef, ids, counts, teams, sets, dealin
   const [roomEl, setRoomEl] = useState(null);
   useEffect(() => { setRoomEl(host.current?.closest('.card-room') || null); }, []);
   const data = useRef({});
-  data.current = { ids, counts, teams, sets, dealing, dealerRel, dealOrder, dealId, mySeatIndex, hand, selectedKeys, handTappable, onCardTap, onLayout,
+  data.current = { speakingIds, ids, counts, teams, sets, dealing, dealerRel, dealOrder, dealId, mySeatIndex, hand, selectedKeys, handTappable, onCardTap, onLayout,
     dragPass, resolveDropTarget, onDragStart, onDragHover, onDragEnd, onCardsDrop, pointers, turnRel };
 
   const rectIn = (el) => {
@@ -122,6 +122,7 @@ export default function GameTable3D({ arenaRef, ids, counts, teams, sets, dealin
     t.update({ counts: d.counts, teams: d.teams, sets: d.sets });
     t.setPointers(d.pointers);
     t.setTurn(d.turnRel);
+    t.setSpeaking((d.speakingIds || []).map((id) => d.ids.indexOf(id)).filter((r) => r >= 0));
     relayout();
     if (d.dealing) t.startDeal(d.dealerRel, d.dealOrder);
     const ro = new ResizeObserver(relayout);
@@ -156,14 +157,24 @@ export default function GameTable3D({ arenaRef, ids, counts, teams, sets, dealin
     const local = (e) => { const r = host.current.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
     const isSelected = (card) => data.current.selectedKeys.includes(`${card.suit}-${card.rank}`);
     const keyOf = (c) => `${c.suit}-${c.rank}`;
+    // The held cards are drawn above the seat badges, so over a badge the cards still come first.
+    const onSeat = (e) => !!e.target.closest?.('.table-seat-position');
+    const blocked = (e) => !!e.target.closest?.(UI) && !onSeat(e);
+    const swallowClick = () => {
+      const stop = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
+      window.addEventListener('click', stop, { capture: true, once: true });
+      setTimeout(() => window.removeEventListener('click', stop, { capture: true }), 400);
+    };
     const down = (e) => {
-      if (e.target.closest?.(UI) || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      if (blocked(e) || (e.pointerType === 'mouse' && e.button !== 0)) return;
       if (!pointers.size && data.current.handTappable) {
         const { x, y } = local(e);
         const card = t.pickHand(x, y);
+        if (card && onSeat(e)) swallowClick();          // the badge underneath must not get this click
         if (card) { t.hoverHand(card); grip = { id: e.pointerId, card, lastCard: card, sx: e.clientX, sy: e.clientY, mode: 'pending', was: isSelected(card), touched: new Set([keyOf(card)]) }; return; }
       }
       grip = null;
+      if (e.target.closest?.(UI)) return;               // a seat button: its own tap
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY });
       moved = pointers.size > 1; pinch = 0;
     };
@@ -200,7 +211,7 @@ export default function GameTable3D({ arenaRef, ids, counts, teams, sets, dealin
       if (!p) {
         if (!grip && e.pointerType === 'mouse') {
           const { x, y } = local(e);
-          t.hoverHand(!e.target.closest?.(UI) && data.current.handTappable ? t.pickHand(x, y) : null);
+          t.hoverHand(!blocked(e) && data.current.handTappable ? t.pickHand(x, y) : null);
         }
         return;
       }
@@ -227,6 +238,10 @@ export default function GameTable3D({ arenaRef, ids, counts, teams, sets, dealin
           if (g.lastCard && !isSelected(g.lastCard)) d.onCardTap?.(g.lastCard);
         } else if (g.mode === 'drag') {
           const id = e.type === 'pointercancel' ? null : dropTargetAt(e.clientX, e.clientY);
+          // A mouse click that wobbled a little starts a drag; dropped nowhere and barely moved, it's a click.
+          if (!id && e.type !== 'pointercancel' && e.pointerType === 'mouse' && Math.hypot(e.clientX - g.sx, e.clientY - g.sy) < 40) {
+            t.endDragHand(false); d.onDragEnd?.(); d.onCardTap?.(g.card); return;
+          }
           t.endDragHand(!!id);
           d.onDragEnd?.();
           if (id) d.onCardsDrop?.(g.cards, id);
@@ -278,6 +293,8 @@ export default function GameTable3D({ arenaRef, ids, counts, teams, sets, dealin
 
   useEffect(() => { table.current?.setPointers(pointers); }, [pointerKey]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { table.current?.setTurn(turnRel); }, [turnRel]);
+  const speakingKey = JSON.stringify((speakingIds || []).map((id) => ids.indexOf(id)).filter((r) => r >= 0).sort());
+  useEffect(() => { table.current?.setSpeaking(JSON.parse(speakingKey)); }, [speakingKey]);
 
   const handKey = JSON.stringify([hand.map((c) => `${c.suit}-${c.rank}`), selectedKeys, dealing]);
   useEffect(() => { pushHand(); }, [handKey]); // eslint-disable-line react-hooks/exhaustive-deps

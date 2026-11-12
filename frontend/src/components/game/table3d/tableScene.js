@@ -121,9 +121,11 @@ export function createGameTable3D(container, { portrait, onLift }) {
     const shirt = new THREE.MeshStandardMaterial({ color: rel % 2 ? 0x70594e : 0x375c61, roughness:0.95 });
     const trousers = new THREE.MeshStandardMaterial({ color:0x25302e, roughness:1 });
     const skin = new THREE.MeshStandardMaterial({ color:0xbb967c, roughness:0.85 });
+    // The upper body moves on its own (while talking); chair and legs stay put.
+    const body = new THREE.Group(); figure.add(body);
     const form = (mat, x,y,z, sx,sy,sz) => {
       const mesh = new THREE.Mesh(new THREE.SphereGeometry(1,24,16), mat);
-      mesh.position.set(x,y,z); mesh.scale.set(sx,sy,sz); mesh.castShadow = true; mesh.receiveShadow = true; figure.add(mesh); return mesh;
+      mesh.position.set(x,y,z); mesh.scale.set(sx,sy,sz); mesh.castShadow = true; mesh.receiveShadow = true; body.add(mesh); return mesh;
     };
     form(shirt,0,0.23,0, .34,.48,.23); // torso
     form(shirt,0,0.54,0, .43,.17,.24); // shoulders
@@ -155,12 +157,48 @@ export function createGameTable3D(container, { portrait, onLift }) {
     // The cards this player holds: a face-down fan held up just over the table edge, top leaned back toward them.
     const fanRoot = new THREE.Object3D(); fanRoot.position.set(0.04, 0.11, 0.66);
     fanRoot.rotation.set(-0.38, 0, [0.1, -0.08, 0.14, -0.12, 0.06, -0.1][rel]);   // leaned back toward them, a little crooked, different for everyone
-    figure.add(fanRoot);
+    body.add(fanRoot);
     scene.add(figure);
     const ring = new THREE.Mesh(new THREE.TorusGeometry(0.56, 0.04, 10, 60), new THREE.MeshStandardMaterial({ color: 0xffd34d, emissive: 0xffb300, emissiveIntensity: 1.5 }));
     ring.rotation.x = Math.PI / 2; ring.position.set(pos.x, -0.18, pos.z); ring.visible = false; scene.add(ring);
-    return { rel, angle: a, dir, pos, chair, chairMat, ring, fanRoot, glow: 0, tangent: new THREE.Vector3(-dir.z, 0, dir.x) };
+    return { rel, angle: a, dir, pos, chair, chairMat, ring, fanRoot, body, glow: 0, tangent: new THREE.Vector3(-dir.z, 0, dir.x) };
   });
+
+  // ---- voice: who is talking ----
+  // The talker's upper body nods and sways, and glassy bubbles swell out of their head and fade.
+  const speaking = new Set();
+  let voiceIdle = true;
+  const BUBBLE_Y = 1.02, BUBBLE_R = 0.5;                // around the avatar at head height
+  const bubbleGeo = new THREE.SphereGeometry(1, 32, 20);
+  const voices = spots.map((sp) => ({
+    level: 0,
+    bubbles: [0, 1, 2].map((i) => {
+      const m = new THREE.Mesh(bubbleGeo, new THREE.MeshPhysicalMaterial({ color: 0x9dffb8, emissive: 0x2fd46a, emissiveIntensity: 0.6, roughness: 0.15, metalness: 0, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));
+      m.position.set(0, BUBBLE_Y, 0); m.visible = false; m.userData = { i }; sp.body.add(m); return m;
+    }),
+  }));
+  // A rough stand-in for a voice level: syllable-like bursts that vary per seat.
+  const voiceLevel = (t, rel) => Math.max(0, Math.sin(t * 9.3 + rel * 2) * 0.5 + Math.sin(t * 4.1 + rel) * 0.35 + Math.sin(t * 1.3 + rel * 5) * 0.3);
+  function animateVoice(now) {
+    const t = now / 1000;
+    spots.forEach((sp, rel) => {
+      const v = voices[rel], on = speaking.has(rel);
+      v.level += ((on ? 1 : 0) - v.level) * 0.12;                   // fade in and out
+      if (v.level < 0.002) v.level = 0;
+      const k = v.level, lv = on ? voiceLevel(t, rel) : 0;
+      // small nods with the syllables, a slow sway, leaning in a touch
+      sp.body.rotation.x = k * (0.05 + lv * 0.06);
+      sp.body.rotation.z = k * Math.sin(t * 1.7 + rel) * 0.04;
+      sp.body.position.y = k * lv * 0.025;
+      v.bubbles.forEach((m) => {
+        m.visible = k > 0.01; if (!m.visible) return;
+        const ph = (t * 0.7 + m.userData.i / 3) % 1;
+        m.scale.setScalar(BUBBLE_R * (1 + ph * 0.8));   // kept close to the head so six talkers stay apart
+        m.material.opacity = k * (1 - ph) * (0.4 + lv * 0.25);
+      });
+    });
+    if (!speaking.size && voices.every((v) => v.level === 0)) voiceIdle = true;
+  }
 
   // ---- cards ----
   const cardGeo = new THREE.BoxGeometry(CW, CT, CH);
@@ -316,12 +354,13 @@ export function createGameTable3D(container, { portrait, onLift }) {
     }
     if (pointers.size) animatePointers(now);
     if (turnAnim) animateTurn(now);
+    if (!voiceIdle) animateVoice(now);
     render();
-    raf = tweens.length || pointers.size || turnAnim ? requestAnimationFrame(tick) : 0;
+    raf = tweens.length || pointers.size || turnAnim || !voiceIdle ? requestAnimationFrame(tick) : 0;
   }
   function kick() { if (!raf) { lastT = performance.now(); raf = requestAnimationFrame(tick); } }
   function fly(mesh, from, to, o = {}) {
-    mesh.visible = false;
+    if (!o.keepVisible) mesh.visible = false;      // cards already on screen keep showing while they slide
     mesh.position.copy(from); mesh.rotation.set(o.rx0 ?? 0, o.ry0 ?? 0, o.rz0 ?? 0);
     if (o.s0) mesh.scale.setScalar(o.s0);
     tweens.push({ mesh, from: from.clone(), to: to.clone(), t: -(o.delay || 0), dur: o.dur || 0.7, arc: o.arc ?? 0.8, spin: o.spin || 0,
@@ -565,18 +604,36 @@ export function createGameTable3D(container, { portrait, onLift }) {
   function stopDeal() {
     if (!dealing) return;
     for (let i = tweens.length - 1; i >= 0; i--) if (tweens[i].deal) { tweens[i].mesh.visible = false; tweens.splice(i, 1); }
-    dealing.flights.forEach((m) => { m.visible = false; m.removeFromParent(); });
+    dealing.flights.forEach((m) => { m.visible = false; m.removeFromParent(); if (m.userData.ownMats) m.material.forEach((mat) => mat.dispose()); });
     deck.forEach((m) => { m.visible = false; });
     dealing = null;
     drawHand();
+    sortHand();
     refresh();
+  }
+  /** Arrange the dealt cards by suit and rank, sliding each card to its new place. */
+  function sortHand() {
+    if (!hand.dealt || dealing && dealing.shown[0] < hand.dealt.length) return;
+    const previous = new Map([...handPool].filter(([, m]) => m.visible).map(([k, m]) => [k, { p: m.position.clone(), rx: m.rotation.x, ry: m.rotation.y, rz: m.rotation.z }]));
+    hand.dealt = null;
+    drawHand();
+    handPool.forEach((m, k) => {
+      const old = previous.get(k);
+      if (!m.visible || !old) return;
+      fly(m, old.p, m.position.clone(), { dur: 0.45, arc: 0.12, keepVisible: true, rx0: old.rx, rx1: m.rotation.x, ry0: old.ry, ry1: m.rotation.y, rz0: old.rz, rz1: m.rotation.z, s0: HAND_SCALE, s1: HAND_SCALE });
+    });
+    render();
   }
 
   function startDeal(dealerRel, dealOrder) {
     stopDeal(); clearRest();
     const target = [...state.counts];
     dealing = { shown: [0, 0, 0, 0, 0, 0], flights: [], shuffleTime: 0 };
-    hand.incoming.clear(); hand.gone.clear(); drawHand();
+    hand.incoming.clear(); hand.gone.clear();
+    // Cards arrive in the order they come off the deck; they are sorted once all are in.
+    hand.dealt = [...hand.cards];
+    for (let i = hand.dealt.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [hand.dealt[i], hand.dealt[j]] = [hand.dealt[j], hand.dealt[i]]; }
+    drawHand();
     deck.forEach((m, i) => { m.visible = true; m.position.set(0, CT + i * 0.012, 0); m.rotation.set(0, 0.2 + (i % 3) * 0.03, 0); });
     // who gets each card, in turn, starting to the dealer's left
     const order = []; const given = [0, 0, 0, 0, 0, 0];
@@ -594,10 +651,16 @@ export function createGameTable3D(container, { portrait, onLift }) {
     order.forEach((rel, k) => {
       // The local player's cards flip face up and land in their actual fan slots.
       const ownIndex = order.slice(0, k).filter(r => r === 0).length;
-      const card = rel === 0 ? hand.cards[ownIndex] : null;
+      const card = rel === 0 ? hand.dealt[ownIndex] : null;
       const slot = rel === 0 ? handSlot(ownIndex, target[0], false) : null;
       const mesh = card ? newFace(card, FLY_SCALE) : newBack(FLY_SCALE);
-      flyGroup.add(mesh);
+      // Your own cards fly on the hand layer so they stay in front of the cards already held.
+      if (card) {
+        // ...and draw over them, rather than passing behind the fan until they land.
+        mesh.material = mesh.material.map((mat) => { const c = mat.clone(); c.depthTest = false; return c; });
+        mesh.renderOrder = 10; mesh.userData.ownMats = true;
+      }
+      (card ? handGroup : flyGroup).add(mesh);
       dealing.flights.push(mesh);
       const fan = slot ? null : fanPose(rel, order.slice(0, k).filter((r) => r === rel).length, target[rel]);   // its place in their hand
       fly(mesh, new THREE.Vector3(0, 0.22, 0), slot ? slot.p : fan.p, {
@@ -608,7 +671,7 @@ export function createGameTable3D(container, { portrait, onLift }) {
           mesh.visible = false;
           if (!dealing) return;
           dealing.shown[rel]++;
-          if (rel === 0) drawHand();
+          if (rel === 0) { drawHand(); if (dealing.shown[0] >= hand.dealt?.length) later(0.7, sortHand); }
           const left = total - (k + 1);
           deck.forEach((m, i) => { m.visible = i < Math.ceil((left / total) * deck.length); });
           drawStacks(dealing.shown);
@@ -801,7 +864,7 @@ export function createGameTable3D(container, { portrait, onLift }) {
   const handPool = new Map();                              // "suit-rank" -> mesh
   // last: where each card was last held (a card leaving the hand flies from there)
   // incoming: cards still in the air on their way in; gone: cards that just left
-  const hand = { cards: [], hover: null, selected: new Set(), last: new Map(), incoming: new Set(), gone: new Set(), drag: null };
+  const hand = { cards: [], hover: null, selected: new Set(), last: new Map(), incoming: new Set(), gone: new Set(), drag: null, dealt: null };
   function handSlot(i, n, selected) {
     // Screen-sized cards stay readable and stable while the table is rotated.
     const cardHeight = handCardH();
@@ -843,7 +906,8 @@ export function createGameTable3D(container, { portrait, onLift }) {
   }
   function drawHand() {
     const live = new Set();
-    const available = dealing ? hand.cards.slice(0, dealing.shown[0]) : hand.cards;
+    const order = hand.dealt || hand.cards;
+    const available = dealing ? order.slice(0, dealing.shown[0]) : order;
     const cards = available.filter((c) => !hand.gone.has(keyOf(c)));
     cards.forEach((card, i) => {
       const key = keyOf(card), m = handMesh(card), slot = handSlot(i, dealing ? hand.cards.length : cards.length, hand.selected.has(key) || hand.hover === key);
@@ -867,7 +931,7 @@ export function createGameTable3D(container, { portrait, onLift }) {
     handPool.forEach((m,k) => {
       if (!m.visible || hand.incoming.has(k)) return;
       const old = previous.get(k);
-      fly(m, old.p, m.position.clone(), { dur:0.13, arc:0, rx0:old.rx, rx1:m.rotation.x, ry0:old.ry, ry1:m.rotation.y, rz0:old.rz, rz1:m.rotation.z });
+      fly(m, old.p, m.position.clone(), { dur:0.13, arc:0, keepVisible:true, rx0:old.rx, rx1:m.rotation.x, ry0:old.ry, ry1:m.rotation.y, rz0:old.rz, rz1:m.rotation.z });
       tweens[tweens.length - 1].handHover = true;
     });
   }
@@ -875,12 +939,12 @@ export function createGameTable3D(container, { portrait, onLift }) {
   // (the camera's view offset is part of its projection, so screen px map straight to rays)
   const aim = (sx, sy) => raycaster.setFromCamera(new THREE.Vector2((sx / size.w) * 2 - 1, 1 - (sy / size.h) * 2), camera);
   function pickHand(sx, sy) {
-    const shown = [...handPool.values()].filter((m) => m.visible);
-    if (!shown.length) return null;
+    // Hit-test the cards' resting places, not the meshes: a hover tween hides a card for a frame
+    // and lifts it away from the pointer, which made the hover flicker between cards.
+    const cards = (hand.dealt || hand.cards).filter(c => !hand.gone.has(keyOf(c)));
+    const shown = cards.filter((c) => !hand.incoming.has(keyOf(c)) && handPool.has(keyOf(c)) && !hand.drag?.keys.has(keyOf(c))).map((c) => handPool.get(keyOf(c)));
+    if (!shown.length || dealing) return null;
     aim(sx, sy);
-    // Keep the resting fan tappable after hover raises a card away from
-    // the pointer; otherwise a drag can accidentally start rotating the table.
-    const cards = hand.cards.filter(c => !hand.gone.has(keyOf(c)));
     const proxies = shown.map(m => {
       const card = m.userData.card, i = cards.findIndex(c => keyOf(c) === keyOf(card));
       const slot = handSlot(i, cards.length, hand.selected.has(keyOf(card)));
@@ -889,7 +953,7 @@ export function createGameTable3D(container, { portrait, onLift }) {
       proxy.scale.copy(m.scale); proxy.userData.card = card; proxy.updateMatrixWorld(true);
       return proxy;
     });
-    const hit = raycaster.intersectObjects(proxies, false)[0] || raycaster.intersectObjects(shown, false)[0];
+    const hit = raycaster.intersectObjects(proxies, false)[0];
     return hit ? hit.object.userData.card : null;
   }
   // Dragging cards out of the hand: they follow the pointer, held up over the table.
@@ -919,7 +983,13 @@ export function createGameTable3D(container, { portrait, onLift }) {
     drawHand(); render();
   }
 
+  /** Seats (rel) whose player is talking. */
+  function setSpeaking(rels) {
+    speaking.clear(); (rels || []).forEach((r) => speaking.add(r));
+    voiceIdle = false; kick();
+  }
   return {
+    setSpeaking,
     /** counts/teams are indexed by position relative to the player (0 = the player). */
     update({ counts, teams, sets }) {
       state = { counts, teams, sets };
@@ -950,6 +1020,8 @@ export function createGameTable3D(container, { portrait, onLift }) {
       for (let i = tweens.length - 1; i >= 0; i--) if (tweens[i].handHover) tweens.splice(i, 1);
       const now = new Set(cards.map(keyOf));
       hand.gone.forEach((key) => { if (!now.has(key)) hand.gone.delete(key); });   // the game has caught up
+      const same = hand.dealt && hand.dealt.length === cards.length && hand.dealt.every((c) => now.has(keyOf(c)));
+      if (!same) hand.dealt = null;
       hand.cards = [...cards].sort(byHandOrder); hand.selected = new Set(selectedKeys); drawHand(); render();
     },
     getLayout: seatLayout,

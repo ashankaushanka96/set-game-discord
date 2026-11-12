@@ -23,6 +23,7 @@ export default function TablePreview() {
   const [dealing, setDealing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [speaking, setSpeaking] = useState([ids[2]]);
   const [message, setMessage] = useState('Your seat is ready. Make yourself at home.');
   useEffect(() => () => clearTimeout(timer.current), []);
   const finish = (ms, action) => { timer.current = setTimeout(() => { action?.(); setBusy(false); }, ms); };
@@ -58,6 +59,7 @@ export default function TablePreview() {
   };
   return <main className="card-room table-preview">
     <GameTable3D arenaRef={arena} ids={ids} counts={counts} teams={teams} sets={sets} ask={ask} turnId={turn}
+      speakingIds={speaking}
       dealing={dealing} dealerRel={3} hand={hand} selectedKeys={selected} handTappable={!busy}
       onCardTap={c => { const k = `${c.suit}-${c.rank}`; setSelected(s => s.includes(k) ? s.filter(x => x !== k) : [...s, k]); }}
       dragPass={!busy} resolveDropTarget={id => id !== ids[0] && ids.includes(id)}
@@ -70,10 +72,15 @@ export default function TablePreview() {
     <header className="preview-header"><Link to="/">← Lobby</Link><div><span className="preview-eyebrow">THE EVENING TABLE</span><h1>Set Club</h1></div><span className="preview-mode"><i /> 3D preview</span></header>
     <div className="preview-announcement" role="status">{message}</div>
     <div ref={arena} className="preview-arena">
-      {layout && players.map(([name, avatar], i) => <div key={name} data-seat={i} data-player-id={ids[i]} className={`table-seat-position preview-seat preview-seat--${teams[i]} ${i === 0 ? 'preview-seat--you' : ''}`} style={{ left: layout.seats[i].x, top: layout.seats[i].y }}>
+      {layout && players.map(([name, avatar], i) => <div key={name} data-seat={i} data-player-id={ids[i]} className={`table-seat-position preview-seat preview-seat--${teams[i]} ${i === 0 ? 'preview-seat--you' : ''} ${speaking.includes(ids[i]) ? 'preview-seat--talking' : ''}`} style={{ left: layout.seats[i].x, top: layout.seats[i].y }}>
         <span className="preview-avatar">{avatar}</span><strong>{name}</strong><small>TEAM {teams[i]}</small>
       </div>)}
     </div>
+    <aside className="preview-voice" aria-label="Voice effects">
+      <strong>Talking</strong>
+      <div>{players.map(([name], i) => <button key={name} aria-pressed={speaking.includes(ids[i])}
+        onClick={() => setSpeaking(s => s.includes(ids[i]) ? s.filter(x => x !== ids[i]) : [...s, ids[i]])}>{name}</button>)}</div>
+    </aside>
     {failed && <div className="preview-error" role="alert">This preview needs WebGL. Open it in a browser with hardware acceleration enabled.</div>}
     <footer className="preview-footer"><p>Six friends. One table. A good hand.</p><div className="preview-actions">
       <button disabled={busy || failed} onClick={deal}><span>↻</span> Shuffle & deal</button>

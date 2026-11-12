@@ -441,3 +441,7 @@
 .laydown-results-prompt--timed { overflow:hidden; }
 .laydown-results-prompt--timed > :not(.laydown-results-prompt__bar) { position:relative; }
 .laydown-results-prompt__left { font-size:10px; color:#cbb98a; font-variant-numeric:tabular-nums; }
+
+/* Until the 3D table has drawn and placed the seats, keep them hidden, then fade them in. */
+.table-3d-on > .table-seat-position { transition: opacity .25s ease; }
+.table-3d-waiting > * { opacity: 0; pointer-events: none; }
