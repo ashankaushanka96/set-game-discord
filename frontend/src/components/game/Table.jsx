@@ -331,21 +331,29 @@ export default function Table() {
           teams={[0,1,2,3,4,5].map((rel) => players[seats[(rel + mySeatIndex) % 6]]?.team || null)}
           sets={state.table_sets || []}
           dealing={!!dealingAnimation}
-          dealerRel={(() => { const seat = Object.keys(seats).find((k) => seats[k] === state.current_dealer); return seat == null ? 0 : (Number(seat) - mySeatIndex + 6) % 6; })()}
+          dealId={dealingAnimation?.id}
+          dealOrder={dealingAnimation?.dealingSequence?.map(d => (Number(d.seat) - mySeatIndex + 6) % 6)}
+          dealerRel={(() => { if (dealingAnimation?.dealerSeat != null) return (Number(dealingAnimation.dealerSeat) - mySeatIndex + 6) % 6; const seat = Object.keys(seats).find((k) => seats[k] === state.current_dealer); return seat == null ? 0 : (Number(seat) - mySeatIndex + 6) % 6; })()}
           mySeatIndex={mySeatIndex}
           hand={handSorted}
           selectedKeys={selectedCardsToPass.map((c) => `${c.suit}-${c.rank}`)}
-          handTappable={state.phase === 'playing' && ws?.readyState === 1 && !layOpen && (isTurnPlay ? myTurn : true)}
+          handTappable={!dealingAnimation && state.phase === 'playing' && ws?.readyState === 1 && !layOpen && (isTurnPlay ? myTurn : true)}
           onCardTap={handleHandCardClick}
+          dragPass={!dealingAnimation && !isTurnPlay && state.phase === 'playing' && ws?.readyState === 1 && !layOpen}
+          resolveDropTarget={resolveDropTarget}
+          onDragStart={cards => { setSelectedCardsToPass(cards); setIsDraggingCards(true); }}
+          onDragHover={setDragTarget}
+          onDragEnd={() => { setIsDraggingCards(false); setDragTarget(null); }}
+          onCardsDrop={passCards}
           onLayout={setLayout3d}
           onFail={() => setUse3d(false)}
         />
       </Suspense>}
       <div className="game-room-heading"><span className="club-eyebrow">SET CLUB <i className="room-live-dot" /></span><span>{state.phase === 'playing' ? 'Round in play' : state.phase === 'ready' ? 'Waiting for the deal' : 'Round complete'}</span></div>
       <Celebration tableCenterRef={tableCenterRef} />
-      <DealingAnimation />
+      <DealingAnimation cardsIn3d={use3d} />
       {!use3d && <PassedCardsAnimation seatEls={seatEls} phase={state.phase} />}
-      <LaydownAnimation seatEls={seatEls} tableCenterRef={tableCenterRef} onActiveChange={setLayAnimActive}
+      <LaydownAnimation seatEls={seatEls} tableCenterRef={tableCenterRef} cardsIn3d={use3d} onActiveChange={setLayAnimActive}
         onViewResult={() => { if (useStore.getState().laydownResult || useStore.getState().gameResult) setResultsOpen(true); }} />
       
       {/* Back to Lobby Button - Top Left */}
@@ -434,11 +442,11 @@ export default function Table() {
 
       {/* Card Passing Indicator */}
       {selectedCardsToPass.length > 0 && !isDraggingCards && !isTurnPlay && (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 bg-gradient-primary text-white px-4 py-2 rounded-lg shadow-lg border border-accent-blue/30 shadow-glow-blue">
+        <div className="table-selection-hint">
           <div className="text-sm font-semibold">
             {selectedCardsToPass.length} card{selectedCardsToPass.length !== 1 ? 's' : ''} selected
           </div>
-          <div className="text-xs opacity-80">{use3d ? "Tap an opponent's seat to pass" : "Drag onto an opponent to pass, or click their seat"}</div>
+          <div className="text-xs opacity-80">{use3d ? "Drag up onto an opponent, or tap their seat" : "Drag onto an opponent to pass, or click their seat"}</div>
         </div>
       )}
 
@@ -452,11 +460,40 @@ export default function Table() {
        </div>}
        <EmojiPassAnimation />
        
+       <div className="table-top-scores">         {/* Scoreboard */}
+         <div className="game-score-strip flex items-center justify-center gap-4 text-xs sm:text-sm">
+        <div className="score-pill px-2 sm:px-3 py-1 rounded-full bg-dark-card/70 backdrop-blur-sm border border-accent-blue/20 shadow-glow-blue">
+          <span className="inline-flex items-center gap-1 sm:gap-2 text-accent-blue">
+            <span className="inline-block h-2 w-2 rounded-full bg-accent-blue shadow-glow-blue" />
+            <span className="hidden sm:inline">Team A</span>
+            <span className="sm:hidden">A</span>
+            <span className="text-text-secondary">—</span>
+            <span className="text-text-primary font-semibold">{state.team_scores?.A ?? 0}</span>
+            <span className="hidden sm:inline">pts</span>
+            <span className="text-text-muted"> ({(state.table_sets||[]).filter(s=>s.owner_team==='A').length})</span>
+          </span>
+        </div>
+        <div className="score-pill px-2 sm:px-3 py-1 rounded-full bg-dark-card/70 backdrop-blur-sm border border-accent-rose/20 shadow-glow-rose">
+          <span className="inline-flex items-center gap-1 sm:gap-2 text-accent-rose">
+            <span className="inline-block h-2 w-2 rounded-full bg-accent-rose shadow-glow-rose" />
+            <span className="hidden sm:inline">Team B</span>
+            <span className="sm:hidden">B</span>
+            <span className="text-text-secondary">—</span>
+            <span className="text-text-primary font-semibold">{state.team_scores?.B ?? 0}</span>
+            <span className="hidden sm:inline">pts</span>
+            <span className="text-text-muted"> ({(state.table_sets||[]).filter(s=>s.owner_team==='B').length})</span>
+          </span>
+        </div>
+      </div>
+
+         <div className="match-score-strip" aria-label="Match round wins"><span>Round {(state.completed_rounds || 0) + (state.phase === 'ended' ? 0 : 1)}</span><strong>Rounds won</strong><span>A: {state.round_wins?.A || 0}</span><span>B: {state.round_wins?.B || 0}</span>{state.tied_rounds > 0 && <span>Tied: {state.tied_rounds}</span>}</div>
+
+       </div>
        {/* Main game area - takes up most of the viewport */}
        <div className="game-stage">
          {/* left panel (Team A) - table - right panel (Team B) */}
          <div className="game-stage__layout">
-        <div className="hidden xl:block w-[260px]">
+        <div className={`hidden ${use3d ? '' : 'xl:block'} w-[260px]`}>
           <div className="sticky top-4 space-y-2">
             <div className="text-sm font-semibold text-accent-blue mb-1">Team A — Collected</div>
             {setsA.length === 0 && <div className="text-xs text-text-muted">No sets yet.</div>}
@@ -484,7 +521,7 @@ export default function Table() {
               )}
               
               {/* Sets Button - show in center of table after game starts (mobile and small desktop) */}
-              {state.phase === 'playing' && !pendingResult && (
+              {!use3d && state.phase === 'playing' && !pendingResult && (
                 <button
                   onClick={() => setCompletedSetsOpen(true)}
                   className="sets-chip px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 bg-gradient-primary hover:shadow-glow-blue text-white shadow-lg border border-accent-blue/30 xl:hidden"
@@ -557,7 +594,7 @@ export default function Table() {
 
         </div>
 
-        <div className="hidden xl:block w-[260px]">
+        <div className={`hidden ${use3d ? '' : 'xl:block'} w-[260px]`}>
           <div className="sticky top-4 space-y-2">
             <div className="text-sm font-semibold text-accent-rose mb-1">Team B — Collected</div>
             {((state.table_sets||[]).filter(s=>s.owner_team==='B').length) === 0 && <div className="text-xs text-text-muted">No sets yet.</div>}
@@ -590,33 +627,6 @@ export default function Table() {
               : <span>{turnPlayer.name}'s turn</span>}
         </div>
       )}
-         {/* Scoreboard */}
-         <div className="game-score-strip flex items-center justify-center gap-4 text-xs sm:text-sm">
-        <div className="score-pill px-2 sm:px-3 py-1 rounded-full bg-dark-card/70 backdrop-blur-sm border border-accent-blue/20 shadow-glow-blue">
-          <span className="inline-flex items-center gap-1 sm:gap-2 text-accent-blue">
-            <span className="inline-block h-2 w-2 rounded-full bg-accent-blue shadow-glow-blue" />
-            <span className="hidden sm:inline">Team A</span>
-            <span className="sm:hidden">A</span>
-            <span className="text-text-secondary">—</span> 
-            <span className="text-text-primary font-semibold">{state.team_scores?.A ?? 0}</span>
-            <span className="hidden sm:inline">pts</span>
-            <span className="text-text-muted"> ({(state.table_sets||[]).filter(s=>s.owner_team==='A').length})</span>
-          </span>
-        </div>
-        <div className="score-pill px-2 sm:px-3 py-1 rounded-full bg-dark-card/70 backdrop-blur-sm border border-accent-rose/20 shadow-glow-rose">
-          <span className="inline-flex items-center gap-1 sm:gap-2 text-accent-rose">
-            <span className="inline-block h-2 w-2 rounded-full bg-accent-rose shadow-glow-rose" />
-            <span className="hidden sm:inline">Team B</span>
-            <span className="sm:hidden">B</span>
-            <span className="text-text-secondary">—</span> 
-            <span className="text-text-primary font-semibold">{state.team_scores?.B ?? 0}</span>
-            <span className="hidden sm:inline">pts</span>
-            <span className="text-text-muted"> ({(state.table_sets||[]).filter(s=>s.owner_team==='B').length})</span>
-          </span>
-        </div>
-      </div>
-
-         <div className="match-score-strip" aria-label="Match round wins"><span>Round {(state.completed_rounds || 0) + (state.phase === 'ended' ? 0 : 1)}</span><strong>Rounds won</strong><span>A: {state.round_wins?.A || 0}</span><span>B: {state.round_wins?.B || 0}</span>{state.tied_rounds > 0 && <span>Tied: {state.tied_rounds}</span>}</div>
 
          {/* Player Hand */}
          <div className="game-hand-wrap flex flex-col items-center">
@@ -626,6 +636,7 @@ export default function Table() {
              onCardSelect={handleHandCardClick}
              selectable={!isTurnPlay && state.phase === 'playing' && ws?.readyState === 1}
              tapSelect={isTurnPlay && myTurn && !layOpen}
+             hint3d={use3d}
              resolveDropTarget={resolveDropTarget}
              onDragStart={cards => { setSelectedCardsToPass(cards); setIsDraggingCards(true); }}
              onDragHover={setDragTarget}

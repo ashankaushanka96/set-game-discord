@@ -1,0 +1,26 @@
+.table-preview { position:relative; height:100dvh; min-height:620px; overflow:hidden; color:#f2e8d2; font-family:system-ui,sans-serif; }
+.preview-header { position:absolute; z-index:2; top:26px; left:32px; right:32px; display:flex; justify-content:space-between; align-items:center; pointer-events:none; }
+.preview-header a { pointer-events:auto; padding:12px 20px; border:1px solid #c3a56955; border-radius:12px; background:#18382eee; color:#f2e8d2; text-decoration:none; }
+.preview-header h1 { font:36px Georgia,serif; letter-spacing:.06em; margin:4px 0; text-align:center; }
+.preview-eyebrow { font-size:9px; letter-spacing:.3em; color:#c8b68e; }
+.preview-mode { font-size:11px; color:#c4cebd; border:1px solid #b6c1a82b; padding:9px 12px; border-radius:30px; }
+.preview-mode i { display:inline-block; width:6px; height:6px; border-radius:50%; background:#9cc4a1; margin-right:6px; }
+.preview-announcement { position:absolute; z-index:2; top:111px; left:50%; transform:translateX(-50%); background:#142c23e8; border:1px solid #c5ac6a55; border-radius:30px; padding:12px 24px; font-size:13px; text-align:center; max-width:90%; width:max-content; }
+.preview-arena { position:absolute; top:155px; bottom:145px; left:8%; right:8%; pointer-events:none; }
+.preview-seat { position:absolute; transform:translate(-50%,-72%); display:flex; flex-direction:column; align-items:center; z-index:1; --team:#88b7cb; }
+.preview-seat--B { --team:#cc968c; }
+.preview-avatar { display:grid; place-items:center; width:clamp(44px,5.5vw,76px); height:clamp(44px,5.5vw,76px); border:3px solid var(--team); border-radius:50%; background:#142f28e8; font-size:clamp(26px,3.6vw,46px); box-shadow:0 6px 20px #0005; }
+.preview-seat strong { font-size:12px; padding:3px 14px; border:1px solid var(--team); border-radius:16px; background:#14271f; margin-top:3px; }
+.preview-seat small { color:var(--team); font-size:8px; letter-spacing:.15em; margin-top:5px; }
+.preview-seat--you { transform:translate(-50%,-72%); }
+.preview-seat--you .preview-avatar { display:grid; }
+.preview-footer { position:absolute; z-index:2; bottom:20px; left:16px; right:16px; text-align:center; }
+.preview-footer p { font:italic 14px Georgia,serif; color:#c8b896; margin:0 0 12px; }
+.preview-actions { display:flex; justify-content:center; gap:12px; }
+.preview-actions button { border:1px solid #e5c98c; border-radius:13px; padding:15px 24px; background:linear-gradient(135deg,#e2cb94,#b69555); color:#18332b; font-size:15px; font-weight:700; box-shadow:0 4px 0 #6a512f,0 9px 20px #0005; cursor:pointer; transition:filter .2s,transform .2s; }
+.preview-actions button:hover:not(:disabled) { filter:brightness(1.12); transform:translateY(-2px); }
+.preview-actions button:disabled { opacity:.45; cursor:default; }
+.preview-actions button span { margin-right:8px; }
+.preview-footer > small { display:block; color:#b1b7a6; font-size:10px; margin-top:16px; }
+.preview-error { position:absolute; z-index:3; top:45%; left:10%; right:10%; text-align:center; }
+@media(max-width:600px) { .preview-header { left:16px; right:16px; top:16px; } .preview-header h1 { font-size:26px; } .preview-eyebrow { font-size:7px; } .preview-header a { padding:9px 12px; font-size:12px; } .preview-mode { font-size:9px; padding:7px; } .preview-arena { left:3%; right:3%; top:140px; } .preview-announcement { top:92px; font-size:11px; padding:10px 16px; } .preview-actions { gap:8px; } .preview-actions button { font-size:11px; padding:13px 10px; } .preview-actions button span { display:none; } }

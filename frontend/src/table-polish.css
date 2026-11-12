@@ -1,0 +1,72 @@
+/* A compact HUD and an uninterrupted tabletop, sized for mobile first. */
+.card-room.room-3d { height:100dvh; padding-top:64px; background:#101e1b; color:#eee9dc; }
+.room-3d .table-top-scores { padding:0 12px 10px; }
+.room-3d .game-score-strip { gap:8px; }
+.room-3d .score-pill { padding:7px 16px; background:#213931; border:1px solid #9bb59b25; box-shadow:none; border-radius:10px; }
+.room-3d .table-top-scores .match-score-strip { color:#b0beb3; font-size:10px; margin-top:8px; gap:10px; letter-spacing:.02em; }
+.room-3d .game-stage { padding:0 12px; min-height:0; }
+.room-3d .game-hand-dock { min-height:64px; padding:4px 80px 16px; }
+.room-3d .game-hand-status { font-size:10px; color:#a9b9ac; }
+.room-3d .game-room-heading { z-index:3; }
+.room-3d .game-room-heading > span:last-child { display:none; }
+.room-3d .game-top-control > button,.room-3d .game-secondary-control > button { border-radius:12px; padding:10px 14px; background:#243b33; color:#e8e5d5; border:1px solid #bac3a530; box-shadow:0 3px 10px #0002; font-size:12px; }
+.room-3d .game-top-control > button:disabled { opacity:.45; }
+.room-3d .game-seat__avatar { border-width:2px; box-shadow:0 4px 12px #0003; background:#294538; }
+.room-3d .game-seat__name { box-shadow:none; background:#193027; border-color:#a9c2ad55; font-size:11px; }
+.room-3d .game-seat__team { display:none; }
+.room-3d .game-seat__badge { box-shadow:0 2px 5px #0002; }
+.table-selection-hint { position:fixed; z-index:40; left:50%; bottom:calc(70px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%); width:max-content; max-width:90vw; padding:8px 15px; border:1px solid #b4c6b02b; border-radius:12px; color:#f0ebdc; background:#193a30ed; box-shadow:0 4px 16px #0002; text-align:center; pointer-events:none; }
+.table-selection-hint > div:first-child { font-size:12px; }
+.table-selection-hint > div:last-child { font-size:10px; color:#b5c6ba; }
+.room-3d .hand-selection-actions button { border-radius:9px; background:#2d473b; border:1px solid #c7d1b540; box-shadow:none; color:#f1e9d9; padding:8px 12px; }
+.room-3d .game-laydown-action { border-radius:12px; box-shadow:none; }
+.room-3d .table3d-reset { left:auto; right:14px; top:120px; transform:none; font-size:10px; padding:6px 10px; opacity:.8; }
+@media(max-width:767px) {
+  .card-room.room-3d { padding-top:calc(var(--game-safe-top,44px) + 54px); }
+  .room-3d .table-top-scores { padding:0 12px 6px; }
+  .room-3d .game-stage { padding:0 8px; }
+  .room-3d .game-hand-dock { min-height:66px; padding:2px 76px max(14px,env(safe-area-inset-bottom)); }
+  .room-3d .game-secondary-control { top:calc(var(--game-safe-top,44px) + 49px); }
+  .room-3d .game-secondary-control > button { padding:7px; }
+  .room-3d .table3d-reset { top:calc(var(--game-safe-top,44px) + 105px); right:10px; }
+}
+@media(max-height:550px) and (orientation:landscape) {
+  .card-room.room-3d { padding-top:44px; }
+  .room-3d .table-top-scores { position:absolute; top:8px; left:25%; right:25%; padding:0; }
+  .room-3d .table-top-scores .match-score-strip { display:none; }
+  .room-3d .game-hand-dock { min-height:42px; padding:0 80px 6px; }
+}
+
+/* The hand is now the player's POV; a second avatar behind it only obscures cards. */
+.room-3d .table-seat-position:has(.game-seat--me), .table-preview .preview-seat--you { visibility:visible; }
+.card-room { -webkit-user-select:none; user-select:none; }
+.card-room input,.card-room textarea,.card-room .table-chat__panel { -webkit-user-select:text; user-select:text; }
+
+/* 3D table: names sit on top of the players' heads; badges and hints go underneath. */
+.room-3d .game-seat__name { top:auto; bottom:calc(100% - 6px); }
+.room-3d .game-seat__badge { top:auto; bottom:-10px; }
+.room-3d .game-seat--selectable .game-seat__detail, .room-3d .game-seat--drop-target .game-seat__detail { top:calc(100% + 4px); }
+/* preview page */
+.preview-seat strong { order:-1; margin:0 0 3px; }
+.preview-seat small { display:none; }
+
+/* Real card artwork (components/cards/Card.jsx): the picture is the whole card, so drop the drawn paper and border. */
+body .playing-card.playing-card--art { background:#fff; border:0; border-radius:5px; padding:0; }
+body .playing-card.playing-card--art > img { display:block; width:100%; height:100%; object-fit:fill; pointer-events:none; -webkit-user-drag:none; user-select:none; }
+
+/* 3D table: the bottom bar keeps one fixed height. The turn / start / bot prompts float in a fixed
+   spot between the chat button and Lay instead of adding height, so the table never resizes when
+   they come and go, and a long prompt wraps instead of being cut off. */
+.card-room.room-3d .game-hand-dock { height:calc(76px + env(safe-area-inset-bottom, 0px)); min-height:0; box-sizing:border-box; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; }
+.card-room.room-3d .game-hand-dock > .turn-banner,
+.card-room.room-3d .game-hand-dock > .bot-wait { position:absolute; left:0; right:0; bottom:calc(32px + env(safe-area-inset-bottom, 0px)); margin:0 auto !important; width:fit-content; max-width:calc(100% - 152px); min-height:36px; box-sizing:border-box; z-index:3; }
+.card-room.room-3d .game-hand-dock > .bot-wait { border-radius:20px; }
+.card-room.room-3d .bot-wait__text { min-width:0; white-space:normal; line-height:1.2; }
+.card-room.room-3d .bot-wait button { flex:none; white-space:nowrap; }
+.card-room.room-3d .game-hand-dock > .turn-banner { border-radius:20px; text-align:center; line-height:1.2; }
+@media (max-width:767px) {
+  .card-room.room-3d .game-hand-dock > .turn-banner,
+  .card-room.room-3d .game-hand-dock > .bot-wait { max-width:calc(100% - 140px); font-size:12px; }
+  .card-room.room-3d .bot-wait { padding:4px 4px 4px 12px; gap:8px; }
+  .card-room.room-3d .bot-wait button { padding:6px 12px; }
+}

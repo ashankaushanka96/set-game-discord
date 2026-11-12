@@ -43,7 +43,8 @@ function GatheringCard({ item, success }) {
   return <div ref={ref} className="laydown-flight"><div><Card suit={item.suit} rank={item.rank} size="md" /></div></div>;
 }
 
-export default function LaydownAnimation({ seatEls, tableCenterRef, onViewResult, onActiveChange }) {
+// With `cardsIn3d` the 3D table flies the cards itself; this only adds the glow, caption and button.
+export default function LaydownAnimation({ seatEls, tableCenterRef, onViewResult, onActiveChange, cardsIn3d = false }) {
   const [scene, setScene] = useState(null);
   const [buttonReady, setButtonReady] = useState(false);
   const [leaving, setLeaving] = useState(false);
@@ -78,7 +79,7 @@ export default function LaydownAnimation({ seatEls, tableCenterRef, onViewResult
         to: { x: cx + (index - (cards.length - 1) / 2) * spread, y: cy } }));
       clearTimeout(timer.current);
       const setName = suit ? `${suit[0].toUpperCase()}${suit.slice(1)} ${set_type === 'lower' ? 'Lower' : 'Upper'}` : 'The set';
-      setScene({ id: Date.now(), items, success, x: cx, y: cy, suit, points, team, setName, penalty, reduced: reducedMotion() });
+      setScene({ id: Date.now(), items, success, x: cx, y: cy, suit, points, team, setName, penalty, reduced: reducedMotion(), cardsIn3d });
       setLeaving(false); setButtonReady(false);
       clearTimeout(buttonTimer.current);
       buttonTimer.current = setTimeout(() => setButtonReady(true), reducedMotion() ? 600 : BUTTON_AFTER);
@@ -86,14 +87,14 @@ export default function LaydownAnimation({ seatEls, tableCenterRef, onViewResult
     };
     window.addEventListener('lay_anim', reveal);
     return () => { window.removeEventListener('lay_anim', reveal); clearTimeout(timer.current); clearTimeout(buttonTimer.current); };
-  }, [seatEls, tableCenterRef]);
+  }, [seatEls, tableCenterRef, cardsIn3d]);
 
   if (!scene) return null;
   const { success, x, y } = scene;
   const symbol = SUIT_SYMBOL[scene.suit] || '★';
   return createPortal(<div className={`laydown-reveal ${success ? 'laydown-reveal--success' : 'laydown-reveal--failed'} ${leaving ? 'laydown-reveal--leaving' : ''}`} key={scene.id}>
     <div className="laydown-reveal__glow" style={{ left: x, top: y }} />
-    {!scene.reduced && scene.items.map((item, i) => <GatheringCard key={i} item={item} success={success} />)}
+    {!scene.reduced && !scene.cardsIn3d && scene.items.map((item, i) => <GatheringCard key={i} item={item} success={success} />)}
     {success ? <>
       <div className="laydown-reveal__ring" style={{ left: x, top: y }} />
       <div className="laydown-reveal__ring laydown-reveal__ring--late" style={{ left: x, top: y }} />

@@ -24,7 +24,7 @@ const getTableCenterPosition = () => {
   return { x: window.innerWidth / 2, y: window.innerHeight / 2 };
 };
 
-const DealingAnimation = () => {
+const DealingAnimation = ({ cardsIn3d = false }) => {
   const { dealingAnimation, me, ws } = useStore();
   const [phase, setPhase] = useState('idle'); // 'idle', 'dealing', 'complete'
   const [flyingCards, setFlyingCards] = useState([]);
@@ -254,6 +254,8 @@ const DealingAnimation = () => {
       dealSequence.forEach((cardData) => {
         schedule(() => {
           playCardFoley('slide');
+          // Three.js owns the visible cards; retain the shared audio and skip controls.
+          if (cardsIn3d) return;
           const cardKey = `${cardData.id}-${Date.now()}`;
 
           // Add flying card
@@ -324,7 +326,7 @@ const DealingAnimation = () => {
       });
       animationRefs.current = {};
     };
-  }, [dealingAnimation]);
+  }, [dealingAnimation, cardsIn3d]);
 
   if (!dealingAnimation || phase === 'idle') {
     return null;
@@ -333,7 +335,7 @@ const DealingAnimation = () => {
   return (
     <div className="deal-anim-layer fixed inset-0 pointer-events-none z-50">
 
-      {(phase === 'shuffling' || phase === 'dealing') && <ShuffleDeck shuffling={phase === 'shuffling'} position={getTableCenterPosition()} />}
+      {!cardsIn3d && (phase === 'shuffling' || phase === 'dealing') && <ShuffleDeck shuffling={phase === 'shuffling'} position={getTableCenterPosition()} />}
       {(dealingAnimation.skipperId || dealingAnimation.dealerId) === me?.id && <button type="button" className="deal-skip-button" onClick={() => {
         if (ws?.readyState !== 1) return;
         send(ws,'skip_deal_animation',{animation_id:dealingAnimation.id});

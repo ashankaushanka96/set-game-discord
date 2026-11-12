@@ -8,7 +8,8 @@ const SUITS = ['hearts', 'diamonds', 'clubs', 'spades'];
 const RANKS = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
 const cardKey = card => `${card.suit}-${card.rank}`;
 
-export default function PlayerHand({ cards = [], selectedCards = [], onCardSelect, selectable = false, resolveDropTarget, onDragStart, onDragHover, onDragEnd, onCardsDrop, label = "Your hand", tapSelect = false }) {
+// `hint3d`: the cards are drawn by the 3D table, so only the heading and its hint are used here.
+export default function PlayerHand({ cards = [], selectedCards = [], onCardSelect, selectable = false, resolveDropTarget, onDragStart, onDragHover, onDragEnd, onCardsDrop, label = "Your hand", tapSelect = false, hint3d = false }) {
   const dealing = useStore(state => state.dealingAnimation);
   const previous = useRef(new Set());
   const [arrivals, setArrivals] = useState(new Set());
@@ -82,7 +83,7 @@ export default function PlayerHand({ cards = [], selectedCards = [], onCardSelec
   return <div className={`player-hand ${selectable ? '' : 'player-hand--browse'} ${compact ? 'player-hand--compact' : ''}`}>
     <div className="player-hand__heading">
       <span>{label} <span className="player-hand__count">{cards.length}</span></span>
-      <span aria-live="polite">{tapSelect && !selectable ? (selected.size ? `${selected.size} selected · tap Lay to lay down` : 'Select your cards of a set, then Lay') : selected.size ? `${selected.size} selected · drag to an opponent, or Lay` : compact ? (selectable ? 'Slide to look · drag up to pass' : 'Slide along your cards to look') : selectable ? 'Drag up to pass · swipe unselected cards to browse' : 'Sorted by suit · swipe to browse'}</span>
+      <span aria-live="polite">{tapSelect && !selectable ? (selected.size ? `${selected.size} selected · tap Lay to lay down` : 'Select your cards of a set, then Lay') : selected.size ? `${selected.size} selected · drag to an opponent, or Lay` : hint3d ? (selectable ? 'Slide along to select · drag up to pass' : 'Slide along to select') : compact ? (selectable ? 'Slide to look · drag up to pass' : 'Slide along your cards to look') : selectable ? 'Drag up to pass · swipe unselected cards to browse' : 'Sorted by suit · swipe to browse'}</span>
     </div>
     <div className="player-hand__scroll" tabIndex={0} aria-label={`${label}, scroll to see more`} ref={scrollRef} {...browseHandlers} {...peekHandlers}>
       <div className="player-hand__cards" style={compact ? { '--hand-overlap': `${overlap}px` } : undefined}>
