@@ -58,6 +58,8 @@ function SetChip({ suit, set_type, owner }) {
   </div>;
 }
 
+const RESULTS_PROMPT_SECONDS = 10;
+
 export default function Table() {
   const navigate = useNavigate();
   const { state, me, ws, gameResult, abortVoting, dealingAnimation, pendingLay, votingResult, closeVotingResult, backToLobbyVoting, speakingUsers, laydownResult, clearLaydownResult } = useStore();
@@ -100,12 +102,21 @@ export default function Table() {
     const timer = setTimeout(() => setResultsReady(true), window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 150 : 1100);
     return () => clearTimeout(timer);
   }, [pendingResult]);
-  // Nobody opened the laydown results within 30s: put the prompt away so play can go on.
+  // Nobody opened the laydown results within 10s of the prompt showing: put it away so play can go on.
+  // The prompt counts down like the bot-wait pill (a draining bar and the seconds left).
+  const resultsPromptShown = !!pendingResult && resultsReady && !layAnimActive;
+  const [promptLeft, setPromptLeft] = useState(RESULTS_PROMPT_SECONDS);
+  const [promptRun, setPromptRun] = useState(0);   // restarts the draining bar each time the countdown starts
   useEffect(() => {
-    if (!laydownResult || resultsOpen) return;
-    const timer = setTimeout(() => clearLaydownResult(), 30000);
-    return () => clearTimeout(timer);
-  }, [laydownResult, resultsOpen, clearLaydownResult]);
+    if (!laydownResult || resultsOpen || !resultsPromptShown) return;
+    const until = Date.now() + RESULTS_PROMPT_SECONDS * 1000;
+    setPromptRun(n => n + 1);
+    const tick = () => setPromptLeft(Math.max(0, Math.ceil((until - Date.now()) / 1000)));
+    tick();
+    const id = setInterval(tick, 250);
+    const timer = setTimeout(() => clearLaydownResult(), RESULTS_PROMPT_SECONDS * 1000);
+    return () => { clearInterval(id); clearTimeout(timer); };
+  }, [laydownResult, resultsOpen, resultsPromptShown, clearLaydownResult]);
   useEffect(() => {
     if (state.phase === 'ready' || state.phase === 'lobby') clearLaydownResult();
   }, [state.phase, clearLaydownResult]);
@@ -534,9 +545,11 @@ export default function Table() {
               )}
             </div>
 
-            {pendingResult && resultsReady && !layAnimActive && <div className="laydown-results-prompt" role="status">
+            {resultsPromptShown && <div className={`laydown-results-prompt ${laydownResult ? 'laydown-results-prompt--timed' : ''}`} role="status">
+              {laydownResult && !resultsOpen && <span key={promptRun} className="bot-wait__bar laydown-results-prompt__bar" style={{ animationDuration: `${RESULTS_PROMPT_SECONDS}s` }} aria-hidden="true" />}
               <span>{laydownResult ? (laydownResult.success ? 'Set complete' : 'Declaration checked') : 'Round complete'}</span>
               <button type="button" className="club-primary" onClick={event => {event.stopPropagation();setResultsOpen(true);}}>View results</button>
+              {laydownResult && !resultsOpen && <small className="laydown-results-prompt__left">Closes in {promptLeft}s</small>}
             </div>}
 
             {Object.keys(seats).map((k) => {

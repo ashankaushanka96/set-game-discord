@@ -43,7 +43,6 @@ export default function GameTable3D({ arenaRef, ids, counts, teams, sets, dealin
   const [turned, setTurned] = useState(false);
   const [setPositions, setSetPositions] = useState([]);
   const [inspected, setInspected] = useState(null);
-  const [pinned, setPinned] = useState(false);
   const [roomEl, setRoomEl] = useState(null);
   useEffect(() => { setRoomEl(host.current?.closest('.card-room') || null); }, []);
   const data = useRef({});
@@ -104,7 +103,13 @@ export default function GameTable3D({ arenaRef, ids, counts, teams, sets, dealin
     if (portrait === null) return;
     let t;
     try {
-      t = createGameTable3D(host.current, { portrait });
+      t = createGameTable3D(host.current, { portrait, onLift: (rels) => {
+        // seats nearer to us than travelling cards sit above the hand layer those cards are drawn on
+        arenaRef.current?.querySelectorAll(':scope > .table-seat-position').forEach((el) => {
+          const rel = (Number(el.dataset.seat) - data.current.mySeatIndex + 6) % 6;
+          el.style.zIndex = rels.includes(rel) ? '7' : '';
+        });
+      } });
     } catch (error) {
       console.warn('[3D table] could not start, falling back to the flat table', error);
       onFail?.();
@@ -278,9 +283,13 @@ export default function GameTable3D({ arenaRef, ids, counts, teams, sets, dealin
   useEffect(() => { pushHand(); }, [handKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    const close = e => { if (e.key === 'Escape') { setInspected(null); setPinned(false); } };
+    // A laid set's details open on click and close on Escape or a click anywhere else
+    // (the set's own button toggles, the details panel itself keeps it open).
+    const close = e => { if (e.key === 'Escape') setInspected(null); };
+    const outside = e => { if (!e.target.closest?.('.collected-set-hit, .collected-set-inspector')) setInspected(null); };
     window.addEventListener('keydown', close);
-    return () => window.removeEventListener('keydown', close);
+    window.addEventListener('pointerdown', outside, true);
+    return () => { window.removeEventListener('keydown', close); window.removeEventListener('pointerdown', outside, true); };
   }, []);
   const inspectedSet = sets.find(s => `${s.suit}|${s.set_type}` === inspected);
   return <>
@@ -292,14 +301,12 @@ export default function GameTable3D({ arenaRef, ids, counts, teams, sets, dealin
         const lower = ['low', 'lower'].includes(set.set_type);
         return <button key={pos.key} type="button" className="collected-set-hit" data-collected-key={pos.key}
           style={{ left: pos.x, top: pos.y }} aria-label={`Inspect ${set.suit} ${lower ? '2 to 7' : '8 to ace'}, Team ${set.owner_team}`}
-          onPointerEnter={e => { if (e.pointerType !== 'touch' && !pinned) setInspected(pos.key); }}
-          onPointerLeave={() => { if (!pinned) setInspected(null); }}
-          onFocus={() => { if (!pinned) setInspected(pos.key); }} onBlur={() => { if (!pinned) setInspected(null); }}
-          onClick={e => { e.stopPropagation(); setInspected(pos.key); setPinned(true); }} />;
+          aria-expanded={inspected === pos.key}
+          onClick={e => { e.stopPropagation(); setInspected(k => k === pos.key ? null : pos.key); }} />;
       })}
       {inspectedSet && <section className="collected-set-inspector" aria-label="Collected set details" onClick={e => e.stopPropagation()}>
         <div><strong>{inspectedSet.suit} · {['low', 'lower'].includes(inspectedSet.set_type) ? '2–7' : '8–A'}</strong><span>Team {inspectedSet.owner_team}</span>
-          <button type="button" aria-label="Close set details" onClick={() => { setInspected(null); setPinned(false); }}>×</button></div>
+          <button type="button" aria-label="Close set details" onClick={() => setInspected(null)}>×</button></div>
         <div className="collected-set-inspector__cards">{[...(inspectedSet.cards || [])].sort((a,b) => ['2','3','4','5','6','7','8','9','10','J','Q','K','A'].indexOf(a.rank) - ['2','3','4','5','6','7','8','9','10','J','Q','K','A'].indexOf(b.rank)).map(c => <Card key={`${c.suit}-${c.rank}`} {...c} size="sm" />)}</div>
       </section>}
     </>, roomEl)}

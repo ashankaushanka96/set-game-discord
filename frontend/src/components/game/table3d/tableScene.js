@@ -11,7 +11,6 @@ const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
 const TEAM_COLOR = { A: 0x7ca6bd, B: 0xc98f87 };
 const CW = 0.62, CH = 0.88, CT = 0.006;
 const FAN_SCALE = 0.7;    // the cards an opponent holds in their hands
-const SET_SCALE = 0.5;     // laid-down sets in the middle
 const FLY_SCALE = 0.8;     // a card on its way to someone
 const SHUFFLE_SECONDS = 3.2, DEAL_SECONDS = 27;   // same pacing as the deal sounds (dealTiming.js)
 const REST_SECONDS = 5;    // a passed card stays face up this long, like a seat bubble
@@ -74,7 +73,7 @@ const faceTexture = (rank, suit, onReady) => {
 };
 
 
-export function createGameTable3D(container, { portrait }) {
+export function createGameTable3D(container, { portrait, onLift }) {
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
@@ -216,12 +215,16 @@ export function createGameTable3D(container, { portrait }) {
   }
 
   const setKey = (set) => `${set.suit}|${set.set_type}`;
+  // Laid-down sets in the middle: the players' cards are in their hands now, so the felt is free
+  // and the sets can be big enough to read.
+  const SET_SCALE = portrait ? 0.8 : 1.0;
   function setCell(k, n) {
-    const cols = portrait ? 2 : Math.min(3, n), rows = Math.ceil(n / cols);
-    const cellW = portrait ? 1.15 : 1.25, cellH = 0.76;
+    const cols = portrait ? 2 : Math.min(4, n), rows = Math.ceil(n / cols);
+    const cellW = portrait ? 1.32 : 2.15, cellH = portrait ? 1.0 : 1.04;
+    const back = portrait ? 0.15 : 0.4;          // kept back from the player's edge, clear of their badge
     const col = k % cols, row = Math.floor(k / cols);
     const inRow = Math.min(cols, n - row * cols);
-    return { cx: (col - (inRow - 1) / 2) * cellW, cz: (row - (rows - 1) / 2) * cellH };
+    return { cx: (col - (inRow - 1) / 2) * cellW, cz: (row - (rows - 1) / 2) * cellH - back };
   }
   let layingKey = null;                    // the set still flying in; drawn once it lands
   function drawSets(sets) {
@@ -234,7 +237,7 @@ export function createGameTable3D(container, { portrait }) {
       if (setKey(set) === layingKey) return;
       const { cx, cz } = setCell(k, n);
       const cards = [...(set.cards || [])].sort((a, b) => RANKS.indexOf(a.rank) - RANKS.indexOf(b.rank));
-      const step = 0.09, width = (cards.length - 1) * step + CW * SET_SCALE;
+      const step = 0.17 * SET_SCALE, width = (cards.length - 1) * step + CW * SET_SCALE;
       cards.forEach((card, i) => {
         const key = keyOf(card);
         if (!collectedMats.has(key)) collectedMats.set(key, new THREE.MeshBasicMaterial({ map: faceTexture(card.rank, card.suit, repaint), alphaTest: 0.5 }));
@@ -363,30 +366,33 @@ export function createGameTable3D(container, { portrait }) {
     return new THREE.Vector3(Math.cos(ang) * r, 0, Math.sin(ang) * r);
   }
   const glowMat = (color, map, opacity) => new THREE.MeshBasicMaterial({ color, map, transparent: true, opacity, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
-  // Where the travelling card(s) hover: over the table in front of the receiver, pushed further in
-  // until, as seen on screen, the cards no longer overlap that player's avatar, name or badge.
-  const AVATAR_CLEAR = 46;                                      // css px around the head kept free
-  function hoverPoint(b, nCards) {
-    const up = new THREE.Vector3().copy(camera.up).applyQuaternion(camera.quaternion).normalize();
-    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion).normalize();
-    const half = nCards ? CH * (nCards > 1 ? 1.35 : 1.6) / 2 + (nCards > 1 ? 0.15 : 0.05) : 0.2;
-    const halfW = nCards ? CW * (nCards > 1 ? 1.35 : 1.6) / 2 * (1 + 0.45 * (nCards - 1)) : 0.55;
-    const head = project(new THREE.Vector3(b.pos.x, 0.98, b.pos.z));
-    let pt = null;
-    for (let d = 1.4; d <= 3.4; d += 0.1) {
-      pt = b.pos.clone().addScaledVector(toCentre(b), d).setY(0.85);
-      const top = project(pt.clone().addScaledVector(up, half)).y, bottom = project(pt.clone().addScaledVector(up, -half)).y;
-      const l = project(pt.clone().addScaledVector(right, -halfW)).x, r = project(pt.clone().addScaledVector(right, halfW)).x;
-      if (top > head.y + AVATAR_CLEAR || bottom < head.y - AVATAR_CLEAR || l > head.x + AVATAR_CLEAR || r < head.x - AVATAR_CLEAR) break;
-    }
-    return pt;
+  // Where the travelling card(s) hover: just in front of the receiver, over the table edge. The cards
+  // are nearer to us than that player, so like real held-up cards they may cover the head behind them.
+  const HOVER_IN = portrait ? 0.95 : 1.15;
+  function hoverPoint(b) {
+    return b.pos.clone().addScaledVector(toCentre(b), HOVER_IN).setY(0.85);
+  }
+  // A solid gold "?" over asked cards: a tube bent into the hook, and a ball for the dot (shared).
+  const askHook = new THREE.TubeGeometry(new THREE.CatmullRomCurve3([
+    [-0.30, 0.42], [-0.26, 0.62], [-0.08, 0.76], [0.14, 0.74], [0.30, 0.58], [0.28, 0.38], [0.12, 0.24], [0.02, 0.12], [0, -0.04],
+  ].map(([x, y]) => new THREE.Vector3(x, y, 0)), false, 'catmullrom', 0.3), 64, 0.1, 16, false);
+  const askDot = new THREE.SphereGeometry(0.12, 24, 16);
+  const askCap = new THREE.SphereGeometry(0.1, 16, 12);
+  const askGold = new THREE.MeshStandardMaterial({ color: 0xf2c24e, metalness: 0.75, roughness: 0.28, emissive: 0x5a3c08, emissiveIntensity: 0.6 });
+  function askMark() {
+    const g = new THREE.Group();
+    const hook = new THREE.Mesh(askHook, askGold), dot = new THREE.Mesh(askDot, askGold), cap = new THREE.Mesh(askCap, askGold);
+    dot.position.set(0, -0.3, 0); cap.position.set(-0.30, 0.42, 0);      // rounded end on the hook
+    for (const m of [hook, dot, cap]) { m.castShadow = true; g.add(m); }
+    g.position.y = -0.24;                                                   // centre the shape on its pivot
+    const pivot = new THREE.Group(); pivot.add(g); return pivot;
   }
   function makePointer(pt) {
     const a = spots[pt.from], b = spots[pt.to];
     const color = TONE3D[pt.tone] || TONE3D.ask;
     const start = a.pos.clone().addScaledVector(toCentre(a), 0.6).setY(0.7);
     const nCards = pt.tone === 'turn' ? 0 : Math.max(1, Math.min(6, pt.cards?.length || 1));
-    const end = hoverPoint(b, nCards);
+    const end = hoverPoint(b);
     const mid = start.clone().add(end).multiplyScalar(0.5).multiplyScalar(0.7);
     mid.y = 1.3 + start.distanceTo(end) * 0.12;
     const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
@@ -408,6 +414,12 @@ export function createGameTable3D(container, { portrait }) {
         holder.rotation.z = -(i - (n - 1) / 2) * step;
         holder.add(card); cards.add(holder);
       });
+      if (pt.tone === 'ask') {
+        // a question mark over the asked cards: they're being asked for, not handed over
+        const q = askMark(), r = n > 1 ? 0.6 : 0.62;
+        q.scale.setScalar(r); q.position.set(0, CH * size * 0.5 + r * 0.55 + (n > 1 ? 0.12 : 0), 0.1);
+        q.userData.askMark = true; cards.add(q);
+      }
       const halo = new THREE.Mesh(new THREE.PlaneGeometry(CW * (3.2 + (n - 1) * 0.7), CH * 2.7), glowMat(color, poolTex, 0.7));
       halo.position.z = -0.03; owned.push(halo.geometry, halo.material);
       flyer.add(halo);
@@ -427,7 +439,7 @@ export function createGameTable3D(container, { portrait }) {
     group.add(beam, pool, fromPool, flyer, cards);
     scene.add(group);
     beam.userData.pool = pool;
-    return { key: pt.key, group, flyer, cards, cardR: nCards ? CH * (nCards > 1 ? 1.35 : 1.6) / 2 + 0.1 : 0.25, beam, beamMat, poolMat, pool, curve, aPos: a.pos.clone(), bPos: b.pos.clone(), owned, born: performance.now(), sig: sigOf(pt) };
+    return { key: pt.key, group, flyer, cards, cardR: nCards ? CH * (nCards > 1 ? 1.35 : 1.6) / 2 + 0.1 + (pt.tone === 'ask' ? 0.55 : 0) : 0.25, beam, beamMat, poolMat, pool, curve, aPos: a.pos.clone(), bPos: b.pos.clone(), owned, born: performance.now(), sig: sigOf(pt) };
   }
   const sigOf = (pt) => `${pt.from}>${pt.to}:${pt.tone}:${pt.label || ''}:${(pt.cards || (pt.card ? [pt.card] : [])).map((c) => c.rank + c.suit).join(',')}`;
   function dropPointer(p) {
@@ -438,19 +450,26 @@ export function createGameTable3D(container, { portrait }) {
   const FLY = 0.95;
   const headPts = spots.map((sp) => new THREE.Vector3(sp.pos.x, 0.98, sp.pos.z));
   const HEAD_PX = 44;
+  // Which heads the cards overlap on screen: those farther away than the cards are covered by them
+  // (front), those nearer cover the cards (nearer: their seats are lifted above the cards' layer).
   function cardsInFront(pos, radius) {
     const c = project(pos), edge = project(pos.clone().addScaledVector(camUp.copy(camera.up).applyQuaternion(camera.quaternion), radius));
     const r = Math.abs(edge.y - c.y) + HEAD_PX, dCard = camera.position.distanceTo(pos);
-    let front = false;
-    for (const h of headPts) {
+    let front = false; const nearer = [];
+    headPts.forEach((h, rel) => {
       const hp = project(h);
-      if (Math.abs(hp.x - c.x) > r || Math.abs(hp.y - c.y) > r) continue;
-      if (camera.position.distanceTo(h) < dCard) return false;   // a nearer head covers the cards
-      front = true;
-    }
-    return front;
+      if (Math.abs(hp.x - c.x) > r || Math.abs(hp.y - c.y) > r) return;
+      if (camera.position.distanceTo(h) < dCard) { if (rel) nearer.push(rel); } else front = true;   // the player's own seat stays under their hand
+    });
+    return { front, nearer };
+  }
+  let liftedKey = '';
+  function lift(rels) {
+    const key = [...new Set(rels)].sort().join(',');
+    if (key !== liftedKey) { liftedKey = key; onLift?.(key ? key.split(',').map(Number) : []); }
   }
   function animatePointers(now) {
+    const lifted = [];
     for (const p of pointers.values()) {
       const el = (now - p.born) / 1000;
       const t = reduceMotion ? 1 : Math.min(1, el / FLY);
@@ -463,17 +482,22 @@ export function createGameTable3D(container, { portrait }) {
       p.flyer.quaternion.copy(camera.quaternion);                                 // always faces the player
       if (!reduceMotion) p.flyer.rotateY(t < 1 ? (1 - k) * Math.PI * 2 : 0.18 * Math.sin(hover * 1.6));
       const s = 0.55 + 0.45 * k; p.flyer.scale.setScalar(s);
+      p.cards.children.forEach((c) => { if (c.userData.askMark) c.rotation.y = reduceMotion ? 0.35 : Math.sin(el * 1.5) * 0.7; });   // the "?" turns to and fro
       p.cards.position.copy(p.flyer.position); p.cards.quaternion.copy(p.flyer.quaternion); p.cards.scale.setScalar(s);
       // Avatars are HTML drawn over the 3D table. When the cards overlap a player's head on screen and
       // are nearer to us than that head, they belong in front of it, so they move to the hand layer
       // (which sits above the seats); behind a nearer head they stay in the table scene, under it.
-      const parent = cardsInFront(p.flyer.position, p.cardR * s) ? handScene : p.group;
+      // Seats nearer to us than the cards are lifted above that layer, so each head sits in its own depth.
+      const over = cardsInFront(p.flyer.position, p.cardR * s);
+      const parent = over.front ? handScene : p.group;
       if (p.cards.parent !== parent) parent.add(p.cards);
+      if (over.front) lifted.push(...over.nearer);
       const on = Math.min(1, el / 0.4), pulse = 0.5 + 0.5 * Math.sin(el * 2 * Math.PI / 1.6);
       p.beamMat.opacity = on * (0.85 + 0.15 * pulse);
       p.poolMat.opacity = on * (0.8 + 0.2 * pulse);
       p.pool.scale.setScalar(1 + 0.06 * pulse);
     }
+    lift(lifted);
   }
   // ---- Whose turn it is (Turn Play): a cool spotlight on that player, a cone of light from above
   // and a pool at their chair. When the turn passes it glides around the table to the next player
@@ -522,7 +546,7 @@ export function createGameTable3D(container, { portrait }) {
       if (!pt || p.sig !== sigOf(pt)) { dropPointer(p); pointers.delete(key); }
     }
     for (const [key, pt] of want) if (!pointers.has(key)) pointers.set(key, makePointer(pt));
-    if (pointers.size) kick(); else render();
+    if (pointers.size) kick(); else { lift([]); render(); }
   }
 
   // ---- state ----
@@ -680,7 +704,7 @@ export function createGameTable3D(container, { portrait }) {
       const done = () => { if (laying?.meshes !== meshes) return; meshes.forEach((m) => flyGroup.remove(m)); laying = null; layingKey = null; drawSets(state.sets); render(); };
       if (idx < 0) { done(); return; }
       const { cx, cz } = setCell(idx, state.sets.length);
-      meshes.forEach((m, k) => fly(m, m.position.clone(), new THREE.Vector3(cx + (k - (n - 1) / 2) * 0.09, 0.02 + k * 0.002, cz),
+      meshes.forEach((m, k) => fly(m, m.position.clone(), new THREE.Vector3(cx + (k - (n - 1) / 2) * 0.17 * SET_SCALE, 0.02 + k * 0.002, cz),
         { delay: k * 0.05, dur: 0.6, arc: 0.4, ry0: m.rotation.y, ry1: 0, s0: 1, s1: SET_SCALE, onDone: k === n - 1 ? done : undefined }));
     });
     laying = { meshes, timer };
@@ -936,7 +960,7 @@ export function createGameTable3D(container, { portrait }) {
     lay,
     startDeal, stopDeal, pass, clearRest, setPointers, setTurn,
     dispose() {
-      alive = false; cancelAnimationFrame(raf); pointers.forEach(dropPointer); pointers.clear(); beamTex.dispose(); poolTex.dispose(); turnBeam.geometry.dispose(); turnPool.geometry.dispose(); turnBeamMat.dispose(); turnPoolMat.dispose(); timers.forEach((id) => clearTimeout(id)); tweens.length = 0;
+      alive = false; cancelAnimationFrame(raf); pointers.forEach(dropPointer); pointers.clear(); beamTex.dispose(); poolTex.dispose(); askHook.dispose(); askDot.dispose(); askCap.dispose(); askGold.dispose(); turnBeam.geometry.dispose(); turnPool.geometry.dispose(); turnBeamMat.dispose(); turnPoolMat.dispose(); timers.forEach((id) => clearTimeout(id)); tweens.length = 0;
       scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); for (const m of [].concat(o.material || [])) { m.map?.dispose(); m.dispose(); } });
       faceMats.forEach((m) => { m.map?.dispose(); m.dispose(); });
       handFaceMats.forEach((m) => { m.map?.dispose(); m.dispose(); });

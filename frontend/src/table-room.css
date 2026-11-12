@@ -419,7 +419,7 @@
 .table3d-reset { position:fixed; left:50%; top:calc(var(--game-safe-top, 0px) + 56px); transform:translateX(-50%); z-index:45; pointer-events:auto; padding:5px 14px; border-radius:999px; border:1px solid #d7bc7c66; background:#13261de6; color:#f3ecdd; font-size:12px; font-weight:600; box-shadow:0 4px 12px #0006; }
 
 /* Inspect compact table sets without spreading them into players' hands. */
-.collected-set-hit { position:fixed; z-index:3; width:clamp(36px,6vw,100px); height:clamp(26px,4vw,64px); transform:translate(-50%,-40%); background:transparent; border:1px solid transparent; border-radius:8px; cursor:zoom-in; }
+.collected-set-hit { position:fixed; z-index:3; width:clamp(60px,10vw,170px); height:clamp(44px,6.5vw,110px); transform:translate(-50%,-40%); background:transparent; border:1px solid transparent; border-radius:8px; cursor:pointer; }
 .collected-set-hit:hover,.collected-set-hit:focus-visible { border-color:#e9cf8e; background:#ead29a15; outline:2px solid #ead29a44; outline-offset:3px; }
 .collected-set-inspector { position:fixed; z-index:90; left:50%; top:18%; transform:translateX(-50%); width:max-content; max-width:94vw; padding:16px; border:1px solid #d3b775; border-radius:16px; color:#f8eed5; background:#142d25f5; box-shadow:0 16px 48px #0009; }
 .collected-set-inspector > div:first-child { display:flex; align-items:center; gap:18px; margin-bottom:14px; text-transform:capitalize; font-size:14px; }
@@ -437,3 +437,7 @@
 .collected-set-hit:hover,.collected-set-hit:focus-visible { border-color:transparent; background:transparent; outline:none; }
 .collected-set-hit:focus-visible { outline:1px dashed #e3d7b1; }
 @media(max-width:767px) { .table-top-scores { padding-top:62px; } .card-room.room-3d .game-stage { padding-top:20px; } }
+/* The laydown results prompt drains like the bot-wait pill while its 10 seconds run out. */
+.laydown-results-prompt--timed { overflow:hidden; }
+.laydown-results-prompt--timed > :not(.laydown-results-prompt__bar) { position:relative; }
+.laydown-results-prompt__left { font-size:10px; color:#cbb98a; font-variant-numeric:tabular-nums; }
