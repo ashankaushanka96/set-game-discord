@@ -8,6 +8,7 @@ import { Toast } from "../ui";
 import { ConfirmUnassignModal, ConfirmSpectatorStartModal } from "../modals";
 import { SeatSelector } from "./";
 import GameModePicker from "./GameModePicker";
+import BotLevelPicker, { getBotLevel } from "./BotLevelPicker";
 import { generateUUID } from "../../utils/uuid";
 import { DiscordSDK, Events }  from "@discord/embedded-app-sdk";
 import { readyDiscordSDK } from "../../utils/discordSdkSingleton";
@@ -1098,8 +1099,13 @@ export default function Lobby() {
       
       // Generate AI players
       const aiPlayers = [];
-      const aiNames = ["Bot Alpha", "Bot Beta", "Bot Gamma", "Bot Delta", "Bot Epsilon", "Bot Zeta"];
-      const aiAvatars = ["🤖", "👾", "🎮", "🎯", "⚡", "🔥"];
+      // Friendly names, shuffled each game and never the same as someone already at the table.
+      const taken = new Set(Object.values(state?.players || {}).map((p) => (p.name || "").trim().toLowerCase()));
+      const aiNames = ["Aana", "Latta", "Benja", "Kajja", "Suwada", "Kachal", "Dado", "Wadda"]
+        .filter((n) => !taken.has(n.toLowerCase()))
+        .sort(() => Math.random() - 0.5);
+      const aiAvatars = ["🦊", "🐼", "🦉", "🐯", "🐙", "🦁"].sort(() => Math.random() - 0.5);
+      const botLevel = getBotLevel();
       
       // Calculate team distribution for AI players
       let teamACount = connectedPlayers.filter(p => p.team === "A").length;
@@ -1131,7 +1137,8 @@ export default function Lobby() {
           player_id: aiId,
           name: aiName,
           avatar: aiAvatar,
-          team: aiTeam
+          team: aiTeam,
+          level: botLevel
         });
       }
       
@@ -1393,6 +1400,7 @@ export default function Lobby() {
               </div>
 
               <GameModePicker state={state} me={me} />
+              {TEST_MODE_ENABLED && state?.game_mode === "turns" && players.filter((p)=>p.connected!==false).length < 6 && <BotLevelPicker />}
 
               {players.length >= 6 && players.filter((p) => p.team).length < 6 && (
                 <div className="mb-3 p-2 bg-gradient-warm/20 border border-accent-amber/40 rounded-lg shadow-glow-amber">

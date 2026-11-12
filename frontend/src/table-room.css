@@ -375,3 +375,22 @@
   .card-room .player-hand__heading { position:absolute; top:0; left:0; right:0; z-index:1; pointer-events:none; }
   .card-room .player-hand__scroll { padding-top:14px; padding-bottom:20px; }
 }
+
+/* A player with no cards left sits out the rest of the round */
+.card-room .game-seat--out { filter: grayscale(1) brightness(.6); opacity: .65; }
+.card-room .game-seat--out .game-seat__name::after { content: " · out"; color: #b9b9b0; font-weight: 400; }
+
+/* Talking: the chair behind the player glows green and sends out a ring. The player circle
+   is left alone, so the gold turn glow and card highlights never hide who is speaking. */
+.card-room .seat-frame--speaking::before { border-color:#43d98c !important; background:radial-gradient(ellipse at 50% 30%,#2f8f5f,#14553a 70%) !important;
+  box-shadow:0 0 0 2px #43d98c,0 0 16px 5px #43d98c99; animation:seat-speak-glow 1s ease-in-out infinite; }
+.card-room .seat-frame--speaking::after { content:''; position:absolute; inset:-9px; border-radius:50%; border:2px solid #43d98c; pointer-events:none; animation:seat-speak-wave 1.2s ease-out infinite; }
+@keyframes seat-speak-glow { 50% { box-shadow:0 0 0 3px #43d98c,0 0 24px 9px #43d98ccc; } }
+@keyframes seat-speak-wave { from { opacity:.9; transform:scale(1); } to { opacity:0; transform:scale(1.45); } }
+@media (prefers-reduced-motion:reduce) { .card-room .seat-frame--speaking::before, .card-room .seat-frame--speaking::after { animation:none; } }
+
+/* Opponents' card stacks sit further onto the table, clear of the name plate under each
+   player, and the name always draws on top of them. */
+.seat-card-stack { z-index:0; }
+@media (max-width:767px) { .seat-card-stack { left:calc(50% + var(--hand-x)*.8); top:calc(50% + var(--hand-y)*.8); } }
+@media (max-height:650px) and (min-width:768px) { .seat-card-stack { left:calc(50% + var(--hand-x)*.9); top:calc(50% + var(--hand-y)*.9); } }

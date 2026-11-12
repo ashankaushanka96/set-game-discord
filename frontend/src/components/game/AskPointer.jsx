@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { useStore } from '../../store';
 
 // Turn Play: while an ask is waiting, a solid golden arrow swoops from the asker's seat to
 // the player being asked. It starts as a thin tail, widens into a bold head, floats above
@@ -41,10 +42,45 @@ function arrowPath(g, p) {
     + ` L ${(bx - bnx * HEAD_HALF).toFixed(1)} ${(by - bny * HEAD_HALF).toFixed(1)} L ${right.reverse().join(' L ')} Z`;
 }
 
+// Arrow colours by meaning: gold = asking for a card, green = cards going into a laydown,
+// blue = the turn passing to another player.
+const TONES = {
+  ask: { from: '#f5a623', mid: '#ffd34d', tip: '#fff2b8', edge: '#6b3f00', glow: 'rgba(255,196,70,.65)', ring: '#ffd34d' },
+  lay: { from: '#22c55e', mid: '#6ee7a8', tip: '#dcfce7', edge: '#064e2a', glow: 'rgba(110,231,168,.6)', ring: '#6ee7a8' },
+  turn: { from: '#38bdf8', mid: '#7dd3fc', tip: '#e0f2fe', edge: '#0c3b5a', glow: 'rgba(125,211,252,.65)', ring: '#7dd3fc' },
+};
+
 export default function AskPointer({ seatEls, seatVersion, ask }) {
+  return <SeatArrow seatEls={seatEls} seatVersion={seatVersion} fromId={ask?.asker_id} toId={ask?.target_id} tone="ask" />;
+}
+
+// Laydown and turn arrows queued by the store: who is putting cards into a declaration,
+// and who the turn passes to afterwards. Each one removes itself when its time is up.
+export function FlowArrows({ seatEls, seatVersion }) {
+  const arrows = useStore((s) => s.flowArrows);
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!arrows?.length) return;
+    const id = setInterval(() => {
+      const now = Date.now();
+      if (useStore.getState().flowArrows.some((a) => a.until <= now)) {
+        useStore.setState((s) => ({ flowArrows: s.flowArrows.filter((a) => a.until > now) }));
+      }
+      setTick((t) => t + 1); // also lets delayed arrows appear
+    }, 300);
+    return () => clearInterval(id);
+  }, [arrows]);
+  const now = Date.now();
+  return (arrows || []).filter((a) => a.from !== a.to && (a.start || 0) <= now && a.until > now).map((a) =>
+    <SeatArrow key={a.id} seatEls={seatEls} seatVersion={seatVersion} fromId={a.from} toId={a.to} tone={a.tone} label={a.label} />);
+}
+
+export function SeatArrow({ seatEls, seatVersion, fromId, toId, tone = 'ask', label = null }) {
   const [geo, setGeo] = useState(null);
   const body = useRef(null), shadow = useRef(null), gloss = useRef(null);
-  const askerId = ask?.asker_id, targetId = ask?.target_id;
+  const askerId = fromId, targetId = toId;
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
+  const C = TONES[tone] || TONES.ask;
 
   useEffect(() => {
     if (!askerId || !targetId) { setGeo(null); return; }
@@ -69,12 +105,17 @@ export default function AskPointer({ seatEls, seatVersion, ask }) {
       const g = { sx, sy, ex, ey, qx: mx + nx * bow, qy: my + ny * bow, tx, ty, r: Math.max(rt.width, rt.height) / 2 + 5 };
       let len = 0, prev = [sx, sy];
       for (let i = 1; i <= 20; i++) { const q = point(g, i / 20); len += Math.hypot(q[0] - prev[0], q[1] - prev[1]); prev = q; }
-      setGeo({ ...g, len });
+      const next = { ...g, len };
+      // Only update when something actually moved, so the shoot-out animation isn't restarted.
+      setGeo((prev) => (prev && ['sx', 'sy', 'ex', 'ey', 'tx', 'ty', 'r'].every((key) => Math.abs(prev[key] - next[key]) < 0.5) ? prev : next));
     };
     compute();
+    // Seats shift when the layout around the table changes (for example the bar under the
+    // table changing height), which fires no resize event. Keep following them.
+    const follow = setInterval(compute, 250);
     window.addEventListener('resize', compute);
     window.addEventListener('scroll', compute, { passive: true, capture: true });
-    return () => { window.removeEventListener('resize', compute); window.removeEventListener('scroll', compute, true); };
+    return () => { clearInterval(follow); window.removeEventListener('resize', compute); window.removeEventListener('scroll', compute, true); };
   }, [askerId, targetId, seatEls, seatVersion]);
 
   // Shoot out from the asker, overshoot slightly, then keep nudging toward the target.
@@ -107,15 +148,16 @@ export default function AskPointer({ seatEls, seatVersion, ask }) {
 
   if (!geo) return null;
   const d0 = arrowPath(geo, 1);
+  const mid = point(geo, .5);
   return <svg className="ask-arrow" aria-hidden="true" key={`${askerId}-${targetId}`}>
     <defs>
-      <linearGradient id="ask-arrow-fill" gradientUnits="userSpaceOnUse" x1={geo.sx} y1={geo.sy} x2={geo.ex} y2={geo.ey}>
-        <stop offset="0" stopColor="#f5a623" stopOpacity=".15" />
-        <stop offset=".35" stopColor="#f5a623" />
-        <stop offset=".8" stopColor="#ffd34d" />
-        <stop offset="1" stopColor="#fff2b8" />
+      <linearGradient id={`af-${uid}`} gradientUnits="userSpaceOnUse" x1={geo.sx} y1={geo.sy} x2={geo.ex} y2={geo.ey}>
+        <stop offset="0" stopColor={C.from} stopOpacity=".15" />
+        <stop offset=".35" stopColor={C.from} />
+        <stop offset=".8" stopColor={C.mid} />
+        <stop offset="1" stopColor={C.tip} />
       </linearGradient>
-      <linearGradient id="ask-arrow-gloss" gradientUnits="userSpaceOnUse" x1={geo.sx} y1={geo.sy} x2={geo.ex} y2={geo.ey}>
+      <linearGradient id={`ag-${uid}`} gradientUnits="userSpaceOnUse" x1={geo.sx} y1={geo.sy} x2={geo.ex} y2={geo.ey}>
         <stop offset="0" stopColor="#fff" stopOpacity="0" />
         <stop offset=".5" stopColor="#fff" stopOpacity=".75" />
         <stop offset="1" stopColor="#fff" stopOpacity="0" />
@@ -123,9 +165,13 @@ export default function AskPointer({ seatEls, seatVersion, ask }) {
           from={`${geo.sx - geo.ex} ${geo.sy - geo.ey}`} to={`${geo.ex - geo.sx} ${geo.ey - geo.sy}`} />
       </linearGradient>
     </defs>
-    <circle className="ask-arrow__ring" cx={geo.tx} cy={geo.ty} r={geo.r} />
+    <circle className="ask-arrow__ring" cx={geo.tx} cy={geo.ty} r={geo.r} style={{ stroke: C.ring }} />
     <path ref={shadow} className="ask-arrow__shadow" d={d0} />
-    <path ref={body} className="ask-arrow__body" d={d0} fill="url(#ask-arrow-fill)" />
-    <path ref={gloss} className="ask-arrow__gloss" d={d0} fill="url(#ask-arrow-gloss)" />
+    <path ref={body} className="ask-arrow__body" d={d0} fill={`url(#af-${uid})`} style={{ stroke: C.edge, filter: `drop-shadow(0 0 5px ${C.glow})` }} />
+    <path ref={gloss} className="ask-arrow__gloss" d={d0} fill={`url(#ag-${uid})`} />
+    {label && <g transform={`translate(${mid[0]} ${mid[1]})`}>
+      <rect className="ask-arrow__tag" x={-label.length * 3.6 - 8} y="-10" width={label.length * 7.2 + 16} height="20" rx="10" style={{ stroke: C.ring }} />
+      <text className="ask-arrow__tag-text" textAnchor="middle" dominantBaseline="central" style={{ fill: C.tip }}>{label}</text>
+    </g>}
   </svg>;
 }

@@ -6,6 +6,10 @@ import { RANKS_LOWER, RANKS_UPPER, SUITS, SUIT_SYMBOL } from "../../lib/deck";
 // Turn Play: choose which card to ask an opponent for.
 // Like at a real table, any card of a set still in play can be asked for. Asking for a card
 // you already hold, or from a set you hold none of, forfeits that set (the server judges it).
+// The set this player last asked in. The dialog reopens on it, since people usually keep
+// working on the same set; if that set has been laid down since, it falls back to the first.
+let lastAskedSet = null;
+
 export default function AskCardModal({ open, target, tableSets = [], onAsk, onClose }) {
   const sets = useMemo(() => {
     const out = [];
@@ -20,7 +24,12 @@ export default function AskCardModal({ open, target, tableSets = [], onAsk, onCl
   const [setKey, setSetKey] = useState(null);
   const [picked, setPicked] = useState([]);
   const toggle = (r) => setPicked((p) => (p.includes(r) ? p.filter((x) => x !== r) : [...p, r]));
-  useEffect(() => { if (open) { setSetKey(sets[0] ? `${sets[0].suit}-${sets[0].type}` : null); setPicked([]); } }, [open, target?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!open) return;
+    const keys = sets.map((x) => `${x.suit}-${x.type}`);
+    setSetKey(keys.includes(lastAskedSet) ? lastAskedSet : keys[0] || null);
+    setPicked([]);
+  }, [open, target?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!open || !target) return null;
   const chosen = sets.find((s) => `${s.suit}-${s.type}` === setKey);
@@ -70,7 +79,7 @@ export default function AskCardModal({ open, target, tableSets = [], onAsk, onCl
         <div className="ask-sheet__actions">
           <button type="button" className="ask-sheet__secondary" onClick={onClose}>Cancel</button>
           <button type="button" className="club-primary" disabled={!chosen || !picked.length}
-            onClick={() => onAsk({ target_id: target.id, suit: chosen.suit, set_type: chosen.type, ranks: chosen.missing.filter((r) => picked.includes(r)) })}>
+            onClick={() => { lastAskedSet = setKey; onAsk({ target_id: target.id, suit: chosen.suit, set_type: chosen.type, ranks: chosen.missing.filter((r) => picked.includes(r)) }); }}>
             Ask{picked.length && chosen ? ` for ${chosen.missing.filter((r) => picked.includes(r)).map((r) => r + SUIT_SYMBOL[chosen.suit]).join(" ")}` : ""}
           </button>
         </div>

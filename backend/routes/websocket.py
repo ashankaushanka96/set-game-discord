@@ -15,6 +15,11 @@ router = APIRouter(prefix="/api/v1")
 # Turn Play is a memory game: give people time to see who asked whom for what, and the answer.
 # A bot waits this long before each move (asking or answering), unless a player taps "Continue".
 BOT_WAIT_SECONDS = 10.0
+# The shuffle-and-deal animation on players' screens runs for 31.2s (see dealTiming.js).
+# Nothing may start until it has finished or the dealer has skipped it.
+DEAL_ANIMATION_SECONDS = 31.5
+# Pause between the steps of a bot's laydown (announce, set, own cards, each teammate).
+BOT_LAY_STEP_SECONDS = 1.8
 
 
 async def wait_for_players(game, room_id: str, bot_id: str, kind: str):
@@ -59,38 +64,105 @@ async def start_ask(room_id: str, game, asker_id: str, target_id: str, suit: str
     await WebSocketService.broadcast(room_id, "ask_pending", {**res, "state": game.state.model_dump()})
 
 
+async def bot_laydown(game, room_id: str, bot_id: str, move: dict):
+    """A bot declares a set the way a player does, one step at a time, so the table can
+    follow: announce, name the set, show its own cards, then point at each teammate."""
+    suit, set_type, helpers = move["suit"], move["set_type"], move["collaborators"]
+    shown = [bot_id] + [c["player_id"] for c in helpers]
+
+    async def bubble(pid: str, variant: str, pause: float, **data):
+        b = {"player_id": pid, "variant": variant, **data}
+        active_bubbles(game)[pid] = b
+        await WebSocketService.broadcast(room_id, "clear_bubble_messages", {"player_id": pid})
+        await WebSocketService.broadcast(room_id, "bubble_message", b)
+        await asyncio.sleep(pause)
+
+    async def clear():
+        for pid in shown:
+            active_bubbles(game).pop(pid, None)
+            await WebSocketService.broadcast(room_id, "clear_bubble_messages", {"player_id": pid})
+
+    ranks = game.ranks_for(set_type)
+    mine = [{"suit": suit, "rank": c.rank} for c in game.state.players[bot_id].hand if c.suit == suit and c.rank in ranks]
+    await bubble(bot_id, "laydown_start", BOT_LAY_STEP_SECONDS)
+    await bubble(bot_id, "laydown_set", BOT_LAY_STEP_SECONDS, suit=suit, set_type=set_type)
+    await bubble(bot_id, "laydown_cards", BOT_LAY_STEP_SECONDS + 0.5, cards=mine)
+    for c in helpers:
+        mate = game.state.players.get(c["player_id"])
+        await bubble(c["player_id"], "laydown_teammate", BOT_LAY_STEP_SECONDS,
+                     teammate_name=mate.name if mate else None, cards=[{"suit": suit, "rank": r} for r in c["ranks"]])
+
+    if game.state.phase != "playing" or game.state.turn_player != bot_id or game.state.pending_ask:
+        await clear()  # the round was stopped while it was declaring
+        return
+    await WebSocketService.broadcast(room_id, "laydown_started", {
+        "who_id": bot_id, "suit": suit, "set_type": set_type,
+        "collaborators": helpers, "state": game.state.model_dump(),
+    })
+    await asyncio.sleep(BOT_LAY_STEP_SECONDS)
+    try:
+        res = game.laydown(bot_id, suit, set_type, helpers)
+    except ValueError:
+        await clear()
+        raise
+    logger.info(f"Bot laydown {'SUCCESS' if res.get('success') else 'FAILED'}: {suit} {set_type} by {bot_id}")
+    await WebSocketService.broadcast(room_id, "laydown_result", {**res, "state": game.state.model_dump()})
+    await clear()
+
+
 async def run_bots(game, room_id: str):
-    """Turns mode with test bots: bots answer asks made to them and take their own turns."""
+    """Turns mode with bots: they answer asks made to them and play their own turns."""
     for _ in range(60):  # restarted after the next human action, so a long bot streak can't spin forever
         state = game.state
-        if state.phase != "playing" or state.game_mode != "turns":
+        if state.phase != "playing" or state.game_mode != "turns" or state.awaiting_start:
             return
         ask = state.pending_ask
+        handoff = state.pending_handoff
         bot_answers = bool(ask) and game.is_bot(ask["target_id"])
-        bot_asks = not ask and bool(state.turn_player) and game.is_bot(state.turn_player)
-        if not (bot_answers or bot_asks):
+        bot_hands_off = not ask and bool(handoff) and game.is_bot(handoff["who_id"])
+        bot_plays = not ask and not handoff and bool(state.turn_player) and game.is_bot(state.turn_player)
+        if not (bot_answers or bot_hands_off or bot_plays):
             return
-        # Let the deal animation finish, then pause so humans can follow along.
         # Wait out the deal animation; checked in short steps so skipping it takes effect at once.
         while time.monotonic() < getattr(game, "deal_animation_until", 0):
             await asyncio.sleep(0.25)
-        await wait_for_players(game, room_id, ask["target_id"] if bot_answers else state.turn_player, "answer" if bot_answers else "ask")
-        if game.state.pending_ask is not ask or game.state.phase != "playing":
-            continue  # something changed while waiting
         try:
-            if bot_answers:
-                await broadcast_ask_result(room_id, game, game.answer_ask(ask["target_id"]))
-            else:
-                bot_id = state.turn_player
-                if game.state.turn_player != bot_id:
+            if bot_hands_off:
+                await asyncio.sleep(1.5)
+                if game.state.pending_handoff is not handoff:
                     continue
+                import bot_ai
+                to_id = bot_ai.choose_handoff(game, handoff["who_id"], handoff["options"]) or handoff["options"][0]
+                res = game.handoff_after_laydown(handoff["who_id"], to_id)
+                await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
+                await WebSocketService.broadcast(room_id, "handoff_result", {**res, "state": game.state.model_dump(), "from_id": handoff["who_id"]})
+                continue
+
+            bot_id = ask["target_id"] if bot_answers else state.turn_player
+            kind = "answer"
+            if bot_plays:
                 if game.skip_empty_turn() != bot_id:
                     await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
                     continue
-                choice = game.bot_choose_ask(bot_id)
-                if not choice:
+                planned = game.bot_decide(bot_id)
+                if not planned:
                     return
-                await start_ask(room_id, game, bot_id, choice["target_id"], choice["suit"], choice["set_type"], choice["rank"])
+                kind = planned["action"]
+            await wait_for_players(game, room_id, bot_id, kind)
+            if game.state.pending_ask is not ask or game.state.phase != "playing":
+                continue  # something changed while waiting
+            if bot_answers:
+                await broadcast_ask_result(room_id, game, game.answer_ask(ask["target_id"]))
+                continue
+            if game.state.turn_player != bot_id or game.state.pending_handoff:
+                continue
+            move = game.bot_decide(bot_id)
+            if not move:
+                return
+            if move["action"] == "laydown":
+                await bot_laydown(game, room_id, bot_id, move)
+            else:
+                await start_ask(room_id, game, bot_id, move["target_id"], move["suit"], move["set_type"], move.get("ranks") or move["rank"])
         except Exception as e:
             logger.error(f"Bot action failed in room {room_id}: {e}")
             return
@@ -301,6 +373,8 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                     connected=True
                 )
                 game.state.players[p["player_id"]] = ai_player
+                level = p.get("level")
+                game.bot_levels[p["player_id"]] = level if level in ("easy", "medium", "hard", "expert") else "medium"
                 game.assign_seat(p["player_id"], p["team"])
                 await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
                 logger.info(f"AI player {p['player_id']} added successfully. Total players: {len(game.state.players)}")
@@ -321,7 +395,7 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                     if res.get("success"):
                         game.deal_animation_id = uuid4().hex
                         game.deal_animation_dealer = res.get("original_dealer_id") or res.get("dealer_id") or game.state.current_dealer
-                        game.deal_animation_until = time.monotonic() + 33
+                        game.deal_animation_until = time.monotonic() + DEAL_ANIMATION_SECONDS
                         await WebSocketService.broadcast(room_id, "new_game_started", {**res, "animation_id": game.deal_animation_id, "state": game.state.model_dump()})
                     else:
                         await ws.send_text(json.dumps({"type": "error", "payload": {"message": res["reason"]}}))
@@ -366,6 +440,13 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                     await WebSocketService.broadcast(room_id, "ask_penalty", {**res, "state": game.state.model_dump()})
                 except (ValueError, KeyError) as e:
                     await WebSocketService.send_to_player(room_id, player_id, "error", {"message": str(e)})
+
+            elif t == "begin_play":
+                # Turn Play: hands have been looked at; any seated player starts the round
+                if time.monotonic() < getattr(game, "deal_animation_until", 0):
+                    pass  # cards are still being dealt on screen: too early to start
+                elif game.begin_play(player_id):
+                    await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
 
             elif t == "bot_continue":
                 # Any seated player can let a waiting bot make its move now
@@ -450,7 +531,7 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                 if res.get("success"):
                     game.deal_animation_id = uuid4().hex
                     game.deal_animation_dealer = res.get("original_dealer_id") or res.get("dealer_id") or game.state.current_dealer
-                    game.deal_animation_until = time.monotonic() + 33
+                    game.deal_animation_until = time.monotonic() + DEAL_ANIMATION_SECONDS
                     await WebSocketService.broadcast(room_id, "new_game_started", {**res, "animation_id": game.deal_animation_id, "state": game.state.model_dump()})
                 else:
                     await ws.send_text(json.dumps({"type": "error", "payload": {"message": res["reason"]}}))

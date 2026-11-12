@@ -4,6 +4,8 @@ import Card from '../cards/Card';
 import { mergeReceivedCards, removePassedCards } from './receivedCards';
 import { useStore } from '../../store';
 
+// Turn Play: a received card stays on the seat as long as a seat bubble does.
+const TURN_PLAY_SHOW_MS = 5000;
 const elementFor = (seats,id) => seats.current[id]?.querySelector('.game-seat') || seats.current[id];
 const center = element => { const r=element.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2}; };
 function CardFan({cards}) {
@@ -53,7 +55,7 @@ export default function PassedCardsAnimation({seatEls,phase}) {
     timers.current.set(packet.recipient,setTimeout(()=>{
       setReceived(prev=>{const next={...prev};delete next[packet.recipient];return next});
       timers.current.delete(packet.recipient);
-    },15000));
+    },useStore.getState().state?.game_mode==='turns' ? TURN_PLAY_SHOW_MS:15000));
   },[]);
   useEffect(()=>{
     setFlights([]);setReceived({});

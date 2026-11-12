@@ -25,7 +25,7 @@ export default function BotWaitPill({ canContinue }) {
   if (!wait) return null;
   return <div className="bot-wait" role="status">
     <span className="bot-wait__bar" style={{ animationDuration: `${wait.seconds}s` }} aria-hidden="true" />
-    <span className="bot-wait__text">{name} {wait.kind === 'answer' ? 'answers' : 'asks'} in {left}s</span>
+    <span className="bot-wait__text">{name} {wait.kind === 'answer' ? 'answers' : wait.kind === 'laydown' ? 'lays down' : 'asks'} in {left}s</span>
     {canContinue && <button type="button" onClick={() => send(ws, 'bot_continue', {})}>Continue</button>}
   </div>;
 }

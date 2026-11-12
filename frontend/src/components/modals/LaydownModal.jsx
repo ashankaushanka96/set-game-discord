@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../../store";
 import { send } from "../../ws";
 import { Card, FannedCards } from "../cards";
-import { SUITS, RANKS_LOWER, RANKS_UPPER } from "../../lib/deck";
+import { SUITS, RANKS_LOWER, RANKS_UPPER, SUIT_SYMBOL } from "../../lib/deck";
 import GlassmorphismModal from "../ui/GlassmorphismModal";
 
 const SETS = { lower: RANKS_LOWER, upper: RANKS_UPPER };
@@ -25,12 +25,17 @@ function clearLaydownDraft(roomId, playerId) {
   try { localStorage.removeItem(draftKey(roomId, playerId)); } catch {}
 }
 
-export default function LaydownModal({ onClose, onPenalty }) {
+export default function LaydownModal({ onClose, onPenalty, initialPick = null }) {
   const { state, me, ws } = useStore();
   const players = state?.players || {};
   const my = players[me.id];
 
-  const draft = useRef(loadLaydownDraft(state?.room_id, me?.id)).current;
+  // Started from the hand (cards selected, then Lay): the set is already chosen, so this goes
+  // straight to naming teammates at the table. A saved draft is only used when reopening.
+  const draft = useRef(initialPick ? null : loadLaydownDraft(state?.room_id, me?.id)).current;
+  const startRanks = useRef(initialPick
+    ? (my?.hand || []).filter((c) => c.suit === initialPick.suit && SETS[initialPick.setType].includes(c.rank)).map((c) => c.rank)
+    : null).current;
 
   // Send initial bubble message when modal opens (a restored laydown keeps the bubbles it already had)
   useEffect(() => {
@@ -61,11 +66,11 @@ export default function LaydownModal({ onClose, onPenalty }) {
     onClose?.();
   };
 
-  const [step, setStep] = useState(draft?.step ?? 0); // 0 select set, 1 choose my cards, 2 teammates, 3 confirm
-  const [pick, setPick] = useState(draft?.pick ?? { suit: null, setType: null });
+  const [step, setStep] = useState(initialPick ? 1 : Math.min(draft?.step ?? 0, 2)); // 0 select set, 1 my cards, 2 teammates on the table + confirm
+  const [pick, setPick] = useState(initialPick ?? draft?.pick ?? { suit: null, setType: null });
 
   // ranks I (declarer) contribute
-  const [myRanks, setMyRanks] = useState(draft?.myRanks ?? []);
+  const [myRanks, setMyRanks] = useState(startRanks ?? draft?.myRanks ?? []);
   // collaborators (blind): { player_id -> Set<rank> }
   const [collabRanks, setCollabRanks] = useState(() =>
     Object.fromEntries(Object.entries(draft?.collabRanks || {}).map(([pid, ranks]) => [pid, new Set(ranks)])));
@@ -212,6 +217,16 @@ export default function LaydownModal({ onClose, onPenalty }) {
     });
   }
 
+  // Started from the Lay button: nothing is shown to the table until the player confirms.
+  function confirmStart() {
+    send(ws, "bubble_message", {
+      player_id: me.id,
+      variant: "laydown_cards",
+      cards: myRanks.map((rank) => ({ suit: pick.suit, rank })),
+    });
+    setStep(2);
+  }
+
   function submitLaydown() {
     const collaborators = Object.entries(collabRanks)
       .filter(([_, set]) => set && set.size)
@@ -237,6 +252,81 @@ export default function LaydownModal({ onClose, onPenalty }) {
     });
     
     handleClose();
+  }
+
+  // ---------- Step 2 happens on the table ----------
+  // The dialog shrinks to a strip of the cards still needed. The player taps a card, then
+  // taps the teammate's seat at the table who holds it.
+  const neededRanks = useMemo(() => setRanks.filter((r) => !myRanks.includes(r)), [setRanks, myRanks]);
+  const ownerOf = (r) => Object.entries(collabRanks).find(([, set]) => set?.has?.(r))?.[0];
+  const [activeRank, setActiveRank] = useState(null);
+  useEffect(() => {
+    if (step !== 2) return;
+    if (!activeRank || !neededRanks.includes(activeRank)) setActiveRank(neededRanks.find((r) => !ownerOf(r)) || neededRanks[0] || null);
+  }, [step, neededRanks]); // eslint-disable-line react-hooks/exhaustive-deps
+  const mateIds = useMemo(() => myTeamMates.filter((tm) => (tm.hand?.length ?? 1) > 0).map((tm) => tm.id), [myTeamMates]);
+  useEffect(() => {
+    if (step !== 2 || !activeRank || !pick.suit) { useStore.setState({ laydownPick: null }); return; }
+    useStore.setState({ laydownPick: { suit: pick.suit, rank: activeRank, mates: mateIds } });
+    return () => useStore.setState({ laydownPick: null });
+  }, [step, activeRank, pick.suit, mateIds]);
+  useEffect(() => {
+    if (step !== 2) return;
+    const onSeat = (event) => {
+      const pid = event.detail?.pid;
+      if (!pid || !activeRank || !mateIds.includes(pid)) return;
+      const current = ownerOf(activeRank);
+      if (current) addRankFor(current, activeRank);
+      if (current !== pid) {
+        addRankFor(pid, activeRank);
+        // move on to the next card nobody has been named for yet
+        const next = neededRanks.find((r) => r !== activeRank && !ownerOf(r));
+        if (next) setActiveRank(next);
+      }
+    };
+    window.addEventListener("laydown_seat_pick", onSeat);
+    return () => window.removeEventListener("laydown_seat_pick", onSeat);
+  }, [step, activeRank, mateIds, neededRanks, collabRanks]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (step === 1 && initialPick) {
+    return (
+      <div className="laydown-tablepick" role="dialog" aria-label="Confirm laydown">
+        <div className="laydown-tablepick__head laydown-tablepick__head--plain">
+          <strong>Lay down <span className="capitalize">{pick.suit}</span> {pick.setType}?</strong>
+          <span>Your cards of this set will be shown to the table. After that you must finish the laydown.</span>
+        </div>
+        <div className="laydown-tablepick__foot">
+          <button type="button" className="club-secondary laydown-tablepick__no" onClick={handleClose}>Cancel</button>
+          <button type="button" className="club-primary" onClick={confirmStart}>Yes, lay down</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === 2) {
+    const left = neededRanks.filter((r) => !ownerOf(r)).length;
+    return (
+      <div className="laydown-tablepick" role="dialog" aria-label="Choose who holds each card">
+        <div className="laydown-tablepick__head">
+          <strong><span className="capitalize">{pick.suit}</span> {pick.setType}: who holds each card?</strong>
+          <span>{!neededRanks.length ? "You hold the whole set." : !mateIds.length ? "No teammate has cards." : "Tap a card, then tap your teammate at the table."}</span>
+        </div>
+        {neededRanks.length > 0 && <div className="laydown-tablepick__cards">
+          {neededRanks.map((r) => {
+            const owner = players[ownerOf(r)];
+            return <button key={r} type="button" aria-pressed={activeRank === r} className={owner ? "is-set" : ""}
+              onClick={() => setActiveRank(r)} title={`${r}${SUIT_SYMBOL[pick.suit]}${owner ? ` — ${owner.name}` : ""}`}>
+              <Card suit={pick.suit} rank={r} size="sm-xs" />
+              <small>{owner ? (owner.name || "").split(" ")[0].slice(0, 7) : "?"}</small>
+            </button>;
+          })}
+        </div>}
+        <div className="laydown-tablepick__foot">
+          <span className={left ? "is-warning" : ""}>{neededRanks.length ? (left ? `${left} card${left > 1 ? "s" : ""} not assigned: the set would go to the other team` : "All cards assigned ✓") : "Ready"}</span>
+          <button type="button" className={`club-primary ${left ? "is-risky" : ""}`} onClick={submitLaydown}>{left ? "Lay down anyway" : "Confirm laydown"}</button>
+        </div>
+      </div>
+    );
   }
 
   const stepTitle =
@@ -278,9 +368,7 @@ export default function LaydownModal({ onClose, onPenalty }) {
           <span className="hidden sm:inline">›</span>
           <StepDot active={step >= 1} label="Your Cards" />
           <span className="hidden sm:inline">›</span>
-          <StepDot active={step >= 2} label="Add Teammates (Optional)" />
-          <span className="hidden sm:inline">›</span>
-          <StepDot active={step >= 3} label="Confirm" />
+          <StepDot active={step >= 2} label="Teammates at the table" />
         </div>
 
         <div key={step} className="laydown-step-title mb-3 font-medium text-white">{stepTitle}</div>
@@ -503,7 +591,7 @@ function StepDot({ active, label }) {
   return (
     <div className={`px-2 py-1 rounded-full ${active ? "bg-accent-purple/20 border border-accent-purple/40" : "bg-white/10 border border-white/20"} text-white whitespace-nowrap text-xs transition-all duration-200`}>
       <span className="hidden sm:inline">{label}</span>
-      <span className="sm:hidden">{{'Select Set':'Set','Your Cards':'Cards','Add Teammates (Optional)':'Team','Confirm':'Review'}[label] || label}</span>
+      <span className="sm:hidden">{{'Select Set':'Set','Your Cards':'Cards','Teammates at the table':'Team'}[label] || label}</span>
     </div>
   );
 }

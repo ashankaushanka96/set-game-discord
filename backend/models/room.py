@@ -39,3 +39,6 @@ class RoomState(BaseModel):
     # Turns mode: after a successful laydown where both helping teammates still have cards,
     # the declarer picks who gets the turn: {"who_id": ..., "options": [player ids]}
     pending_handoff: Optional[dict] = None
+    # Turns mode: cards are dealt but play is held until a seated player presses Start,
+    # so everyone has time to look at (and memorise) their hand.
+    awaiting_start: bool = False

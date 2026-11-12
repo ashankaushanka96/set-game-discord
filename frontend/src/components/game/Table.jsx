@@ -15,7 +15,7 @@ import LaydownAnimation from './LaydownAnimation';
 import ChatBubble from './ChatBubble';
 import { markReactionUsed } from './ReactionTray';
 import EmojiPassAnimation from './EmojiPassAnimation';
-import AskPointer from './AskPointer';
+import AskPointer, { FlowArrows } from './AskPointer';
 import BotWaitPill from './BotWaitPill';
 import EmojiSettings from './EmojiSettings';
 import { 
@@ -41,6 +41,7 @@ import Card from '../cards/Card';
 import { RANKS_LOWER, RANKS_UPPER, SUITS } from '../../lib/deck';
 import { loadLaydownDraft } from '../modals/LaydownModal';
 
+const SUIT_GLYPH = { hearts: '♥', diamonds: '♦', clubs: '♣', spades: '♠' };
 const TEAM_RING = {
   A: 'ring-blue-500/70',
   B: 'ring-rose-500/70',
@@ -170,7 +171,7 @@ export default function Table() {
        const [cx, cy] = at(k);
        const dx = cx * w, dy = cy * h, d = Math.hypot(dx, dy) || 1; // real direction from the table centre
        const deg = Math.atan2(dy, dx) * 180 / Math.PI - 90;
-       pos[i] = { left: `${50 + R * cx}%`, top: `${50 + R * cy}%`, transform: 'translate(-50%, -50%)', '--chair-angle': `${deg}deg`, '--hand-x': `${-dx / d * 69}px`, '--hand-y': `${-dy / d * 69}px`, '--hand-direction': `${deg}deg` };
+       pos[i] = { left: `${50 + R * cx}%`, top: `${50 + R * cy}%`, transform: 'translate(-50%, -50%)', '--chair-angle': `${deg}deg`, '--hand-x': `${-dx / d * 80}px`, '--hand-y': `${-dy / d * 80}px`, '--hand-direction': `${deg}deg` };
      }
      return pos;
    }, [mySeatIndex, arenaAspect, wideTable]);
@@ -224,7 +225,8 @@ export default function Table() {
   const resolveDropTarget = (id) => {
     const player = players[id];
     return state.phase === 'playing' && ws?.readyState === 1 && player && player.id !== me.id &&
-      player.team && player.team !== my?.team && !player.is_spectator && player.connected !== false && typeof player.seat === 'number' ? player : null;
+      player.team && player.team !== my?.team && !player.is_spectator && player.connected !== false && typeof player.seat === 'number' &&
+      (player.hand?.length ?? 0) > 0 ? player : null; // a player with no cards left is out of the round
   };
 
   const passCards = (cards, playerId) => {
@@ -238,9 +240,11 @@ export default function Table() {
   // Turn Play: ask through the game instead of dragging cards across
   const isTurnPlay = state.game_mode === 'turns';
   const botWait = useStore((st) => st.botWait);
+  const laydownPick = useStore((st) => st.laydownPick); // laying down: tap the teammate who holds this card
   const pendingAsk = isTurnPlay ? state.pending_ask : null;
   const pendingHandoff = isTurnPlay ? state.pending_handoff : null;
-  const myTurn = isTurnPlay && state.phase === 'playing' && state.turn_player === me.id && !pendingAsk && !pendingHandoff && ws?.readyState === 1;
+  const awaitingStart = isTurnPlay && state.phase === 'playing' && !!state.awaiting_start;
+  const myTurn = isTurnPlay && state.phase === 'playing' && state.turn_player === me.id && !awaitingStart && !pendingAsk && !pendingHandoff && ws?.readyState === 1;
   const canAsk = (player) => myTurn && !!player && player.team && player.team !== my?.team &&
     !player.is_spectator && (player.hand?.length ?? 0) > 0;
   const turnPlayer = isTurnPlay && state.phase === 'playing' ? players[state.turn_player] : null;
@@ -251,6 +255,31 @@ export default function Table() {
   useEffect(() => { if (!myTurn) setAskTarget(null); }, [myTurn]);
   // Turn Play: lay down only on your own turn
   const layLocked = isTurnPlay && !myTurn;
+  // Laying down starts from the hand: select a card (or several) of one set, then tap Lay.
+  const [layPick, setLayPick] = useState(null);
+  const [layHint, setLayHint] = useState(null); // 'pick' | 'mixed' | 'partial'
+  const [penaltyPick, setPenaltyPick] = useState(null); // Voice Play: set about to be given up as a penalty
+  useEffect(() => { if (!layHint) return; const t = setTimeout(() => setLayHint(null), 5000); return () => clearTimeout(t); }, [layHint]);
+  useEffect(() => { if (isTurnPlay && !myTurn) setSelectedCardsToPass([]); }, [isTurnPlay, myTurn]);
+  // Lay is only live once the selected cards belong to exactly one set.
+  const laySets = new Set(selectedCardsToPass.map((c) => `${c.suit}|${['2','3','4','5','6','7'].includes(c.rank) ? 'lower' : 'upper'}`));
+  const layReady = !layLocked && !layOpen && laySets.size === 1 && (() => {
+    // ...and every card of that set in this hand is selected
+    const [suit, type] = [...laySets][0].split('|');
+    const inSet = (c) => c.suit === suit && (['2','3','4','5','6','7'].includes(c.rank) ? 'lower' : 'upper') === type;
+    return (my?.hand || []).filter(inSet).length === selectedCardsToPass.length;
+  })();
+  const startLaydown = () => {
+    if (layLocked || layOpen) return;
+    const sets = new Set(selectedCardsToPass.map((c) => `${c.suit}|${['2','3','4','5','6','7'].includes(c.rank) ? 'lower' : 'upper'}`));
+    if (sets.size !== 1) { setLayHint(sets.size ? 'mixed' : 'pick'); return; }
+    if (!layReady) { setLayHint('partial'); return; }
+    const [suit, setType] = [...sets][0].split('|');
+    setLayHint(null);
+    setLayPick({ suit, setType });
+    setSelectedCardsToPass([]);
+    setLayOpen(true);
+  };
 
 
   const handleTableClick = () => window.dispatchEvent(new Event('dismiss_passed_cards'));
@@ -373,6 +402,7 @@ export default function Table() {
       )}
 
        <AskPointer seatEls={seatEls} seatVersion={seatVersion} ask={pendingAsk} />
+       <FlowArrows seatEls={seatEls} seatVersion={seatVersion} />
        <MessageBubbles seatEls={seatEls} seatVersion={seatVersion} />
        <ChatBubble selectedCardsToPass={selectedCardsToPass} />
        {reactionAim && <div className="reaction-aim" role="status">
@@ -433,9 +463,11 @@ export default function Table() {
               const i = Number(k);
               const pid = seats[i];
               const p = pid ? players[pid] : null;
-              const selectable = reactionAim ? !!p : isTurnPlay ? canAsk(p) : selectedCardsToPass.length > 0 && !!p && !!resolveDropTarget(p.id);
+              const selectable = laydownPick ? (!!p && laydownPick.mates.includes(p.id)) : reactionAim ? !!p : isTurnPlay ? canAsk(p) : selectedCardsToPass.length > 0 && !!p && !!resolveDropTarget(p.id);
               const ringClass = p?.team === 'A' ? TEAM_RING.A : p?.team === 'B' ? TEAM_RING.B : TEAM_RING.unknown;
               const isMe = p && p.id === me.id;
+              // Out of cards: greyed, and nobody can ask them or pass to them
+              const isOut = !!p && state.phase === 'playing' && !dealingAnimation && (p.hand?.length ?? 0) === 0;
               const isLaydownPlayer = p && pendingLay && p.id === pendingLay.who_id;
               const isSpeaking = p && speakingUsers && speakingUsers[p.id];
               
@@ -443,6 +475,7 @@ export default function Table() {
                 <div key={`seatwrap-${i}-${pid || 'empty'}`} className="table-seat-position absolute" style={seatPositions[i]} ref={p ? setSeatRef(p.id) : undefined} data-seat={i} data-player-id={p?.id} data-team={p?.team || 'none'}>
                   <div className={[
                       'seat-frame relative',
+                      isSpeaking ? 'seat-frame--speaking' : '', // talking lights the chair, not the player circle
                       selectable ? 'ring-2 ring-yellow-300/80' : '',
                       ringClass,
                       isMe ? 'ring-4 ring-cyan-400 shadow-[0_0_0_6px_rgba(34,211,238,0.25)]' : 'ring-2',
@@ -456,15 +489,17 @@ export default function Table() {
                       selectable={selectable}
                       dropTarget={dragTarget === p?.id}
                       draggingCards={isDraggingCards}
-                      onSelect={p ? () => (reactionAim ? throwReaction(p) : isTurnPlay ? setAskTarget(p) : handleSeatClick(p)) : null}
+                      onSelect={p ? () => (laydownPick ? window.dispatchEvent(new CustomEvent('laydown_seat_pick', { detail: { pid: p.id } })) : reactionAim ? throwReaction(p) : isTurnPlay ? setAskTarget(p) : handleSeatClick(p)) : null}
                       isTurn={!!turnPlayer && p?.id === turnPlayer.id}
                       askMode={isTurnPlay}
                       reactEmoji={reactionAim?.emoji}
+                      pickLabel={laydownPick ? `Has the ${laydownPick.rank}${SUIT_GLYPH[laydownPick.suit] || ''}` : null}
                       team={p?.team}
                       isMe={isMe}
                       isLaydownPlayer={isLaydownPlayer}
                       isSpeaking={!!isSpeaking}
                       isDealer={p?.id === state.current_dealer}
+                      isOut={isOut}
                     />
                   </div>
                   {p && p.id !== my?.id && !dealingAnimation && <SeatCardStack count={handCount(pid)} />}
@@ -496,15 +531,21 @@ export default function Table() {
        {/* Bottom section - Scoreboard, Player Hand, and Controls */}
        <div className="game-hand-dock">
          {/* While a bot is holding its move, the countdown + Continue takes the turn banner's place */}
-         {turnPlayer && botWait && <BotWaitPill canContinue={!!my?.team && !my?.is_spectator} />}
-         {turnPlayer && !botWait && (
+         {awaitingStart && !dealingAnimation && (
+           <div className="bot-wait start-play" role="status">
+             <span className="bot-wait__text">Look at your cards{my?.team && !my?.is_spectator ? ', then start' : ' — waiting for a player to start'}</span>
+             {my?.team && !my?.is_spectator && <button type="button" onClick={() => send(ws, 'begin_play', {})}>Start game</button>}
+           </div>
+         )}
+         {turnPlayer && !awaitingStart && botWait && <BotWaitPill canContinue={!!my?.team && !my?.is_spectator} />}
+         {turnPlayer && !awaitingStart && !botWait && (
         <div className={`turn-banner ${turnPlayer.id === me.id && !pendingAsk ? 'turn-banner--mine' : ''}`} role="status" aria-live="polite">
           {pendingHandoff
             ? <span>{pendingHandoff.who_id === me.id ? 'Choose a teammate to play next' : `${players[pendingHandoff.who_id]?.name || 'Declarer'} is choosing who plays next…`}</span>
             : pendingAsk
             ? <span>{pendingAsk.asker_id === me.id ? 'Waiting for' : `${players[pendingAsk.asker_id]?.name || 'Someone'} asked`} {pendingAsk.target_id === me.id ? 'you' : players[pendingAsk.target_id]?.name}…</span>
             : turnPlayer.id === me.id
-              ? <span>Your turn — tap an opponent to ask for a card</span>
+              ? <span>{laydownPick ? `Tap the teammate who has the ${laydownPick.rank}${SUIT_GLYPH[laydownPick.suit] || ''}` : 'Your turn — tap an opponent to ask for a card'}</span>
               : <span>{turnPlayer.name}'s turn</span>}
         </div>
       )}
@@ -543,6 +584,7 @@ export default function Table() {
              selectedCards={selectedCardsToPass}
              onCardSelect={handleHandCardClick}
              selectable={!isTurnPlay && state.phase === 'playing' && ws?.readyState === 1}
+             tapSelect={isTurnPlay && myTurn && !layOpen}
              resolveDropTarget={resolveDropTarget}
              onDragStart={cards => { setSelectedCardsToPass(cards); setIsDraggingCards(true); }}
              onDragHover={setDragTarget}
@@ -559,6 +601,13 @@ export default function Table() {
                >
                  Clear Selection ({selectedCardsToPass.length})
                </button>
+               {/* Voice Play: own up to a wrong ask. Like Lay, it needs every card of the set in this hand selected. */}
+               {!isTurnPlay && state.phase === 'playing' && my?.team && !my?.is_spectator && layReady && (
+                 <button type="button" className="penalty-chip" tabIndex={selectedCardsToPass.length ? 0 : -1}
+                   onClick={() => { const [suit, setType] = [...laySets][0].split('|'); setPenaltyPick({ suit, setType }); }}>
+                   Penalty
+                 </button>
+               )}
              </div>
          </div>
 
@@ -579,7 +628,22 @@ export default function Table() {
          </div>
        </div>
 
-      {layOpen && <LaydownModal onClose={() => setLayOpen(false)} onPenalty={!isTurnPlay && my?.team ? () => setPenaltyOpen(true) : null} />}
+      {penaltyPick && !isTurnPlay && state.phase === 'playing' && (
+        <div className="laydown-tablepick laydown-tablepick--penalty" role="dialog" aria-label="Confirm penalty laydown">
+          <div className="laydown-tablepick__head laydown-tablepick__head--plain">
+            <strong>Penalty: give up <span className="capitalize">{penaltyPick.suit}</span> {penaltyPick.setType}?</strong>
+            <span>The whole set goes to the other team. This can't be undone.</span>
+          </div>
+          <div className="laydown-tablepick__foot">
+            <button type="button" className="club-secondary laydown-tablepick__no" onClick={() => setPenaltyPick(null)}>Cancel</button>
+            <button type="button" className="club-primary is-risky" onClick={() => {
+              send(ws, 'penalty_laydown', { suit: penaltyPick.suit, set_type: penaltyPick.setType });
+              setPenaltyPick(null); setSelectedCardsToPass([]);
+            }}>Yes, penalty laydown</button>
+          </div>
+        </div>
+      )}
+      {layOpen && <LaydownModal initialPick={layPick} onClose={() => { setLayOpen(false); setLayPick(null); }} onPenalty={!isTurnPlay && my?.team ? () => setPenaltyOpen(true) : null} />}
 
       {/* Turn Play: ask an opponent, or answer an ask */}
       <AskCardModal open={!!askTarget && myTurn} target={askTarget} tableSets={state.table_sets || []} onAsk={sendAsk} onClose={() => setAskTarget(null)} />
@@ -646,23 +710,27 @@ export default function Table() {
 
 
        {/* Laydown Button - Fixed in bottom right corner */}
-       {(state.phase === 'playing' || state.phase === 'ready') && (
+       {(state.phase === 'playing' || state.phase === 'ready') && (<>
+         {layHint && !layOpen && <div className="lay-hint" role="status">
+           <span>{layHint === 'mixed' ? 'Select cards from one set only, then tap Lay.' : layHint === 'partial' ? 'Select all of your cards of that set, then tap Lay.' : 'Select all of your cards of one set, then tap Lay.'}</span>
+         </div>}
          <div className="game-laydown-action">
            <button
-             onClick={() => selectedCardsToPass.length === 0 && !layLocked && setLayOpen(true)}
+             onClick={startLaydown}
              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-lg border ${
-               selectedCardsToPass.length > 0 || layLocked 
-                 ? 'bg-gray-500 cursor-not-allowed text-gray-300 border-gray-400/30' 
+               !layReady
+                 ? 'bg-gray-500 cursor-not-allowed text-gray-300 border-gray-400/30'
                  : 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white border-amber-500/30'
              }`}
-             disabled={selectedCardsToPass.length > 0 || layLocked}
-             title={layLocked ? "You can lay down on your turn" : selectedCardsToPass.length > 0 ? "Clear card selection first" : "Laydown cards"}
+             disabled={layLocked}
+             aria-disabled={!layReady}
+             title={layLocked ? "You can lay down on your turn" : layReady ? "Lay down this set" : "Select all of your cards of one set first"}
            >
              <span className="hidden sm:inline">Laydown</span>
              <span className="sm:hidden">Lay</span>
            </button>
          </div>
-       )}
+       </>)}
 
 
       <PenaltyLaydownModal open={penaltyOpen && !isTurnPlay && state.phase === 'playing'} tableSets={tableSets} myTeam={my?.team}

@@ -26,6 +26,7 @@ export const useStore = create((set, get) => ({
 
   pendingAsk: null,
   pendingLay: null,
+  flowArrows: [], // laydown contributors and turn passes drawn on the table: {id, from, to, tone, label, start, until}
   handoffFor: null,
 
   // game end and abort
@@ -197,6 +198,8 @@ export const useStore = create((set, get) => ({
     if (msg.type === "ask_started") {
       const s = msg.payload.state;
       set({ state: s });
+      // A new ask is the thing to watch now: clear cards still shown from the last pass.
+      try { window.dispatchEvent(new CustomEvent("dismiss_passed_cards")); } catch {}
       const rank = msg.payload.ranks?.[0];
       const suit = msg.payload.suit;
       const askerId = msg.payload.asker_id;
@@ -241,7 +244,7 @@ export const useStore = create((set, get) => ({
       if (msg.payload.success) {
         const first = msg.payload.transferred?.[0];
         const detail = { asker_id: msg.payload.asker_id, target_id: msg.payload.target_id, card: first ? { suit: first.suit, rank: first.rank } : null };
-        get().addMessage({ player_id: msg.payload.target_id, variant: "yes", text: "Yes, I have.", card: first ? { suit: first.suit, rank: first.rank } : undefined });
+        // No "Yes, I have" bubble: the card flying to the asker already says it.
         get().setGameMessage("REPLY", [
           `Who: ${target} → ${asker}`,
           `Answer: YES (${cardLabel(first)})`,
@@ -286,6 +289,11 @@ export const useStore = create((set, get) => ({
       const pl = msg.payload;
       const s = pl.state;
       set({ state: s });
+      if (s.game_mode === "turns" && s.phase === "playing" && pl.asker_id && pl.next_turn && pl.next_turn !== pl.asker_id) {
+        const now = Date.now();
+        set({ flowArrows: [...get().flowArrows.filter((a) => a.tone !== "turn"),
+          { id: `turn-${now}`, from: pl.asker_id, to: pl.next_turn, tone: "turn", label: "Turn", start: now + 4500, until: now + 11000 }] });
+      }
       if (Array.isArray(pl.contributors) && pl.contributors.length) {
         try {
           window.dispatchEvent(new CustomEvent("lay_anim", {
@@ -327,7 +335,13 @@ export const useStore = create((set, get) => ({
     // LAYDOWN started
     if (msg.type === "laydown_started") {
       const s = msg.payload.state;
-      set({ state: s, pendingLay: msg.payload });
+      // Arrows from each teammate named in the declaration to the declarer.
+      const who = msg.payload.who_id, now = Date.now();
+      const helpers = (msg.payload.collaborators || []).map((c) => c?.player_id).filter((pid) => pid && pid !== who);
+      set({ state: s, pendingLay: msg.payload, flowArrows: [
+        ...get().flowArrows.filter((a) => a.tone !== "lay"),
+        ...helpers.map((pid) => ({ id: `lay-${now}-${pid}`, from: pid, to: who, tone: "lay", until: now + 15000 })),
+      ] });
     }
 
     // LAYDOWN error
@@ -380,6 +394,21 @@ export const useStore = create((set, get) => ({
 
       // Every laydown, including the final set, gets its declaration result.
       set({ state: s, phase: s.phase, pendingLay: null });
+      {
+        // Keep the contributor arrows a little longer, then show where the turn went.
+        const now = Date.now(), who = msg.payload.who_id;
+        let arrows = get().flowArrows.map((a) => (a.tone === "lay" ? { ...a, until: now + 4500 } : a));
+        if (!arrows.some((a) => a.tone === "lay")) {
+          arrows = [...arrows, ...(msg.payload.contributors || []).map((c) => c.player_id)
+            .filter((pid) => pid && pid !== who && s.players?.[pid]?.team === s.players?.[who]?.team)
+            .map((pid) => ({ id: `lay-${now}-${pid}`, from: pid, to: who, tone: "lay", until: now + 4500 }))];
+        }
+        if (s.game_mode === "turns" && s.phase === "playing" && !s.pending_handoff && s.turn_player && s.turn_player !== who) {
+          arrows = [...arrows.filter((a) => a.tone !== "turn"),
+            { id: `turn-${now}`, from: who, to: s.turn_player, tone: "turn", label: "Turn", start: now + 4500, until: now + 11000 }];
+        }
+        set({ flowArrows: arrows });
+      }
 
       const players = s.players || {};
       const whoName = players[msg.payload.who_id]?.name || "Unknown";
@@ -460,6 +489,11 @@ export const useStore = create((set, get) => ({
     if (msg.type === "handoff_result") {
       const s = msg.payload.state;
       set({ state: s, handoffFor: null });
+      if (msg.payload.ok !== false && msg.payload.from_id && msg.payload.turn_player && msg.payload.from_id !== msg.payload.turn_player) {
+        const now = Date.now();
+        set({ flowArrows: [...get().flowArrows.filter((a) => a.tone !== "turn"),
+          { id: `turn-${now}`, from: msg.payload.from_id, to: msg.payload.turn_player, tone: "turn", label: "Turn", until: now + 6000 }] });
+      }
       const players = s.players || {};
       const toName = players[msg.payload.turn_player]?.name || "teammate";
       const fromName = players[msg.payload.from_id || get().me?.id]?.name || "Player";

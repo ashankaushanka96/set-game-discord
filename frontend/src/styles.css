@@ -635,3 +635,48 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .club-bubble--ask { --bubble-bg: #5a431073; background: linear-gradient(160deg,#6b4f1080,#4a360c66); }
 .club-bubble--success { --bubble-bg: #14532d73; background: linear-gradient(160deg,#166a3880,#0f452566); }
 .club-bubble--error { --bubble-bg: #5f1d1d73; background: linear-gradient(160deg,#7a232380,#4f171766); }
+
+/* Cards inside seat bubbles stay crisp: no inherited text shadow, no glass blur on them */
+.club-bubble .playing-card, .club-bubble .playing-card * { text-shadow: none; }
+.club-bubble .playing-card { opacity: 1; filter: none; backdrop-filter: none; }
+
+/* Arrow label (for example "Turn") */
+.ask-arrow__tag { fill: #0d1a16e6; stroke-width: 1.5; }
+.ask-arrow__tag-text { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+
+/* Laydown, teammate step: a strip over the hand; teammates are picked on the table itself */
+.laydown-tablepick { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); transform: translateX(-50%); z-index: 60; width: min(460px, calc(100vw - 20px)); padding: 10px 12px; border-radius: 16px; border: 1px solid #d7bc7c66; background: linear-gradient(160deg,#13261de6,#0f1f18d9); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); box-shadow: 0 12px 40px #0008; color: #f3ecdd; display: grid; gap: 8px; }
+.laydown-tablepick__head { display: grid; gap: 2px; text-align: center; }
+.laydown-tablepick__head strong { font-size: 14px; }
+.laydown-tablepick__head span { font-size: 12px; color: #c9d3c6; }
+.laydown-tablepick__cards { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; }
+.laydown-tablepick__cards button { display: grid; justify-items: center; gap: 3px; padding: 5px 4px 3px; border-radius: 10px; border: 1.5px solid transparent; background: #ffffff08; }
+.laydown-tablepick__cards button[aria-pressed="true"] { border-color: #f2d27a; background: #f2d27a26; box-shadow: 0 0 0 3px #f2d27a2e; transform: translateY(-3px); }
+.laydown-tablepick__cards small { font-size: 10px; line-height: 12px; color: #9fb0a6; max-width: 48px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.laydown-tablepick__cards button.is-set small { color: #6ee7a8; font-weight: 600; }
+.laydown-tablepick__foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; color: #c9d3c6; }
+.laydown-tablepick__foot .club-primary { padding: 7px 20px; }
+.laydown-tablepick__foot span.is-warning { color: #ffb4a8; }
+.laydown-tablepick__foot .club-primary { white-space: nowrap; flex-shrink: 0; }
+.laydown-tablepick__foot .club-primary.is-risky { background: #5f1d1d; color: #ffd2cf; border-color: #f8717188; }
+
+/* Lay: hint shown when no card (or cards of two sets) is selected */
+.lay-hint { position: absolute; right: 12px; bottom: calc(max(28px, env(safe-area-inset-bottom)) + 52px); z-index: 45; max-width: min(300px, calc(100vw - 24px)); display: grid; gap: 6px; padding: 9px 12px; border-radius: 12px; background: #1a2a22f2; border: 1px solid #f2d27a; color: #f8e7b5; font-size: 12.5px; line-height: 1.35; box-shadow: 0 8px 22px #0008; }
+.lay-hint button { justify-self: start; padding: 3px 10px; border-radius: 999px; background: #3a1517; color: #ffd2cf; border: 1px solid #e0474c88; font-size: 12px; font-weight: 600; }
+.laydown-tablepick__head { position: relative; }
+.laydown-tablepick__cancel { position: absolute; left: 0; top: -2px; padding: 3px 10px; border-radius: 999px; border: 1px solid #ffffff33; background: #ffffff10; color: #e7e2d2; font-size: 11px; }
+.laydown-tablepick__head strong { padding: 0 58px; }
+/* Lay looks inactive until cards of one set are selected (a tap still shows the hint) */
+.game-laydown-action > button[aria-disabled="true"] { background: #3a423e; color: #8f9a93; border-color: #ffffff1f; box-shadow: none; cursor: not-allowed; filter: saturate(0.2); opacity: 0.85; }
+
+/* Voice Play: quiet link to the penalty laydown, under the hand */
+.penalty-link { margin-left: 10px; padding: 1px 9px; border-radius: 999px; border: 1px solid #e0474c66; background: #3a151766; color: #ffb9b4; font-size: 11px; line-height: 16px; }
+.penalty-link:hover { background: #4d1b1e; }
+
+/* Confirmation strips (laydown start, penalty) and the penalty chip beside Clear Selection */
+.laydown-tablepick__head--plain strong { padding: 0; }
+.laydown-tablepick__no { padding: 7px 18px; border-radius: 10px; border: 1px solid #ffffff33; background: #ffffff10; color: #e7e2d2; font-size: 13px; }
+.laydown-tablepick--penalty { border-color: #f8717188; }
+.hand-selection-actions { display: flex; gap: 6px; align-items: center; }
+.penalty-chip { padding: 4px 12px; border-radius: 6px; border: 1px solid #e0474c88; background: #3a1517e6; color: #ffd2cf; font-size: 13px; font-weight: 600; }
+.penalty-chip:hover { background: #4d1b1e; }

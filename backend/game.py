@@ -27,6 +27,10 @@ class Game:
             current_dealer=None,
         )
         self._deck: List[Card] = []
+        # Turn Play: the asks everyone at the table has seen this round. Bots reason from this
+        # (and their own hand) only; they never read another player's cards.
+        self.public_log: List[dict] = []
+        self.bot_levels: Dict[str, str] = {}   # bot id -> "easy" | "medium" | "hard" | "expert"
 
     def log_all_player_hands(self, context: str = ""):
         """Log all player hands for debugging purposes"""
@@ -69,7 +73,9 @@ class Game:
         for pid, cards in hands_by_pid.items():
             self.state.players[pid].hand = cards
         self.state.deck_count = 0
-        
+        self.public_log = []  # new deal: nothing has been asked yet
+        self.deal_seed = random.random()  # fixes what each bot notices and forgets this round
+
         # Log all player hands after dealing
         self.log_all_player_hands("AFTER DEALING")
 
@@ -338,6 +344,7 @@ class Game:
 
         self.state.pending_ask = None
         self.state.pending_handoff = None
+        self.state.awaiting_start = False
 
         # Bots only fill seats for one game; the lobby starts with humans only.
         for pid in [pid for pid in self.state.players if self.is_bot(pid)]:
@@ -637,6 +644,8 @@ class Game:
     ):
 
         if self.state.game_mode == "turns":
+            if self.state.awaiting_start:
+                raise ValueError("Press Start when everyone has looked at their cards")
             if self.state.turn_player != who_id:
                 raise ValueError("You can only lay down on your turn")
             if self.state.pending_ask or self.state.pending_handoff:
@@ -886,6 +895,8 @@ class Game:
             raise ValueError("Asking through the game is only used in Turn Play")
         if self.state.phase != "playing":
             raise ValueError("The round isn't in play")
+        if self.state.awaiting_start:
+            raise ValueError("Press Start when everyone has looked at their cards")
         if self.state.pending_ask:
             raise ValueError("Waiting for the previous answer")
         if self.state.pending_handoff:
@@ -991,26 +1002,28 @@ class Game:
             cards = []  # all or nothing: missing any card means nothing moves and the turn passes
         self.state.pending_ask = None
         self.state.pending_handoff = None
+        self.public_log.append({
+            "asker_id": ask["asker_id"], "target_id": ask["target_id"], "suit": ask["suit"],
+            "set_type": ask["set_type"], "ranks": list(ask["ranks"]), "success": bool(cards),
+        })
         res = self.confirm_pass(ask["asker_id"], ask["target_id"], cards)
         return {**res, **{k: ask[k] for k in ("asker_id", "target_id", "suit", "ranks")}, "cards": [c.model_dump() for c in cards]}
 
-    def bot_choose_ask(self, bot_id: str) -> Optional[dict]:
-        """Pick a legal ask for a bot: a missing card from a set it holds, from an opponent with cards."""
-        bot = self.state.players.get(bot_id)
-        if not bot or not bot.hand:
-            return None
-        opponents = [pid for pid, p in self.state.players.items()
-                     if p.team and p.team != bot.team and p.hand and not p.is_spectator]
-        options = []
-        for c in bot.hand:
-            set_type = self.card_set_type(c)
-            for rank in self.ranks_for(set_type):
-                if not any(h.suit == c.suit and h.rank == rank for h in bot.hand):
-                    options.append((c.suit, set_type, rank))
-        if not opponents or not options:
-            return None
-        suit, set_type, rank = random.choice(sorted(set(options)))
-        return {"target_id": random.choice(opponents), "suit": suit, "set_type": set_type, "rank": rank}
+    def begin_play(self, player_id: str) -> bool:
+        """Turn Play: a seated player starts the round once hands have been looked at."""
+        me = self.state.players.get(player_id)
+        if not self.state.awaiting_start or not me or not me.team or me.is_spectator:
+            return False
+        self.state.awaiting_start = False
+        return True
+
+    def bot_level(self, bot_id: str) -> str:
+        return self.bot_levels.get(bot_id, "medium")
+
+    def bot_decide(self, bot_id: str) -> Optional[dict]:
+        """The bot's move on its turn: an ask, a laydown, or None if it has nothing to do."""
+        import bot_ai
+        return bot_ai.decide(self, bot_id, self.bot_level(bot_id))
 
     def _turn_after_laydown(self, who_id: str, helpers: List[str]) -> List[str]:
         """Turn Play, successful laydown. The turn goes to a teammate who helped:
@@ -1059,6 +1072,8 @@ class Game:
         
         from_player = self.state.players[from_player_id]
         to_player = self.state.players[to_player_id]
+        if not to_player.hand:
+            raise ValueError("That player has no cards left and is out of this round")
         
         # Can only pass to opponent team
         if from_player.team == to_player.team:
@@ -1386,6 +1401,7 @@ class Game:
         
         # Reset game state
         self.state.phase = "playing"
+        self.state.awaiting_start = self.state.game_mode == "turns"  # held until someone presses Start
         self.state.pending_ask = None
         self.state.pending_handoff = None
         self.state.team_scores = {"A": 0, "B": 0}

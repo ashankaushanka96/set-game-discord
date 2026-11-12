@@ -87,7 +87,8 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
         const pad = Math.min(156, viewportW / 2);
         if (x < pad) x = pad;
         if (x > viewportW - pad) x = viewportW - pad;
-        next[m.id] = { x, y, place, seatX: r.left + r.width / 2 };
+        // Whole pixels only: a bubble placed on a half pixel renders its cards slightly soft.
+        next[m.id] = { x: Math.round(x), y: Math.round(y), place, seatX: r.left + r.width / 2 };
       });
       setPos(next);
     };
