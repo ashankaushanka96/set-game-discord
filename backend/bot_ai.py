@@ -50,15 +50,28 @@ LEVELS = ("easy", "medium", "hard", "expert")
 # fear       pull toward attacking a collector who is hunting a card it holds
 # threat     weight of what the asked opponent could take if the ask fails
 # handoff    lays down a shared set to pass the turn to the teammate with better chances
+# guard      when an opponent team is 1-2 cards from finishing a set with our cards, prefer asking
+#            an opponent who holds nothing of it (a failed ask then hands the turn to a safe player)
+# golden     hint rule: a teammate asked for a card and missed - holding it, ask another card of
+#            that set (a hint); not holding it, chase that same card from opponents not yet asked
+# lay_odds   lays down a team set without being sure who holds each card (when no ask is good),
+#            if the guess is at least this likely (0 = never)
+# chase      (optional) separate weight for the "chase the same card" half of golden
+# golden and lay_odds are off by default: in bot-vs-bot games (400 each) they didn't win more,
+# likely because bot teammates read hints only weakly. guard and the hard handoff did help.
 PROFILES: Dict[str, dict] = {
     "easy":   dict(miss=0.35, half_life=6, noise=0.30, deduce=False, hints=False, passed_up=False, sure_lay=False,
-                   turn=0.0, progress=0.3, support=1.0, fear=1.5, threat=0.0, handoff=False),
+                   turn=0.0, progress=0.3, support=1.0, fear=1.5, threat=0.0, handoff=False,
+                   guard=0.0, golden=0.0, lay_odds=0.0),
     "medium": dict(miss=0.15, half_life=25, noise=0.15, deduce=False, hints=False, passed_up=False, sure_lay=True,
-                   turn=4.0, progress=1.0, support=1.0, fear=1.5, threat=0.0, handoff=False),
+                   turn=4.0, progress=1.0, support=1.0, fear=1.5, threat=0.0, handoff=False,
+                   guard=0.0, golden=0.0, lay_odds=0.0),
     "hard":   dict(miss=0.05, half_life=120, noise=0.07, deduce=True, hints=True, passed_up=False, sure_lay=True,
-                   turn=10.0, progress=2.0, support=1.0, fear=1.5, threat=0.0, handoff=False),
+                   turn=10.0, progress=2.0, support=1.0, fear=1.5, threat=0.0, handoff=True,
+                   guard=6.0, golden=0.0, lay_odds=0.0),
     "expert": dict(miss=0.015, half_life=600, noise=0.03, deduce=True, hints=True, passed_up=True, sure_lay=True,
-                   turn=10.0, progress=2.0, support=1.0, fear=1.5, threat=0.3, handoff=True),
+                   turn=10.0, progress=2.0, support=1.0, fear=1.5, threat=0.3, handoff=True,
+                   guard=8.0, golden=0.0, lay_odds=0.0),
 }
 
 STALEMATE = 12   # failed asks in a row before the table starts keeping careful track
@@ -374,6 +387,71 @@ def _opportunity(k: Knowledge, pub: Knowledge, mate: str) -> float:
     return total
 
 
+def _danger(k: Knowledge) -> Dict[SetKey, float]:
+    """Sets the opponents are 1-2 cards from finishing, with the missing cards in our team's
+    hands: handing them the turn there loses the set. Weight grows the closer they are."""
+    my_team = k.team[k.me]
+    out = {}
+    for s in k.live_sets:
+        cs = cards_in(s)
+        theirs = sum(1 for c in cs if k.loc[c] and k.team[k.loc[c]] != my_team)
+        ours = [c for c in cs if k.loc[c] and k.team[k.loc[c]] == my_team]
+        need = len(cs) - theirs
+        if theirs >= 3 and 1 <= need <= 2 and ours:
+            out[s] = _card_value(s) * len(cs) * (1.5 if need == 1 else 1.0)
+    return out
+
+
+def _team_misses(game, k: Knowledge) -> Dict[SetKey, Tuple[CardKey, Set[str]]]:
+    """Per set: the card a teammate most recently asked for and didn't get, and the opponents
+    already asked for it since (they don't have it)."""
+    my_team = k.team[k.me]
+    out: Dict[SetKey, Tuple[CardKey, Set[str]]] = {}
+    for ev in getattr(game, "public_log", []):
+        s = (ev["suit"], ev["set_type"])
+        if s in k.laid or ev["asker_id"] not in k.team:
+            continue
+        cards = [(ev["suit"], r) for r in ev["ranks"]]
+        if ev["success"]:
+            if s in out and out[s][0] in cards:
+                out.pop(s)
+            continue
+        if len(cards) == 1 and k.team[ev["asker_id"]] == my_team:
+            if ev["asker_id"] != k.me:
+                prev = out.get(s)
+                asked = prev[1] if prev and prev[0] == cards[0] else set()
+                out[s] = (cards[0], asked | {ev["target_id"]})
+            elif s in out and out[s][0] == cards[0]:
+                out[s][1].add(ev["target_id"])
+    return out
+
+
+def _guess_laydown(k: Knowledge, min_odds: float) -> Optional[Tuple[dict, float]]:
+    """A set the team may hold whole: own cards plus the likeliest teammate for each other card,
+    when no opponent can hold any of it. Returns (laydown, chance it is right)."""
+    my_team = k.team[k.me]
+    mates = [p for p in k.players if k.team[p] == my_team and p != k.me and k.count[p] > 0]
+    best = None
+    for s in k.live_sets:
+        cs = cards_in(s)
+        if not any(c in k.my_hand for c in cs) or not mates:
+            continue
+        holders, odds = {}, 1.0
+        for c in cs:
+            if c in k.my_hand:
+                holders[c] = k.me
+                continue
+            if any(k.prob(c, p) > 0 for p in k.players if k.team[p] != my_team):
+                odds = 0.0
+                break
+            pick = max(mates, key=lambda p: k.prob(c, p))
+            holders[c] = pick
+            odds *= k.prob(c, pick)
+        if odds >= min_odds and odds < 0.999 and (best is None or odds > best[1]):
+            best = (_declare(k, s, holders), odds)
+    return best
+
+
 # ---- decisions --------------------------------------------------------------
 def decide(game, bot_id: str, level: str = "medium") -> Optional[dict]:
     """Choose this bot's move: {"action": "ask", ...}, {"action": "laydown", ...} or None."""
@@ -425,6 +503,9 @@ def decide(game, bot_id: str, level: str = "medium") -> Optional[dict]:
     # 3. Nothing certain is left: choose what to try for.
     pub = Knowledge(game, me, P, public=True) if (P["threat"] or P["handoff"]) else None
 
+    danger = _danger(k) if P.get("guard") else {}
+    misses = _team_misses(game, k) if P.get("golden") else {}
+
     def gamble(o) -> float:
         p, s, c, t = o
         progress = k.team_holds(s, my_team) / len(RANKS[s[1]])
@@ -433,7 +514,15 @@ def decide(game, bot_id: str, level: str = "medium") -> Optional[dict]:
             pull += P["support"]                             # keep building the team's set
         if t in k.hunters.get(s, ()):
             pull += P["fear"]                                # strike the collector before they reach me
+        if s in misses:                                      # golden rule
+            wanted, asked = misses[s]
+            if wanted in k.my_hand:
+                pull += P["golden"] if c != wanted else 0.0  # I hold it: ask another card (a hint)
+            elif c == wanted and t not in asked:
+                pull += P.get("chase", P["golden"])          # chase the same card from someone new
         risk = P["turn"] + (P["threat"] * _threat(k, pub, t) if P["threat"] else 0.0)
+        if danger:                                           # a miss hands the turn to t
+            risk += P["guard"] * sum(v * k.in_set(t, ds) for ds, v in danger.items()) / 10.0
         return p * _card_value(s) * pull - (1.0 - p) * risk + random.random() * 0.01
 
     live = [o for o in scored if o[0] > 0]
@@ -447,6 +536,12 @@ def decide(game, bot_id: str, level: str = "medium") -> Optional[dict]:
         s = max(shared, key=lambda x: (route(x), random.random()))
         if best is None or route(s) >= gamble(best):
             return _declare(k, s, {c: k.loc[c] for c in cards_in(s)})
+
+    if P.get("lay_odds") and (best is None or gamble(best) < 0):
+        # No good ask: lay down a team set on a good guess, passing the turn to a teammate.
+        g = _guess_laydown(k, P["lay_odds"])
+        if g:
+            return g[0]
 
     if best is None:
         # Every card it could ask for is, as far as it knows, out of the opponents' hands, so
