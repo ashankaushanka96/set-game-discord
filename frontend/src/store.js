@@ -162,6 +162,18 @@ export const useStore = create((set, get) => ({
     {
       const st = msg.type === "state" || msg.type === "dealt" ? msg.payload : msg.payload?.state;
       if (st && st.players && !/^(abort_|back_to_lobby_|game_aborted|new_game_voting)/.test(msg.type)) syncVotes(st, get, set);
+      // Seat bubbles belong to the game in progress: a new deal, round or game, the lobby, or an
+      // abort clears them all; and an ask bubble goes once no ask is pending any more.
+      if (/^(dealt|new_game_started|new_round_started|game_started|back_to_lobby_success|game_aborted)$/.test(msg.type) || (st && st.phase && st.phase !== "playing")) {
+        if ((get().messages || []).length) set({ messages: [] });
+        // tell the table to drop anything in progress (laydown, ask, penalty, selection)
+        if (/^(dealt|new_game_started|new_round_started|game_started|back_to_lobby_success|game_aborted)$/.test(msg.type)) {
+          try { window.dispatchEvent(new CustomEvent("game_reset")); } catch {}
+        }
+      } else if (st && st.players && !st.pending_ask && msg.type !== "ask_started") {
+        const msgs = get().messages || [];
+        if (msgs.some((m) => m.variant === "ask")) set({ messages: msgs.filter((m) => m.variant !== "ask") });
+      }
     }
 
     if (msg.type === "state" || msg.type === "dealt") {

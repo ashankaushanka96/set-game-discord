@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import GlassmorphismModal from "../ui/GlassmorphismModal";
 import Card from "../cards/Card";
 import { RANKS_LOWER, RANKS_UPPER, SUITS, SUIT_SYMBOL } from "../../lib/deck";
@@ -30,6 +30,42 @@ export default function AskCardModal({ open, target, tableSets = [], onAsk, onCl
     setSetKey(keys.includes(lastAskedSet) ? lastAskedSet : keys[0] || null);
     setPicked([]);
   }, [open, target?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Cards as big as the free room allows, never overlapping: measure the room left under the rest
+  // of the sheet and pick the row count (1-3) that gives the biggest cards that fully fit.
+  const cardsRef = useRef(null);
+  const [fit, setFit] = useState({ w: 44, cols: 6 });
+  const count = sets.find((s) => `${s.suit}-${s.type}` === setKey)?.missing.length || 0;
+  useLayoutEffect(() => {
+    if (!open || !count) return;
+    const measure = () => {
+      const cards = cardsRef.current, dock = cards?.closest(".club-dock-area"), modal = cards?.closest(".club-modal--docked");
+      if (!cards || !dock || !modal) return;
+      const ds = getComputedStyle(dock);
+      const room = dock.clientHeight - parseFloat(ds.paddingTop) - parseFloat(ds.paddingBottom);
+      // the rest of the sheet's height, measured with the cards shrunk away (a capped sheet would mislead)
+      const prevW = cards.style.getPropertyValue("--w");
+      cards.style.setProperty("--w", "0px");
+      const rest = modal.offsetHeight - cards.offsetHeight;
+      cards.style.setProperty("--w", prevW);
+      const freeH = room - rest - 2;
+      const W = cards.clientWidth, gap = 4, pad = 6, edge = 6;   // edge: the card's bottom edge/shadow
+      let best = { w: 0, cols: count };
+      for (let rows = 1; rows <= 3; rows++) {
+        const cols = Math.ceil(count / rows);
+        const w = Math.min((W - (cols - 1) * gap) / cols - pad, ((freeH - (rows - 1) * gap) / rows - pad - edge) * 0.727, 120);
+        if (w > best.w + 0.5) best = { w, cols };
+      }
+      const next = { w: Math.max(20, Math.floor(best.w)), cols: best.cols };
+      setFit((f) => (f.w === next.w && f.cols === next.cols ? f : next));
+    };
+    measure();
+    const dock = cardsRef.current?.closest(".club-dock-area");
+    const ro = new ResizeObserver(measure);
+    if (dock) ro.observe(dock);
+    window.addEventListener("resize", measure);
+    return () => { ro.disconnect(); window.removeEventListener("resize", measure); };
+  }, [open, count, setKey]);
 
   if (!open || !target) return null;
   const chosen = sets.find((s) => `${s.suit}-${s.type}` === setKey);
@@ -64,7 +100,7 @@ export default function AskCardModal({ open, target, tableSets = [], onAsk, onCl
               </Fragment>)}
             </div>
             {chosen && (
-              <div className="ask-sheet__cards">
+              <div className="ask-sheet__cards" ref={cardsRef} style={{ "--w": `${fit.w}px`, display: "grid", gridTemplateColumns: `repeat(${fit.cols}, auto)`, justifyContent: "center", gap: 4 }}>
                 {chosen.missing.map((r) => (
                   <button key={r} type="button" aria-label={`${r} of ${chosen.suit}`}
                     aria-pressed={picked.includes(r)} className={`ask-sheet__card ${picked.includes(r) ? "ask-sheet__card--on" : ""}`} onClick={() => toggle(r)}>

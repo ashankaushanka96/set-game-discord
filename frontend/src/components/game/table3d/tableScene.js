@@ -316,7 +316,31 @@ export function createGameTable3D(container, { portrait, onLift }) {
       if (pool) { pool.position.x = base.x; pool.position.z = base.z; }
     }
   }
-  function render() { aimBeams(); renderer.render(scene, camera); handRenderer.render(handScene, camera); }
+  function render() { aimBeams(); renderer.render(scene, camera); handRenderer.render(handScene, camera); markHandTop(); }
+  // Where the hand's top edge is on screen (px from the layer's top), so page dialogs can stop above it.
+  const handBox = new THREE.Box3(), boxCorner = new THREE.Vector3();
+  const restProbe = new THREE.Object3D();
+  function markHandTop() {
+    // Resting places only (selected cards raised, hover lift ignored), so the mark doesn't twitch
+    // as the pointer moves over the hand.
+    let top = Infinity;
+    const cards = (hand.dealt || hand.cards).filter((c) => !hand.gone.has(keyOf(c)));
+    cards.forEach((card, i) => {
+      const m = handPool.get(keyOf(card));
+      if (!m || !m.visible) return;
+      const slot = handSlot(i, cards.length, hand.selected.has(keyOf(card)));
+      restProbe.position.copy(slot.p); restProbe.rotation.order = 'XYZ'; restProbe.rotation.set(slot.rx, slot.ry, slot.rz || 0);
+      restProbe.scale.copy(m.scale); restProbe.updateMatrixWorld(true);
+      if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+      handBox.copy(m.geometry.boundingBox);
+      for (let k = 0; k < 8; k++) {
+        boxCorner.set(k & 1 ? handBox.max.x : handBox.min.x, k & 2 ? handBox.max.y : handBox.min.y, k & 4 ? handBox.max.z : handBox.min.z).applyMatrix4(restProbe.matrixWorld);
+        top = Math.min(top, project(boxCorner).y);
+      }
+    });
+    const value = Number.isFinite(top) ? String(Math.round(top)) : '';
+    if (handRenderer.domElement.dataset.handTop !== value) handRenderer.domElement.dataset.handTop = value;
+  }
   // a card picture finished loading: draw it (once per frame at most; nothing after dispose)
   let alive = true, repaintQueued = false;
   const repaint = () => { if (!alive || repaintQueued) return; repaintQueued = true; requestAnimationFrame(() => { repaintQueued = false; if (alive) render(); }); };
@@ -594,7 +618,8 @@ export function createGameTable3D(container, { portrait, onLift }) {
 
   function clearRest(rel) {
     const list = rel === undefined ? [...resting.keys()] : [rel];
-    list.forEach((r) => { const it = resting.get(r); if (!it) return; clearTimeout(it.timer); timers.delete(it.timer); it.meshes.forEach((m) => flyGroup.remove(m)); resting.delete(r); });
+    list.forEach((r) => { const it = resting.get(r); if (!it) return; clearTimeout(it.timer); timers.delete(it.timer); it.meshes.forEach((m) => flyGroup.remove(m)); resting.delete(r);
+      if (it.keys) { it.keys.forEach((k) => hand.incoming.delete(k)); drawHand(); } });
     render();
   }
 
@@ -700,20 +725,33 @@ export function createGameTable3D(container, { portrait, onLift }) {
   function pass(fromRel, toRel, cards) {
     if (!cards?.length || fromRel === toRel) return;
     clearRest(toRel);
-    glow([fromRel, toRel], toRel === 0 ? 2.2 : REST_SECONDS);
+    glow([fromRel, toRel], REST_SECONDS);
     const shown = cards.slice(0, 4);
     if (toRel === 0) {
-      // Straight into the player's hand: the card leaves the giver, flips face up in the air
-      // and drops into its place in the fan.
-      const next = [...hand.cards.filter((c) => !shown.some((x) => keyOf(x) === keyOf(c))), ...shown].sort(byHandOrder);
-      shown.forEach((card, i) => {
-        const key = keyOf(card); hand.incoming.add(key);
-        const st = startOf(fromRel, card), slot = handSlot(next.findIndex((c) => keyOf(c) === key), next.length, false);
+      // To me, the same way everyone else sees it: it lands face up on the table in front of me,
+      // waits a moment, then goes up into its place in my fan. Until then it stays out of the hand.
+      const s0 = spots[0], rest0 = restSpot(0), keys = shown.map(keyOf);
+      keys.forEach((k) => hand.incoming.add(k));
+      const meshes = shown.map((card, i) => {
+        const st = startOf(fromRel, card);
         const m = newFace(card, st.s); flyGroup.add(m);
-        fly(m, st.p, slot.p, { delay: i * 0.1, dur: 0.95, arc: 1.6, spin: 3.2, rx0: st.rx, rx1: slot.rx, ry0: st.ry, ry1: slot.ry, rz0: st.rz, rz1: slot.rz || 0, s0: st.s, s1: HAND_SCALE,
-          onDone: () => { flyGroup.remove(m); hand.incoming.delete(key); drawHand(); render(); } });
+        const off = (i - (shown.length - 1) / 2) * 0.34;
+        const to = rest0.clone().addScaledVector(s0.tangent, off).setY(0.03 + i * 0.004);
+        fly(m, st.p, to, { delay: i * 0.1, dur: 0.95, arc: 1.6, spin: 3.2, rx0: st.rx, rx1: 0, ry0: st.ry, ry1: -s0.angle + Math.PI / 2, rz0: st.rz, rz1: 0, s0: st.s, s1: FLY_SCALE });
+        return m;
       });
       drawHand();
+      const timer = later(REST_SECONDS, () => {
+        const it = resting.get(0); if (!it) return;
+        resting.delete(0);
+        const next = [...hand.cards.filter((c) => !keys.includes(keyOf(c))), ...shown].sort(byHandOrder);
+        it.meshes.forEach((m, i) => {
+          const key = keys[i], slot = handSlot(Math.max(0, next.findIndex((c) => keyOf(c) === key)), next.length, false);
+          fly(m, m.position.clone(), slot.p, { delay: i * 0.05, dur: 0.6, arc: 0.35, rx0: m.rotation.x, rx1: slot.rx, ry0: m.rotation.y, ry1: slot.ry, rz0: m.rotation.z, rz1: slot.rz || 0, s0: FLY_SCALE, s1: HAND_SCALE,
+            onDone: () => { flyGroup.remove(m); hand.incoming.delete(key); drawHand(); render(); } });
+        });
+      });
+      resting.set(0, { meshes, timer, keys });
       return;
     }
     // To anyone else: it flies over, lands face up in front of them for a moment, then

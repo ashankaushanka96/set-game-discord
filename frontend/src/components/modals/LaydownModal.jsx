@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../../store";
 import { send } from "../../ws";
 import { Card } from "../cards";
@@ -20,7 +20,7 @@ export function loadLaydownDraft(roomId, playerId) {
 function saveLaydownDraft(roomId, playerId, draft) {
   try { localStorage.setItem(draftKey(roomId, playerId), JSON.stringify({ ...draft, savedAt: Date.now() })); } catch {}
 }
-function clearLaydownDraft(roomId, playerId) {
+export function clearLaydownDraft(roomId, playerId) {
   try { localStorage.removeItem(draftKey(roomId, playerId)); } catch {}
 }
 
@@ -142,6 +142,45 @@ export default function LaydownModal({ onClose, initialPick, restore = false }) 
     return () => window.removeEventListener("laydown_seat_pick", onSeat);
   }, [step, activeRank, mateIds, neededRanks, collabRanks]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Cards as big as the bar may grow: up to where the hand's cards show their rank and suit
+  // (the top ~third of the hand stays clear), never overlapping.
+  const barRef = useRef(null), cardsRef = useRef(null);
+  const [fitLay, setFitLay] = useState({ w: 32, stacked: false });
+  const cardW = fitLay.w;
+  const cardCount = neededRanks.length;
+  useLayoutEffect(() => {
+    if (step !== 2 || !cardCount) return;
+    const measure = () => {
+      const bar = barRef.current, cards = cardsRef.current;
+      if (!bar || !cards) return;
+      const cover = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--hand-cover")) || window.innerHeight * 0.3;
+      const maxBar = cover * 0.7 - 12;   // the top ~30% of the hand (ranks and suits) stays clear
+      const bs = getComputedStyle(bar);
+      const head = bar.querySelector(".laydown-tablepick__head"), foot = bar.querySelector(".laydown-tablepick__foot");
+      const btn = foot?.querySelector("button"), status = foot?.querySelector("span");
+      const statusShown = status && getComputedStyle(status).display !== "none";
+      const headH = head && getComputedStyle(head).display !== "none" ? head.offsetHeight + 6 : 0;
+      const base = parseFloat(bs.paddingTop) + parseFloat(bs.paddingBottom) + headH + 2;
+      const innerW = bar.clientWidth - parseFloat(bs.paddingLeft) - parseFloat(bs.paddingRight);
+      const btnW = btn?.offsetWidth || 120, btnH = btn?.offsetHeight || 32;
+      const footW = statusShown ? Math.max(btnW, 200) : btnW;
+      const footH = btnH + (statusShown ? 20 : 0);
+      const pad = 8, label = 14, edge = 4, gap = 4;
+      const size = (availH, W) => Math.min((availH - pad - label - edge) * 0.727, (W - (cardCount - 1) * gap) / cardCount - pad, 84);
+      // cards beside the button, or above it: whichever gives bigger cards
+      const beside = size(maxBar - base, innerW - footW - 12);
+      const above = size(maxBar - base - footH - 6, innerW);
+      const next = above > beside + 2 ? { w: Math.floor(Math.max(20, above)), stacked: true } : { w: Math.floor(Math.max(20, beside)), stacked: false };
+      setFitLay((f) => (Math.abs(f.w - next.w) < 1 && f.stacked === next.stacked ? f : next));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (barRef.current) ro.observe(barRef.current.parentElement || document.body);
+    window.addEventListener("resize", measure);
+    const poll = setInterval(measure, 800);   // the hand's measured height can change under the bar
+    return () => { ro.disconnect(); clearInterval(poll); window.removeEventListener("resize", measure); };
+  }, [step, cardCount]);
+
   if (step === 1) {
     const [title, text, yes, onYes] = setConfirmed
       ? [<>Lay down <span className="capitalize">{pick.suit}</span> {pick.setType}?</>,
@@ -164,17 +203,17 @@ export default function LaydownModal({ onClose, initialPick, restore = false }) 
 
   const left = neededRanks.filter((r) => !ownerOf(r)).length;
   return (
-    <div className="laydown-tablepick" role="dialog" aria-label="Choose who holds each card">
+    <div className={`laydown-tablepick ${fitLay.stacked ? "is-stacked" : ""}`} role="dialog" aria-label="Choose who holds each card" ref={barRef}>
       <div className="laydown-tablepick__head">
         <strong><span className="capitalize">{pick.suit}</span> {pick.setType}: who holds each card?</strong>
         <span>{!neededRanks.length ? "You hold the whole set." : !mateIds.length ? "No teammate has cards." : "Tap a card, then tap your teammate at the table."}</span>
       </div>
-      {neededRanks.length > 0 && <div className="laydown-tablepick__cards">
+      {neededRanks.length > 0 && <div className="laydown-tablepick__cards" ref={cardsRef} style={{ "--lw": `${cardW}px` }}>
         {neededRanks.map((r) => {
           const owner = players[ownerOf(r)];
           return <button key={r} type="button" aria-pressed={activeRank === r} className={owner ? "is-set" : ""}
             onClick={() => setActiveRank(r)} title={`${r}${SUIT_SYMBOL[pick.suit]}${owner ? ` — ${owner.name}` : ""}`}>
-            <Card suit={pick.suit} rank={r} size="sm-xs" />
+            <Card suit={pick.suit} rank={r} size="xs" />
             <small>{owner ? (owner.name || "").split(" ")[0].slice(0, 7) : "?"}</small>
           </button>;
         })}

@@ -446,12 +446,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .pass-turn-option__cards { font-size: 12px; color: #acbbad; }
 
 /* Docked in-game dialogs: see-through, so the table and your hand stay visible behind them */
-.club-dock-area { position: fixed; inset: 0; z-index: 100; display: flex; align-items: flex-start; justify-content: center; padding: 52px 10px 10px; pointer-events: none; }
+.club-dock-area { position: fixed; inset: 0 0 var(--hand-cover, 0px) 0; z-index: 100; display: flex; align-items: flex-start; justify-content: center; padding: 52px 10px 4px; pointer-events: none; }
 .club-modal.club-modal--docked { pointer-events: auto; max-height: 100%; border: 1px solid #d7bc7c66; border-radius: 16px;
   background: linear-gradient(180deg, #13261dcc, #0f1f18b3); backdrop-filter: none; -webkit-backdrop-filter: none;
   box-shadow: 0 10px 40px #0007; animation: club-fade-in 160ms ease-out; }
 .club-modal.club-modal--docked::before { display: none; }
-.club-modal.club-modal--docked .club-modal__content { max-height: calc(100dvh - 64px); padding: 30px 18px 16px; }
+.club-modal.club-modal--docked .club-modal__content { max-height: calc(100dvh - 64px - var(--hand-cover, 0px)); padding: 30px 18px 16px; }
 .club-modal--docked .ask-sheet__set, .club-modal--docked .pass-turn-option { background: #0b1712cc; }
 .club-dock-hide { position: absolute; top: 8px; right: 12px; z-index: 2; padding: 3px 10px; border-radius: 999px; font-size: 11px; color: #e9d9ab; background: #0b1712cc; border: 1px solid #d7bc7c44; }
 .club-dock-hide:hover { background: #1b2c23; }
@@ -645,3 +645,91 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .make-admin.make-admin--asking, .make-admin.make-admin--asking:hover { font-size: 11px; font-weight: 700; background: linear-gradient(135deg, #f0dba3, #c3a463); color: #1b2a20; border-color: #f7e6b5; }
 .make-admin.make-admin--asking:hover { filter: brightness(1.06); }
 @media (max-width: 640px) { .club-lobby .lobby-seat .make-admin { position: absolute; top: 4px; right: 6px; margin: 0; } }
+
+/* Short room above the hand (tablet-size windows, the 3D room): game dialogs never scroll.
+   The ask sheet goes side by side — sets on the left, cards and buttons on the right. */
+.club-dock-area { container-type: size; container-name: dock; }
+.club-modal.club-modal--docked .club-modal__content { overflow: visible; }
+
+/* Laydown / penalty bar: kept low and short so the tops of the hand's cards stay readable above it.
+   One title line; the cards and the confirm button share a row. */
+.laydown-tablepick { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 12px; padding: 8px 12px; width: min(760px, calc(100vw - 20px)); }
+.laydown-tablepick__head { grid-column: 1 / -1; }
+.laydown-tablepick__head strong { font-size: 13px; }
+.laydown-tablepick__head strong span { font: inherit; }
+.laydown-tablepick__head:not(.laydown-tablepick__head--plain) > span { display: none; }
+.laydown-tablepick__head--plain span { font-size: 11.5px; }
+.laydown-tablepick__cards { justify-content: flex-start; gap: 4px; flex-wrap: nowrap; overflow: visible; }
+.laydown-tablepick__cards button { padding: 3px 3px 2px; }
+.laydown-tablepick__cards button[aria-pressed="true"] { transform: none; }
+.laydown-tablepick__foot { flex-direction: column; align-items: stretch; gap: 4px; text-align: center; font-size: 11px; }
+.laydown-tablepick__head--plain + .laydown-tablepick__foot { grid-column: 1 / -1; flex-direction: row; align-items: center; }
+
+/* Any layout (desktop one-row or tablet side-by-side), little height above the hand: tighten so the
+   whole sheet stays inside its border — no description, one row of smaller cards, slimmer set buttons. */
+@container dock (max-height: 520px) {
+  .club-dock-area .club-modal--docked .club-modal__content { padding: 10px 14px; }
+  .club-dock-area .club-modal--docked .ask-sheet { gap: 6px 14px; }
+  .club-dock-area .club-modal--docked .ask-sheet > div:first-child p { display: none; }
+  .club-dock-area .club-modal--docked .ask-sheet h2 { font-size: 15px; }
+  .club-dock-area .club-modal--docked .ask-sheet__grid { gap: 4px 6px; }
+  .club-dock-area .club-modal--docked .ask-sheet__grid .ask-sheet__set { padding: 4px 6px; }
+  .club-dock-area .club-modal--docked .ask-sheet__cards { flex-wrap: nowrap; gap: 4px; }
+  .club-dock-area .club-modal--docked .ask-sheet__card { padding: 1px; }
+  .club-dock-area .club-modal--docked .ask-sheet__actions button { padding: 6px 12px; }
+}
+@container dock (max-height: 340px) {
+  .club-dock-area .club-modal--docked .ask-sheet__colhead { visibility: hidden; font-size: 0; line-height: 0; padding: 0; }  /* keep their grid slots */
+  .club-dock-area .club-modal--docked .ask-sheet__grid .ask-sheet__set { padding: 2px 6px; font-size: 11px; }
+}
+@media not all and (min-width: 900px) and (orientation: landscape) {
+  /* stacked (portrait tablets, phones): cards in a full-width row under the sets, buttons below */
+  @container dock (max-height: 520px) and (max-aspect-ratio: 2/1) {
+    .club-dock-area .club-modal.club-modal--docked:has(.ask-sheet__grid) { max-width: min(760px, 100%); }
+  }
+
+}
+
+/* Ask sheet cards: AskCardModal measures the free room and sets --w and the column count. */
+.club-dock-area .club-modal--docked .ask-sheet__cards { min-width: 0; }
+.club-dock-area .club-modal--docked .ask-sheet__card .playing-card { width: var(--w, 44px) !important; height: calc(var(--w, 44px) / .727) !important; }
+
+/* Wide, short room (tablet or phone landscape, short desktop windows): the desktop arrangement —
+   suits across in two short rows, then one wide row of cards with Cancel/Ask beside it. */
+@container dock (max-height: 520px) and (min-aspect-ratio: 2/1) {
+  .club-dock-area .club-modal.club-modal--docked:has(.ask-sheet__grid) { max-width: min(1100px, 100%); }
+  .club-dock-area .club-modal--docked .ask-sheet { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 14px; align-items: end; }
+  .club-dock-area .club-modal--docked .ask-sheet > div:first-child { grid-column: 1 / -1; padding-right: 64px; }
+  .club-dock-area .club-modal--docked .ask-sheet__grid { grid-column: 1 / -1; grid-row: auto; grid-auto-flow: column; grid-template-rows: repeat(3, auto); grid-template-columns: auto repeat(4, minmax(0, 1fr)); }
+  .club-dock-area .club-modal--docked .ask-sheet__colhead { text-align: right; padding-right: 4px; }
+  .club-dock-area .club-modal--docked .ask-sheet__rowhead { text-align: center; }
+  .club-dock-area .club-modal--docked .ask-sheet__cards { grid-column: 1; grid-row: auto; justify-content: flex-start; }
+  .club-dock-area .club-modal--docked .ask-sheet__actions { grid-column: 2; grid-row: auto; align-self: center; }
+}
+
+/* The buttons always stay on screen: the docked dialog never grows past its room, and in the stacked
+   layout the cards' row is what gives way if the room is short. */
+.club-dock-area .club-modal.club-modal--docked { display: flex; flex-direction: column; max-height: 100%; }
+.club-dock-area .club-modal--docked .club-modal__content { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.club-dock-area .club-modal--docked .club-modal__content > .ask-sheet { flex: 1 1 auto; min-height: 0; }
+.club-dock-area .club-modal--docked .ask-sheet__cards { flex: 0 1 auto; min-height: 0; overflow: hidden; }
+.club-dock-area .club-modal--docked .ask-sheet__actions { flex: none; }
+
+/* Laydown bar on a narrow phone (teammate step): one short row — cards, then the button — so the
+   hand's corners stay readable above it. The banner under the hand already says what to tap. */
+@media (max-width: 560px) {
+  .laydown-tablepick:has(.laydown-tablepick__cards) { grid-template-columns: minmax(0, 1fr) auto; padding: 6px 8px; }
+  .laydown-tablepick:has(.laydown-tablepick__cards) .laydown-tablepick__head { display: none; }
+  .laydown-tablepick__cards { justify-content: flex-start; flex-wrap: nowrap; }
+  .laydown-tablepick:has(.laydown-tablepick__cards) .laydown-tablepick__foot > span { display: none; }
+  .laydown-tablepick__foot .club-primary { padding: 7px 12px; font-size: 12px; }
+}
+/* laydown bar cards: LaydownModal sets --lw from the room above the hand */
+.laydown-tablepick__cards .playing-card { width: var(--lw, 32px) !important; height: calc(var(--lw, 32px) / .727) !important; }
+.laydown-tablepick__cards small { max-width: calc(var(--lw, 32px) + 16px); }
+/* laydown bar, cards above the button (chosen when that gives bigger cards, e.g. tall phones) */
+.laydown-tablepick.is-stacked { grid-template-columns: minmax(0, 1fr) !important; }
+.laydown-tablepick.is-stacked .laydown-tablepick__cards { justify-content: center; }
+.laydown-tablepick.is-stacked .laydown-tablepick__foot { flex-direction: row; align-items: center; justify-content: space-between; text-align: left; }
+.laydown-tablepick.is-stacked .laydown-tablepick__foot > span { flex: 1 1 auto; min-width: 0; }
+.laydown-tablepick.is-stacked .laydown-tablepick__foot .club-primary { flex: 1 1 auto; max-width: 320px; margin-left: auto; }

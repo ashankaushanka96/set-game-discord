@@ -38,7 +38,7 @@ import {
 } from '../ui';
 import Card from '../cards/Card';
 import { RANKS_LOWER, RANKS_UPPER, SUITS } from '../../lib/deck';
-import { loadLaydownDraft } from '../modals/LaydownModal';
+import { loadLaydownDraft, clearLaydownDraft } from '../modals/LaydownModal';
 
 // The 3D table (three.js) is a separate download, fetched only when it is switched on.
 const GameTable3D = lazy(() => import('./table3d/GameTable3D.jsx'));
@@ -70,6 +70,39 @@ export default function Table() {
     markReactionUsed(aim.emoji);
     send(ws, 'emoji_throw', { from_player_id: me.id, to_player_id: target.id, emoji: aim.emoji, emoji_name: aim.name, category: aim.category });
   };
+  // Keep in-game dialogs (ask, answer, laydown, penalty) clear of the hand: publish how much of the
+  // screen bottom the hand takes as --hand-cover; the dialogs stop above it.
+  useEffect(() => {
+    const root = document.documentElement;
+    let raf = 0;
+    const update = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        // the cards themselves: in the 3D room and on tablets they fan up past the hand's own box
+        // 3D room: the scene draws the hand and marks its top (below); the flat hand's empty box doesn't count.
+        const in3d = [...document.querySelectorAll('canvas[data-hand-top]')].some((c) => c.dataset.handTop);
+        const els = document.querySelectorAll(in3d ? '.game-hand-wrap .hand-selection-actions' : '.game-hand-wrap, .game-hand-wrap .playing-card, .game-hand-wrap .hand-selection-actions');
+        let top = window.innerHeight;
+        els.forEach((e) => { const b = e.getBoundingClientRect(); if (b.width && b.height && getComputedStyle(e).visibility !== 'hidden') top = Math.min(top, b.top); });
+        // 3D room: the hand is drawn by the scene, which marks its top edge on its layer
+        document.querySelectorAll('canvas[data-hand-top]').forEach((c) => {
+          const y = parseFloat(c.dataset.handTop);
+          if (Number.isFinite(y) && c.getBoundingClientRect().height) top = Math.min(top, c.getBoundingClientRect().top + y);
+        });
+        // never squeeze the dialogs below a usable height: on a very short screen they cover the hand instead
+        const cover = `${Math.round(Math.max(0, Math.min(window.innerHeight - top, window.innerHeight - (window.innerWidth < 600 ? 400 : 280))))}px`;
+        if (root.style.getPropertyValue('--hand-cover') !== cover) root.style.setProperty('--hand-cover', cover);
+      });
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    const el = document.querySelector('.game-hand-wrap');
+    if (el) observer.observe(el);
+    window.addEventListener('resize', update);
+    const poll = setInterval(update, 500);   // the hand re-fans as cards come and go
+    return () => { observer.disconnect(); clearInterval(poll); window.removeEventListener('resize', update); cancelAnimationFrame(raf); root.style.removeProperty('--hand-cover'); };
+  }, [state?.phase]);
+
   useEffect(() => {
     if (!reactionAim) return;
     const esc = e => { if (e.key === 'Escape') useStore.setState({ reactionAim: null }); };
@@ -132,8 +165,33 @@ export default function Table() {
   const savedProgress = useMemo(() => {
     try { const v = JSON.parse(localStorage.getItem(progressKey) || 'null'); return v && Date.now() - v.savedAt < 15 * 60 * 1000 ? v : null; } catch { return null; }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const [askTarget, setAskTarget] = useState(() =>
-    state?.phase === 'playing' && state.turn_player === me?.id && savedProgress?.askTargetId ? state.players?.[savedProgress.askTargetId] || null : null);
+  // Only one prompt comes back: if a laydown was also saved, the one started last wins.
+  const [askTarget, setAskTarget] = useState(() => {
+    if (!(state?.phase === 'playing' && state.turn_player === me?.id && savedProgress?.askTargetId)) return null;
+    const draft = layOpen ? loadLaydownDraft(state?.room_id, me?.id) : null;
+    if (draft && (draft.savedAt || 0) > (savedProgress.savedAt || 0)) return null;
+    return state.players?.[savedProgress.askTargetId] || null;
+  });
+  // A new game, round or deal (or back to the lobby) starts clean: nothing from before stays open.
+  const resetPrompts = () => {
+    setLayOpen(false); setLayPick(null); setLayRestore(false);
+    setAskTarget(null); setPenaltyPick(null); setSelectedCardsToPass([]);
+    clearLaydownDraft(state?.room_id, me?.id);
+    try { localStorage.removeItem(progressKey); } catch {}
+    useStore.setState({ laydownPick: null });
+  };
+  useEffect(() => {
+    window.addEventListener('game_reset', resetPrompts);
+    return () => window.removeEventListener('game_reset', resetPrompts);
+  });
+  useEffect(() => { if (state?.phase && state.phase !== 'playing') resetPrompts(); }, [state?.phase]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Asking and laying down are separate prompts: opening one closes the other (and drops its saved draft).
+  useEffect(() => {
+    if (!askTarget) return;
+    if (layOpen) { setLayOpen(false); setLayPick(null); setLayRestore(false); }
+    clearLaydownDraft(state?.room_id, me?.id);
+  }, [askTarget]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const tableCenterRef = useRef(null);
 
@@ -333,6 +391,7 @@ export default function Table() {
     setLayHint(null);
     setLayPick({ suit, setType });
     setSelectedCardsToPass([]);
+    setAskTarget(null);
     setLayOpen(true);
   };
 

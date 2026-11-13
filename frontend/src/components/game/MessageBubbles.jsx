@@ -84,8 +84,9 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
         // Anchor on the avatar (the head) and keep clear of the whole badge, name tag included.
         const head = (el.querySelector('.game-seat__avatar') || el).getBoundingClientRect();
         let top = head.top, bottom = head.bottom;
-        el.querySelectorAll('*').forEach((c) => { const b = c.getBoundingClientRect(); if (b.width && b.height) { top = Math.min(top, b.top); bottom = Math.max(bottom, b.bottom); } });
-        const place = top < 120 ? "below" : "above";
+        // Only the seat's fixed parts: hover tags ("Ask for a card?") come and go and must not move the bubble.
+        el.querySelectorAll('.game-seat__avatar, .game-seat__name, .game-seat__badge').forEach((c) => { const b = c.getBoundingClientRect(); if (b.width && b.height) { top = Math.min(top, b.top); bottom = Math.max(bottom, b.bottom); } });
+        const place = "above";   // always over the player's head
         let x = head.left + head.width / 2;
         const y = place === "above" ? top - 12 : bottom + 12;
         const reach = place === "above" ? head.top + 2 - y : y - (head.bottom - 2);
