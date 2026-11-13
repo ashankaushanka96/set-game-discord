@@ -563,7 +563,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .penalty-chip:hover { background: #4d1b1e; }
 
 /* Game paused while a player is disconnected */
-.game-paused { position:fixed; z-index:60; left:50%; top:calc(var(--game-safe-top,0px) + 112px); transform:translateX(-50%); width:max-content; max-width:min(92vw,420px);
+.game-paused { position:fixed; z-index:60; left:50%; top:38%; transform:translate(-50%,-50%); width:max-content; max-width:min(92vw,420px);
   display:flex; flex-direction:column; align-items:center; gap:2px; padding:10px 16px; border-radius:14px; text-align:center; pointer-events:none;
   background:rgba(70,40,20,.72); border:1px solid #ffcf8a55; color:#ffe9c4; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); box-shadow:0 8px 24px #0006; }
 .game-paused strong { font-size:14px; letter-spacing:.04em; text-transform:uppercase; color:#ffcf8a; }
