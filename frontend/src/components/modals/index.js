@@ -1,8 +1,4 @@
-export { default as AskModal } from './AskModal';
-export { default as AskRankModal } from './AskRankModal';
-export { default as AskSetModal } from './AskSetModal';
 export { default as BackToLobbyModal } from './BackToLobbyModal';
-export { default as ConfirmPassModal } from './ConfirmPassModal';
 export { default as ConfirmUnassignModal } from './ConfirmUnassignModal';
 export { default as GameOverModal } from './GameOverModal';
 export { default as LaydownModal } from './LaydownModal';
@@ -16,4 +12,3 @@ export { default as ConfirmSpectatorStartModal } from './ConfirmSpectatorStartMo
 export { default as AskCardModal } from './AskCardModal';
 export { default as AnswerAskModal } from './AnswerAskModal';
 export { default as PassTurnModal } from './PassTurnModal';
-export { default as PenaltyLaydownModal } from './PenaltyLaydownModal';

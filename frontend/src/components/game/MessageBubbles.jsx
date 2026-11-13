@@ -169,6 +169,13 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
               <span className="capitalize font-semibold text-blue-200">{m.suit} {m.set_type}</span>
             </div>
           );
+        } else if (m.variant === "penalty_set") {
+          content = (
+            <div className="text-sm font-medium">
+              Penalty:{" "}
+              <span className="capitalize font-semibold">{m.suit} {m.set_type}</span>
+            </div>
+          );
         } else if (m.variant === "laydown_cards") {
           content = (
             <div className="laydown-bubble-cards flex justify-center">
@@ -222,7 +229,7 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
           );
         }
 
-        const tone = m.variant === 'ask' ? 'ask' : m.variant === 'no' || m.variant === 'event_bad' ? 'error' : m.variant === 'yes' || m.variant === 'event_good' ? 'success' : m.variant?.startsWith('laydown_') ? 'vote' : 'info';
+        const tone = m.variant === 'ask' ? 'ask' : m.variant === 'no' || m.variant === 'event_bad' || m.variant === 'penalty_set' ? 'error' : m.variant === 'yes' || m.variant === 'event_good' ? 'success' : m.variant?.startsWith('laydown_') ? 'vote' : 'info';
         const theme = `club-bubble club-bubble--${tone}${m.kind === 'laydown' ? ' club-bubble--laydown' : ''}`;
         return (
           <SeatMessageBubble key={m.id} message={m} anchor={xy} theme={theme}

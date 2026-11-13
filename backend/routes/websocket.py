@@ -112,11 +112,25 @@ async def bot_laydown(game, room_id: str, bot_id: str, move: dict):
     await clear()
 
 
+# While a seated player is disconnected mid-round the game is paused: nobody can ask, pass or lay
+# down (the missing player would miss it), bots wait, and the rest can only look and talk.
+PAUSE_BLOCKED = {"ask", "penalty_laydown", "begin_play", "bot_continue", "answer_ask", "laydown",
+                 "pass_cards", "handoff_after_laydown", "spectator_pass_cards"}
+
+
+def paused_by(game) -> list:
+    st = game.state
+    if st.phase != "playing":
+        return []
+    return [pid for pid, p in st.players.items()
+            if p.team and p.seat is not None and not p.is_spectator and not game.is_bot(pid) and not p.connected]
+
+
 async def run_bots(game, room_id: str):
     """Turns mode with bots: they answer asks made to them and play their own turns."""
     for _ in range(60):  # restarted after the next human action, so a long bot streak can't spin forever
         state = game.state
-        if state.phase != "playing" or state.game_mode != "turns" or state.awaiting_start:
+        if state.phase != "playing" or state.game_mode != "turns" or state.awaiting_start or paused_by(game):
             return
         ask = state.pending_ask
         handoff = state.pending_handoff
@@ -151,8 +165,8 @@ async def run_bots(game, room_id: str):
                     return
                 kind = planned["action"]
             await wait_for_players(game, room_id, bot_id, kind)
-            if game.state.pending_ask is not ask or game.state.phase != "playing":
-                continue  # something changed while waiting
+            if game.state.pending_ask is not ask or game.state.phase != "playing" or paused_by(game):
+                continue  # something changed while waiting (or someone dropped out)
             if bot_answers:
                 await broadcast_ask_result(room_id, game, game.answer_ask(ask["target_id"]))
                 continue
@@ -307,7 +321,10 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
     connected_status = game.state.players[player_id].connected if player_id in game.state.players else 'N/A'
     logger.info(f"WebSocket connection for {player_id}: was_disconnected={was_disconnected}, has_seat={has_seat}, is_reconnection={is_reconnection}, player_exists={player_id in game.state.players}, connected={connected_status}")
     
-    # Clean up any disconnected players' seats in lobby phase
+    # Clean up any disconnected players' seats in lobby phase (never the player connecting now: a
+    # player who dropped out of a game that went back to the lobby keeps their seat if it's still theirs)
+    if player_id in game.state.players:
+        game.state.players[player_id].connected = True
     if game.state.phase == "lobby":
         cleaned_count = game.cleanup_disconnected_seats()
         if cleaned_count > 0:
@@ -357,6 +374,7 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
         })
     else:
         await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
+    maybe_run_bots(game, room_id)   # a pause may have just ended
 
     try:
         while True:
@@ -366,6 +384,12 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
             p = data.payload or {}
             
             logger.debug(f"Received message from {player_id} in room {room_id}: type={t}")
+
+            if t in PAUSE_BLOCKED and paused_by(game):
+                names = ", ".join(game.state.players[pid].name for pid in paused_by(game))
+                await WebSocketService.send_to_player(room_id, player_id, "error", {
+                    "message": f"Game paused: waiting for {names} to reconnect."})
+                continue
 
             if t == "select_team":
                 logger.info(f"Player {p['player_id']} selecting team {p['team']} in room {room_id}")

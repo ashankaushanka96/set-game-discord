@@ -157,6 +157,13 @@ export const useStore = create((set, get) => ({
   },
 
   applyServer: (msg) => {
+    // Votes live in the room state, so a player who (re)connects mid-vote sees the vote too,
+    // and a vote that ended while they were away closes.
+    {
+      const st = msg.type === "state" || msg.type === "dealt" ? msg.payload : msg.payload?.state;
+      if (st && st.players && !/^(abort_|back_to_lobby_|game_aborted|new_game_voting)/.test(msg.type)) syncVotes(st, get, set);
+    }
+
     if (msg.type === "state" || msg.type === "dealt") {
       set({ state: msg.payload, phase: msg.payload.phase });
       if (msg.payload.phase === "ended" && msg.payload.round_result) {
@@ -223,7 +230,7 @@ export const useStore = create((set, get) => ({
       get().setGameMessage("ASK", [`Who: ${asker} → ${target}`, `What: ${(msg.payload.ranks || []).join(", ")} of ${suit}`]);
     }
 
-    // ASK pending -> also store pendingAsk (used by ConfirmPassModal)
+    // ASK pending -> also store pendingAsk
     if (msg.type === "ask_pending") {
       const s = msg.payload.state;
       set({ state: s, pendingAsk: msg.payload });
@@ -939,3 +946,26 @@ export const useStore = create((set, get) => ({
     }
   },
 }));
+
+function teamYes(votes, players, team) {
+  return Object.entries(votes || {}).filter(([pid, v]) => v && players[pid]?.team === team && !String(pid).startsWith("ai_")).length;
+}
+function syncVotes(st, get, set) {
+  const players = st.players || {};
+  const inGame = st.phase !== "lobby";
+  const lobbyVotes = inGame ? st.back_to_lobby_votes || {} : {};
+  const abortVotes = inGame ? st.abort_votes || {} : {};
+  const { backToLobbyVoting, abortVoting } = get();
+  const next = {};
+  if (Object.keys(lobbyVotes).length) {
+    if (!backToLobbyVoting) next.backToLobbyVoting = { votes: {
+      yes: Object.values(lobbyVotes).filter(Boolean).length, total: Object.keys(players).length,
+      team_a_yes: teamYes(lobbyVotes, players, "A"), team_b_yes: teamYes(lobbyVotes, players, "B") } };
+  } else if (backToLobbyVoting) next.backToLobbyVoting = null;
+  if (Object.keys(abortVotes).length) {
+    if (!abortVoting) next.abortVoting = { abort_votes: abortVotes, requester_id: Object.keys(abortVotes)[0],
+      votes_for_abort: Object.values(abortVotes).filter(Boolean).length,
+      team_a_yes: teamYes(abortVotes, players, "A"), team_b_yes: teamYes(abortVotes, players, "B") };
+  } else if (abortVoting) next.abortVoting = null;
+  if (Object.keys(next).length) set(next);
+}

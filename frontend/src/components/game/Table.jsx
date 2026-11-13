@@ -29,7 +29,6 @@ import {
   BackToLobbyModal,
   SpectatorRequestsModal,
   AskCardModal,
-  PenaltyLaydownModal,
   AnswerAskModal,
   PassTurnModal
 } from '../modals';
@@ -64,7 +63,6 @@ export default function Table() {
   const navigate = useNavigate();
   const { state, me, ws, gameResult, abortVoting, dealingAnimation, pendingLay, votingResult, closeVotingResult, backToLobbyVoting, speakingUsers, laydownResult, clearLaydownResult } = useStore();
   const reactionAim = useStore(s => s.reactionAim);
-  const [penaltyOpen, setPenaltyOpen] = useState(false);
   const throwReaction = target => {
     const aim = useStore.getState().reactionAim;
     useStore.setState({ reactionAim: null });
@@ -84,7 +82,7 @@ export default function Table() {
     const draft = loadLaydownDraft(state?.room_id, me?.id);
     if (!draft) return false;
     const { suit, setType } = draft.pick || {};
-    if (!suit) return true;
+    if (!suit || !setType) return false;   // only laydowns that had a set picked come back
     // Only if the set is still in play and I still hold a card of it
     const ranks = setType === 'lower' ? RANKS_LOWER : RANKS_UPPER;
     const onTable = (state.table_sets || []).some(t => t.suit === suit && t.set_type === setType);
@@ -128,7 +126,14 @@ export default function Table() {
   const [completedSetsOpen, setCompletedSetsOpen] = useState(false);
   const [emojiSettingsOpen, setEmojiSettingsOpen] = useState(false);
   const [spectatorRequestsOpen, setSpectatorRequestsOpen] = useState(false);
-  const [askTarget, setAskTarget] = useState(null);
+  // In-progress choices (who I'm asking, a penalty I'm about to confirm) are kept on this device so a
+  // player who drops out comes back to the same prompt.
+  const progressKey = `in_progress:${state?.room_id}:${me?.id}`;
+  const savedProgress = useMemo(() => {
+    try { const v = JSON.parse(localStorage.getItem(progressKey) || 'null'); return v && Date.now() - v.savedAt < 15 * 60 * 1000 ? v : null; } catch { return null; }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const [askTarget, setAskTarget] = useState(() =>
+    state?.phase === 'playing' && state.turn_player === me?.id && savedProgress?.askTargetId ? state.players?.[savedProgress.askTargetId] || null : null);
 
   const tableCenterRef = useRef(null);
 
@@ -273,12 +278,18 @@ export default function Table() {
 
   // Turn Play: ask through the game instead of dragging cards across
   const isTurnPlay = state.game_mode === 'turns';
+  // A seated player dropped out mid-round: the game pauses (the server refuses moves too) so they
+  // miss nothing. Everyone can still look at their cards and talk.
+  const pausedFor = state.phase === 'playing' ? Object.values(players).filter((p) => p.team && p.seat != null && !p.is_spectator &&
+    !String(p.id).startsWith('ai_') && p.connected === false) : [];
+  const paused = pausedFor.length > 0;
+  useEffect(() => { if (paused) setSelectedCardsToPass([]); }, [paused]);
   const botWait = useStore((st) => st.botWait);
   const laydownPick = useStore((st) => st.laydownPick); // laying down: tap the teammate who holds this card
   const pendingAsk = isTurnPlay ? state.pending_ask : null;
   const pendingHandoff = isTurnPlay ? state.pending_handoff : null;
   const awaitingStart = isTurnPlay && state.phase === 'playing' && !!state.awaiting_start;
-  const myTurn = isTurnPlay && state.phase === 'playing' && state.turn_player === me.id && !awaitingStart && !pendingAsk && !pendingHandoff && ws?.readyState === 1;
+  const myTurn = isTurnPlay && state.phase === 'playing' && state.turn_player === me.id && !awaitingStart && !pendingAsk && !pendingHandoff && ws?.readyState === 1 && !paused;
   const canAsk = (player) => myTurn && !!player && player.team && player.team !== my?.team &&
     !player.is_spectator && (player.hand?.length ?? 0) > 0;
   const turnPlayer = isTurnPlay && state.phase === 'playing' ? players[state.turn_player] : null;
@@ -286,13 +297,29 @@ export default function Table() {
     send(ws, 'ask', { asker_id: me.id, target_id, suit, set_type, ranks });
     setAskTarget(null);
   };
-  useEffect(() => { if (!myTurn) setAskTarget(null); }, [myTurn]);
+  // close the ask only when the turn has really moved on (not for a pause or a reconnect)
+  useEffect(() => { if (state.phase !== 'playing' || state.turn_player !== me.id || pendingAsk || pendingHandoff) setAskTarget(null); }, [state.phase, state.turn_player, me.id, pendingAsk, pendingHandoff]);
   // Turn Play: lay down only on your own turn
-  const layLocked = isTurnPlay && !myTurn;
+  const layLocked = paused || (isTurnPlay && !myTurn);
   // Laying down starts from the hand: select a card (or several) of one set, then tap Lay.
-  const [layPick, setLayPick] = useState(null);
+  // A laydown restored after reconnecting picks up its set (and step) from the saved draft.
+  const [layPick, setLayPick] = useState(() => layOpen ? loadLaydownDraft(state?.room_id, me?.id)?.pick ?? null : null);
+  const [layRestore, setLayRestore] = useState(layOpen);
   const [layHint, setLayHint] = useState(null); // 'pick' | 'mixed' | 'partial'
-  const [penaltyPick, setPenaltyPick] = useState(null); // Voice Play: set about to be given up as a penalty
+  const [penaltyPick, setPenaltyPick] = useState(() => {   // Voice Play: set about to be given up as a penalty
+    const pp = savedProgress?.penalty;
+    if (!pp || state?.phase !== 'playing' || isTurnPlay) return null;
+    const ranks = pp.setType === 'lower' ? RANKS_LOWER : RANKS_UPPER;
+    const onTable = (state.table_sets || []).some((t) => t.suit === pp.suit && t.set_type === pp.setType);
+    const holdIt = (my?.hand || []).some((c) => c.suit === pp.suit && ranks.includes(c.rank));
+    return !onTable && holdIt ? pp : null;
+  });
+  useEffect(() => {
+    try {
+      if (!askTarget && !penaltyPick) localStorage.removeItem(progressKey);
+      else localStorage.setItem(progressKey, JSON.stringify({ askTargetId: askTarget?.id || null, penalty: penaltyPick, savedAt: Date.now() }));
+    } catch {}
+  }, [askTarget, penaltyPick, progressKey]);
   useEffect(() => { if (!layHint) return; const t = setTimeout(() => setLayHint(null), 5000); return () => clearTimeout(t); }, [layHint]);
   useEffect(() => { if (isTurnPlay && !myTurn) setSelectedCardsToPass([]); }, [isTurnPlay, myTurn]);
   // Lay is only live once the selected cards belong to exactly one set.
@@ -350,9 +377,9 @@ export default function Table() {
           ask={pendingAsk}
           hand={handSorted}
           selectedKeys={shownSelection.map((c) => `${c.suit}-${c.rank}`)}
-          handTappable={!dealingAnimation && state.phase === 'playing' && ws?.readyState === 1 && !layOpen && (isTurnPlay ? myTurn : true)}
+          handTappable={!dealingAnimation && !paused && state.phase === 'playing' && ws?.readyState === 1 && !layOpen && (isTurnPlay ? myTurn : true)}
           onCardTap={handleHandCardClick}
-          dragPass={!dealingAnimation && !isTurnPlay && state.phase === 'playing' && ws?.readyState === 1 && !layOpen}
+          dragPass={!dealingAnimation && !paused && !isTurnPlay && state.phase === 'playing' && ws?.readyState === 1 && !layOpen}
           resolveDropTarget={resolveDropTarget}
           onDragStart={cards => { setSelectedCardsToPass(cards); setIsDraggingCards(true); }}
           onDragHover={setDragTarget}
@@ -649,7 +676,7 @@ export default function Table() {
              cards={my?.hand || []} 
              selectedCards={shownSelection}
              onCardSelect={handleHandCardClick}
-             selectable={!isTurnPlay && state.phase === 'playing' && ws?.readyState === 1}
+             selectable={!paused && !isTurnPlay && state.phase === 'playing' && ws?.readyState === 1}
              tapSelect={isTurnPlay && myTurn && !layOpen}
              hint3d={use3d}
              resolveDropTarget={resolveDropTarget}
@@ -671,7 +698,7 @@ export default function Table() {
                {/* Voice Play: own up to a wrong ask. Like Lay, it needs every card of the set in this hand selected. */}
                {!isTurnPlay && state.phase === 'playing' && my?.team && !my?.is_spectator && layReady && (
                  <button type="button" className="penalty-chip" tabIndex={selectedCardsToPass.length ? 0 : -1}
-                   onClick={() => { const [suit, setType] = [...laySets][0].split('|'); setPenaltyPick({ suit, setType }); }}>
+                   onClick={() => { const [suit, setType] = [...laySets][0].split('|'); setPenaltyPick({ suit, setType }); send(ws, 'bubble_message', { player_id: me.id, variant: 'penalty_set', suit, set_type: setType }); }}>
                    Penalty
                  </button>
                )}
@@ -702,25 +729,33 @@ export default function Table() {
             <span>The whole set goes to the other team. This can't be undone.</span>
           </div>
           <div className="laydown-tablepick__foot">
-            <button type="button" className="club-secondary laydown-tablepick__no" onClick={() => setPenaltyPick(null)}>Cancel</button>
+            <button type="button" className="club-secondary laydown-tablepick__no" onClick={() => { setPenaltyPick(null); send(ws, 'clear_bubble_messages', { player_id: me.id }); }}>Cancel</button>
             <button type="button" className="club-primary is-risky" onClick={() => {
               send(ws, 'penalty_laydown', { suit: penaltyPick.suit, set_type: penaltyPick.setType });
+              send(ws, 'clear_bubble_messages', { player_id: me.id });
               setPenaltyPick(null); setSelectedCardsToPass([]);
-            }}>Yes, penalty laydown</button>
+            }} disabled={paused}>Yes, penalty laydown</button>
           </div>
         </div>
       )}
-      {layOpen && <LaydownModal initialPick={layPick} onClose={() => { setLayOpen(false); setLayPick(null); }} onPenalty={!isTurnPlay && my?.team ? () => setPenaltyOpen(true) : null} />}
+      {layOpen && layPick && <LaydownModal initialPick={layPick} restore={layRestore} onClose={() => { setLayOpen(false); setLayPick(null); setLayRestore(false); }} />}}
+
+      {paused && (
+        <div className="game-paused" role="status" aria-live="polite">
+          <strong>Game paused</strong>
+          <span>Waiting for {pausedFor.map((p) => p.name || 'a player').join(', ')} to reconnect. You can look at your cards and talk.</span>
+        </div>
+      )}
 
       {/* Turn Play: ask an opponent, or answer an ask */}
       <AskCardModal open={!!askTarget && myTurn} target={askTarget} tableSets={state.table_sets || []} onAsk={sendAsk} onClose={() => setAskTarget(null)} />
       <AnswerAskModal
-        ask={pendingAsk && pendingAsk.target_id === me.id ? pendingAsk : null}
+        ask={pendingAsk && pendingAsk.target_id === me.id && !paused ? pendingAsk : null}
         asker={pendingAsk ? players[pendingAsk.asker_id] : null}
         onAnswer={() => send(ws, 'answer_ask', {})}
       />
       <PassTurnModal
-        options={pendingHandoff && pendingHandoff.who_id === me.id && state.phase === 'playing' ? pendingHandoff.options : []}
+        options={pendingHandoff && pendingHandoff.who_id === me.id && state.phase === 'playing' && !paused ? pendingHandoff.options : []}
         players={players}
         onPick={(toId) => send(ws, 'handoff_after_laydown', { who_id: me.id, to_id: toId })}
       />
@@ -800,9 +835,7 @@ export default function Table() {
        </>)}
 
 
-      <PenaltyLaydownModal open={penaltyOpen && !isTurnPlay && state.phase === 'playing'} tableSets={tableSets} myTeam={my?.team}
-        onClose={() => setPenaltyOpen(false)}
-        onConfirm={({ suit, set_type }) => { send(ws, 'penalty_laydown', { suit, set_type }); setPenaltyOpen(false); }} />
+
 
       {/* Emoji Settings */}
       <EmojiSettings 

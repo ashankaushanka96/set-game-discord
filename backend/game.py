@@ -316,8 +316,10 @@ class Game:
         return player_id.startswith("ai_")
 
     def _human_voters(self, team: str) -> list:
+        # A disconnected player can't vote, so votes (e.g. back to lobby while the game is paused for
+        # them) are decided by the players still here.
         return [pid for pid, p in self.state.players.items()
-                if p.team == team and not p.is_spectator and not self.is_bot(pid)]
+                if p.team == team and not p.is_spectator and not self.is_bot(pid) and p.connected]
 
     def _team_yes_votes(self, votes: dict, team: str) -> int:
         voters = set(self._human_voters(team))
