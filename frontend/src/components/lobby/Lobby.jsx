@@ -8,7 +8,9 @@ import { Toast } from "../ui";
 import { ConfirmUnassignModal, ConfirmSpectatorStartModal } from "../modals";
 import { SeatSelector } from "./";
 import GameModePicker from "./GameModePicker";
-import BotLevelPicker, { getBotLevel } from "./BotLevelPicker";
+import BotLevelPicker from "./BotLevelPicker";
+import { Lounge } from "./SeatSelector";
+import { isRoomAdmin } from "./GameModePicker";
 import { generateUUID } from "../../utils/uuid";
 import { DiscordSDK, Events }  from "@discord/embedded-app-sdk";
 import { readyDiscordSDK } from "../../utils/discordSdkSingleton";
@@ -1108,7 +1110,7 @@ export default function Lobby() {
         .filter((n) => !taken.has(n.toLowerCase()))
         .sort(() => Math.random() - 0.5);
       const aiAvatars = ["🦊", "🐼", "🦉", "🐯", "🐙", "🦁"].sort(() => Math.random() - 0.5);
-      const botLevel = getBotLevel();
+      const botLevel = state?.bot_level || "medium";
       
       // Calculate team distribution for AI players
       let teamACount = connectedPlayers.filter(p => p.team === "A").length;
@@ -1298,15 +1300,9 @@ export default function Lobby() {
     <div className="club-lobby bg-gradient-vibrant">
       <div className="lobby-shell">
         <div className="lobby-header">
-          <div className="club-brand"><span className="club-brand__mark" aria-hidden="true">♠</span><div><span className="club-eyebrow">GOOD COMPANY. GREAT CARDS.</span><h1>Set Club</h1></div></div>
-          <div className="lobby-connection"><i className={roomId ? 'status-dot' : 'status-dot status-dot--offline'} />{roomId ? 'Room connected' : 'Connecting to room'}</div>
-          {state?.admin_player_id === me?.id && (
-            <div className="flex justify-center mt-1">
-              <span className="text-xs bg-gradient-warm/20 border border-accent-amber/40 px-2 py-1 rounded-full text-accent-amber flex items-center gap-1 shadow-glow-amber">
-                👑 ADMIN
-              </span>
-            </div>
-          )}
+          <div className="club-brand"><span className="club-brand__mark" aria-hidden="true">♠</span><h1>Set Club</h1></div>
+          <div className="lobby-connection"><i className={roomId ? 'status-dot' : 'status-dot status-dot--offline'} />{roomId ? `${players.length}/6 in room` : 'Connecting…'}</div>
+          {state?.admin_player_id === me?.id && <span className="lobby-admin-badge">👑 Admin</span>}
         </div>
 
         {error && (
@@ -1387,49 +1383,35 @@ export default function Lobby() {
           </div>
         ) : profileLoaded && !checkingReconnection && !redirectingToGame && !(me && state?.players[me.id] && (typeof state.players[me.id].seat === 'number' && state.players[me.id].seat >= 0 || (state.players[me.id].is_spectator && !state.players[me.id].spectator_request_pending)) && (state?.phase === "ready" || state?.phase === "playing" || state?.phase === "ended")) ? (
           <div className="lobby-content">
-            <section className="lobby-welcome"><div><span className="club-eyebrow">THE LOUNGE</span><h2>A seat for everyone.<br />A set worth chasing.</h2><p>Gather your six, pick a side, and bring your best memory to the table.</p></div><div className="lobby-card-art" aria-hidden="true"><span>♠<small>A</small></span><span>♥<small>K</small></span><span>♣<small>Q</small></span></div></section>
-            {/* Seat Selection */}
-            <div className="lobby-seating">
-              <SeatSelector players={players} state={state} me={me} speakingUsers={speakingUsers} />
+            <SeatSelector players={players} state={state} me={me} speakingUsers={speakingUsers} adminId={state?.admin_player_id} />
+
+            <div className="lobby-settings">
+              <GameModePicker state={state} me={me} />
+              {TEST_MODE_ENABLED && state?.game_mode === "turns" && players.filter((p)=>p.connected!==false).length < 6 && <BotLevelPicker state={state} me={me} />}
             </div>
 
-            {/* Game Controls */}
-            <div className="lobby-start-panel">
-              <div className="text-center mb-3">
-                <h2 className="text-lg font-bold text-text-primary mb-1">Ready for a round?</h2><p className="lobby-start-copy">Two teams. Eight sets. One great card night.</p>
-                <div className="text-xs text-text-muted">
-                  {players.length}/6 players connected
-                </div>
-              </div>
-
-              <GameModePicker state={state} me={me} />
-              {TEST_MODE_ENABLED && state?.game_mode === "turns" && players.filter((p)=>p.connected!==false).length < 6 && <BotLevelPicker />}
-
+            <div className="lobby-bottom">
+              <Lounge players={players} me={me} adminId={state?.admin_player_id} />
               {players.length >= 6 && players.filter((p) => p.team).length < 6 && (
-                <div className="mb-3 p-2 bg-gradient-warm/20 border border-accent-amber/40 rounded-lg shadow-glow-amber">
-                  <div className="text-xs text-accent-amber">
-                    <span className="font-semibold">⚠️ Seat Selection Required:</span> Some connected players need to select a seat before starting the game.
-                  </div>
+                <div className="lobby-warning">⚠️ Some players still need a seat.</div>
+              )}
+              {isRoomAdmin(state, me) ? (
+                <button
+                  className="club-primary lobby-start"
+                  onClick={startGame}
+                  disabled={!roomId || (!TEST_MODE_ENABLED && players.filter((p)=>p.connected!==false && !p.is_spectator && (p.seat != null || p.id === me?.id)).length !== 6)}
+                >
+                  {!roomId
+                    ? "No Room Connected"
+                    : TEST_MODE_ENABLED && players.filter((p)=>p.connected!==false).length < 6
+                      ? `Start Game · ${6 - players.filter((p)=>p.connected!==false).length} bot${6 - players.filter((p)=>p.connected!==false).length > 1 ? "s" : ""}`
+                      : "Start Game"}
+                </button>
+              ) : (
+                <div className="lobby-start lobby-start--waiting" role="status">
+                  Waiting for {state?.players?.[state?.admin_player_id]?.name || "the admin"} to start
                 </div>
               )}
-
-              <button
-                className={`club-primary w-full px-4 py-2 rounded-lg transition-all duration-200 font-medium text-sm ${
-                  (!roomId || (!TEST_MODE_ENABLED && players.filter((p)=>p.connected!==false && !p.is_spectator && (p.seat != null || p.id === me?.id)).length !== 6))
-                    ? "bg-dark-tertiary cursor-not-allowed border border-text-muted/30"
-                    : "bg-gradient-warm hover:shadow-glow-amber border border-accent-amber/30"
-                }`}
-                onClick={startGame}
-                disabled={!roomId || (!TEST_MODE_ENABLED && players.filter((p)=>p.connected!==false && !p.is_spectator && (p.seat != null || p.id === me?.id)).length !== 6)}
-              >
-                {!roomId 
-                  ? "No Room Connected"
-                  : TEST_MODE_ENABLED
-                    ? (players.filter((p)=>p.connected!==false).length < 6
-                        ? `Start Game (${players.filter((p)=>p.connected!==false).length} + ${6 - players.filter((p)=>p.connected!==false).length} AI)`
-                        : `Start Game (${players.length} players)`)
-                    : "Start Game"}
-              </button>
             </div>
           </div>
         ) : null}

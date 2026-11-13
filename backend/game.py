@@ -876,6 +876,40 @@ class Game:
         }
 
     # ---------------- Turns mode: ask / answer through the game ----------------
+    def ensure_admin(self) -> bool:
+        """The admin left: hand the room to the longest-present human still here. Returns True if it changed."""
+        st = self.state
+        cur = st.players.get(st.admin_player_id) if st.admin_player_id else None
+        if cur and cur.connected:
+            return False
+        nxt = next((pid for pid, p in st.players.items() if p.connected and not self.is_bot(pid) and not p.is_spectator), None)
+        if nxt and nxt != st.admin_player_id:
+            st.admin_player_id = nxt
+            return True
+        return False
+
+    def transfer_admin(self, requester_id: str, target_id: str) -> dict:
+        st = self.state
+        if st.phase != "lobby":
+            return {"success": False, "message": "Admin can only be handed over in the lobby"}
+        if st.admin_player_id and requester_id != st.admin_player_id:
+            return {"success": False, "message": "Only the admin can hand over admin"}
+        target = st.players.get(target_id)
+        if not target or self.is_bot(target_id) or target.is_spectator or not target.connected or target_id == requester_id:
+            return {"success": False, "message": "That player can't be made admin"}
+        st.admin_player_id = target_id
+        return {"success": True}
+
+    def set_bot_level(self, requester_id: str, level: str) -> dict:
+        if level not in ("easy", "medium", "hard", "expert"):
+            return {"success": False, "message": "Unknown bot level"}
+        if self.state.phase != "lobby":
+            return {"success": False, "message": "Bot difficulty can only be changed in the lobby"}
+        if self.state.admin_player_id and requester_id != self.state.admin_player_id:
+            return {"success": False, "message": "Only the room admin can change bot difficulty"}
+        self.state.bot_level = level
+        return {"success": True}
+
     def set_game_mode(self, requester_id: str, mode: str) -> dict:
         if mode not in ("voice", "turns"):
             return {"success": False, "message": "Unknown game mode"}

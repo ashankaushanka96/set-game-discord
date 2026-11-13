@@ -2,51 +2,38 @@ import { send } from "../../ws";
 import { useStore } from "../../store";
 
 export const GAME_MODES = [
-  {
-    id: "voice",
-    name: "Voice Play",
-    icon: "🎙️",
-    blurb: "Ask out loud in voice chat. Whoever has the card drags it to you.",
-  },
-  {
-    id: "turns",
-    name: "Turn Play",
-    icon: "🎯",
-    blurb: "Tap an opponent to ask for a card. They hand it over with a button, and the turn is shown on the table.",
-  },
+  { id: "voice", name: "Voice Play", icon: "🎙️", blurb: "Ask out loud in voice chat; whoever has the card drags it to you." },
+  { id: "turns", name: "Turn Play", icon: "🎯", blurb: "Tap an opponent to ask; turns are shown on the table." },
 ];
 
-// Lobby choice of how cards are asked for. Only the room admin can change it.
-export default function GameModePicker({ state, me }) {
-  const ws = useStore((s) => s.ws);
-  const current = state?.game_mode || "voice";
-  const isAdmin = !state?.admin_player_id || state.admin_player_id === me?.id;
-  const adminName = state?.players?.[state?.admin_player_id]?.name;
+export const isRoomAdmin = (state, me) => !state?.admin_player_id || state.admin_player_id === me?.id;
 
+// A lobby setting: a row of choices. Only the room admin can change it; everyone else sees it locked.
+export function LobbySetting({ label, options, current, isAdmin, adminName, onPick }) {
+  const sel = options.find((o) => o.id === current) || options[0];
   return (
-    <div className="game-mode-picker" role="radiogroup" aria-label="Game mode">
-      <div className="game-mode-picker__label">
-        Game mode{!isAdmin && adminName ? <span> · chosen by {adminName}</span> : null}
+    <div className={`lobby-setting ${isAdmin ? "" : "lobby-setting--locked"}`} role="radiogroup" aria-label={label}>
+      <div className="lobby-setting__label">
+        <span>{label}</span>
+        {!isAdmin && <small title={adminName ? `Only ${adminName} can change this` : "Only the admin can change this"}>🔒 {adminName ? `Set by ${adminName}` : "Admin only"}</small>}
       </div>
-      <div className="game-mode-picker__options">
-        {GAME_MODES.map((m) => {
-          const selected = current === m.id;
-          return (
-            <button
-              key={m.id}
-              type="button"
-              role="radio"
-              aria-checked={selected}
-              disabled={!isAdmin}
-              className={`game-mode-option ${selected ? "game-mode-option--selected" : ""}`}
-              onClick={() => isAdmin && !selected && send(ws, "set_game_mode", { mode: m.id })}
-            >
-              <span className="game-mode-option__title"><span aria-hidden="true">{m.icon}</span> {m.name}</span>
-              <span className="game-mode-option__blurb">{m.blurb}</span>
-            </button>
-          );
-        })}
+      <div className="lobby-setting__options">
+        {options.map((o) => (
+          <button key={o.id} type="button" role="radio" aria-checked={current === o.id} disabled={!isAdmin}
+            className={`lobby-setting__option ${current === o.id ? "is-selected" : ""}`}
+            onClick={() => isAdmin && current !== o.id && onPick(o.id)} title={o.blurb}>
+            <span aria-hidden="true">{o.icon}</span> {o.name}
+          </button>
+        ))}
       </div>
+      <p className="lobby-setting__blurb">{sel.blurb}</p>
     </div>
   );
+}
+
+export default function GameModePicker({ state, me }) {
+  const ws = useStore((s) => s.ws);
+  return <LobbySetting label="Game mode" options={GAME_MODES} current={state?.game_mode || "voice"}
+    isAdmin={isRoomAdmin(state, me)} adminName={state?.players?.[state?.admin_player_id]?.name}
+    onPick={(id) => send(ws, "set_game_mode", { mode: id })} />;
 }

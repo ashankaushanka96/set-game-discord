@@ -332,6 +332,7 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
         
         # Remove disconnected players entirely from lobby
         removed_count = game.remove_disconnected_players()
+        game.ensure_admin()
         if removed_count > 0:
             logger.info(f"Removed {removed_count} disconnected players when {player_id} connected")
     
@@ -429,13 +430,16 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                     connected=True
                 )
                 game.state.players[p["player_id"]] = ai_player
-                level = p.get("level")
+                level = game.state.bot_level   # the room setting the admin chose
                 game.bot_levels[p["player_id"]] = level if level in ("easy", "medium", "hard", "expert") else "medium"
                 game.assign_seat(p["player_id"], p["team"])
                 await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
                 logger.info(f"AI player {p['player_id']} added successfully. Total players: {len(game.state.players)}")
 
             elif t == "start":
+                if game.state.admin_player_id and player_id != game.state.admin_player_id:
+                    await WebSocketService.send_to_player(room_id, player_id, "error", {"message": "Only the room admin can start the game"})
+                    continue
                 logger.info(f"Game starting in room {room_id}")
                 game.start()
                 await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
@@ -474,6 +478,20 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                     await ws.send_text(json.dumps({"type": "error", "payload": {
                         "message": "Only the dealer can skip the current shuffle and deal."
                     }}))
+
+            elif t == "transfer_admin":
+                res = game.transfer_admin(player_id, p.get("target_id"))
+                if res["success"]:
+                    await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
+                else:
+                    await WebSocketService.send_to_player(room_id, player_id, "error", {"message": res["message"]})
+
+            elif t == "set_bot_level":
+                res = game.set_bot_level(player_id, p.get("level"))
+                if res["success"]:
+                    await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
+                else:
+                    await WebSocketService.send_to_player(room_id, player_id, "error", {"message": res["message"]})
 
             elif t == "set_game_mode":
                 res = game.set_game_mode(player_id, p.get("mode"))
@@ -804,6 +822,7 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                     
                     # Remove player from players dict
                     del game.state.players[player_id]
+                    game.ensure_admin()   # the admin left: someone else runs the lobby
                     logger.info(f"Removed disconnected player {player_id} from lobby")
                 else:
                     # In game phase, just mark as disconnected

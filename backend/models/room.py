@@ -34,6 +34,8 @@ class RoomState(BaseModel):
     # "voice": players ask out loud and pass cards freely by dragging.
     # "turns": players ask through the game; the asked player answers with a button and turns are enforced.
     game_mode: Literal["voice", "turns"] = "voice"
+    # Turns mode with bots filling empty seats: how clever they are. Set by the admin in the lobby.
+    bot_level: Literal["easy", "medium", "hard", "expert"] = "medium"
     # Turns mode: the ask waiting for the target's answer (asker_id, target_id, suit, set_type, ranks, has_card)
     pending_ask: Optional[dict] = None
     # Turns mode: after a successful laydown where both helping teammates still have cards,

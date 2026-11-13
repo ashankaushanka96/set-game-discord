@@ -688,3 +688,79 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .game-paused strong { font-size:14px; letter-spacing:.04em; text-transform:uppercase; color:#ffcf8a; }
 .game-paused span { font-size:12px; line-height:1.3; }
 .laydown-tablepick__foot .club-primary:disabled, .laydown-tablepick .club-primary:disabled { opacity:.45; cursor:not-allowed; }
+
+/* ===== Lobby: one screen, no scrolling (match-lobby layout) =====
+   top bar · two team rosters side by side (they take the free height) · settings · lounge + Start */
+.club-lobby { height: 100dvh; min-height: 0; overflow-y: auto; padding: calc(var(--game-safe-top, 0px) + 12px) clamp(12px, 3vw, 40px) max(12px, env(safe-area-inset-bottom)); display: flex; }
+.club-lobby .lobby-shell { flex: 1; display: flex; flex-direction: column; min-height: 0; width: 100%; max-width: 1100px; margin: 0 auto; }
+.club-lobby .lobby-header { flex: none; display: flex; align-items: center; gap: 12px; padding: 0 0 10px; margin: 0; border-bottom: 1px solid #ddc69420; flex-wrap: nowrap; }
+.club-lobby .club-brand { display: flex; align-items: center; gap: 8px; }
+.club-lobby .club-brand h1 { font: 600 20px/1 Georgia, serif; margin: 0; }
+.club-lobby .club-brand__mark { width: 30px; height: 30px; font-size: 16px; }
+.club-lobby .lobby-connection { margin-left: auto; font-size: 11px; }
+.lobby-admin-badge { font-size: 11px; padding: 3px 9px; border-radius: 99px; border: 1px solid #d7bc7c66; color: #e9cf8f; background: #d7bc7c14; white-space: nowrap; }
+
+.club-lobby .lobby-content { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding-top: 10px; }
+.club-lobby .lobby-teams { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.club-lobby .team-panel { display: flex; flex-direction: column; min-height: 0; padding: 10px; border-radius: 14px; }
+.club-lobby .team-panel header { display: flex; align-items: center; gap: 8px; padding: 0 2px 8px; }
+.club-lobby .team-panel header h3 { font-size: 14px; margin: 0; flex: 1; }
+.club-lobby .team-panel header > span:last-child { font-size: 11px; color: #a6b5ab; }
+.club-lobby .team-panel__symbol { width: 26px; height: 26px; font-size: 14px; border-radius: 8px; }
+.club-lobby .team-panel__seats { flex: 1; min-height: 0; display: grid; grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.club-lobby .lobby-seat { min-height: 0; height: 100%; padding: 8px 10px; gap: 10px; border-radius: 12px; }
+.club-lobby .lobby-seat .club-avatar { width: clamp(34px, 7dvh, 56px); height: clamp(34px, 7dvh, 56px); flex: none; }
+.club-lobby .lobby-seat strong { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.club-lobby .lobby-seat__identity > span { margin-top: 2px; font-size: 11px; }
+.club-lobby .lobby-seat--away { opacity: .6; }
+.lobby-seat__crown { margin-right: 4px; font-size: 11px; }
+.club-lobby .lobby-seat--empty { justify-content: flex-start; }
+.club-lobby .lobby-seat__plus { width: clamp(30px, 6dvh, 44px); height: clamp(30px, 6dvh, 44px); flex: none; }
+
+.lobby-settings { flex: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+.lobby-setting { padding: 8px 10px; border: 1px solid #ddc69422; border-radius: 12px; background: #0f1d1866; }
+.lobby-setting__label { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #b8c4b9; }
+.lobby-setting__label small { font-size: 10px; letter-spacing: 0; text-transform: none; color: #d9c28f; white-space: nowrap; }
+.lobby-setting__options { display: flex; gap: 4px; padding: 3px; border-radius: 10px; background: #0007; }
+.lobby-setting__option { flex: 1; min-width: 0; padding: 7px 6px; border-radius: 8px; border: 1px solid transparent; font-size: 12px; font-weight: 600; color: #cfd8cd; background: transparent; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background .15s, color .15s; }
+.lobby-setting__option:not(:disabled):not(.is-selected):hover { background: #ffffff10; color: #f1ead6; }
+.lobby-setting__option.is-selected:not(:disabled):hover { filter: brightness(1.06); }
+.lobby-setting__option.is-selected { background: linear-gradient(135deg, #e6d19b, #b5985f); color: #1d2c22; border-color: #ecd7a2aa; }
+.lobby-setting__option:disabled { cursor: default; }
+.lobby-setting--locked .lobby-setting__option:not(.is-selected) { opacity: .45; }
+.lobby-setting__blurb { margin: 6px 2px 0; font-size: 11px; line-height: 1.35; color: #a9b8ac; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.lobby-bottom { flex: none; display: flex; align-items: center; gap: 10px; }
+.lobby-lounge { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid #ddc6941c; border-radius: 12px; min-height: 48px; }
+.lobby-lounge__label { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #9eb0a3; flex: none; }
+.lobby-lounge__players { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; }
+.lobby-lounge__players .waiting-player { flex: none; display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.lobby-lounge__players .club-avatar { width: 26px; height: 26px; }
+.lobby-lounge__empty { font-size: 11px; color: #8fa395; }
+.lobby-warning { flex: none; font-size: 11px; color: #f0c27a; }
+.lobby-start { flex: none; min-width: 200px; min-height: 48px; padding: 12px 24px; border-radius: 12px; font-size: 15px; font-weight: 700; letter-spacing: .02em; }
+.lobby-start:disabled { opacity: .5; cursor: not-allowed; }
+.lobby-start--waiting { display: grid; place-items: center; text-align: center; font-size: 12px; font-weight: 500; color: #cfd8cd; border: 1px dashed #ddc69455; background: #0f1d1866; }
+
+@media (max-width: 640px) {
+  .club-lobby { padding-left: 10px; padding-right: 10px; }
+  .club-lobby .lobby-teams { gap: 8px; }
+  .club-lobby .team-panel { padding: 8px; }
+  .club-lobby .lobby-seat { flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 4px; padding: 6px; position: relative; }
+  .club-lobby .lobby-seat__identity { flex: none; width: 100%; }
+  .club-lobby .lobby-seat .club-text-button { position: absolute; top: 4px; right: 6px; font-size: 10px; }
+  .club-lobby .lobby-seat--empty { justify-content: center; }
+  .club-lobby .lobby-seat--empty small { display: none; }
+  .lobby-settings { grid-template-columns: 1fr; gap: 8px; }
+  .lobby-setting__option { font-size: 11px; padding: 6px 4px; }
+  .lobby-bottom { flex-wrap: wrap; }
+  .lobby-lounge { flex-basis: 100%; min-height: 40px; }
+  .lobby-warning { flex-basis: 100%; text-align: center; }
+  .lobby-start { flex: 1; }
+}
+/* Admin hands admin to another player */
+.make-admin { flex: none; margin-left: auto; padding: 4px 8px; font-size: 13px; line-height: 1; border-radius: 8px; border: 1px solid #e6cf92; background: #2b3a2f; color: #f3dc9c; box-shadow: 0 2px 6px #0005; white-space: nowrap; transition: background .15s, transform .15s; }
+.make-admin:not(.make-admin--asking):hover { background: #3a4b3d; transform: translateY(-1px); }
+.make-admin.make-admin--asking, .make-admin.make-admin--asking:hover { font-size: 11px; font-weight: 700; background: linear-gradient(135deg, #f0dba3, #c3a463); color: #1b2a20; border-color: #f7e6b5; }
+.make-admin.make-admin--asking:hover { filter: brightness(1.06); }
+@media (max-width: 640px) { .club-lobby .lobby-seat .make-admin { position: absolute; top: 4px; right: 6px; margin: 0; } }
