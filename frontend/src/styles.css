@@ -599,7 +599,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .club-lobby .lobby-seat__plus { width: clamp(30px, 6dvh, 44px); height: clamp(30px, 6dvh, 44px); flex: none; }
 
 .lobby-settings { flex: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
-.lobby-setting { padding: 8px 10px; border: 1px solid #ddc69422; border-radius: 12px; background: #0f1d1866; }
+.lobby-setting { min-width: 0; padding: 8px 10px; border: 1px solid #ddc69422; border-radius: 12px; background: #0f1d1866; }
 .lobby-setting__label { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #b8c4b9; }
 .lobby-setting__label small { font-size: 10px; letter-spacing: 0; text-transform: none; color: #d9c28f; white-space: nowrap; }
 .lobby-setting__options { display: flex; gap: 4px; padding: 3px; border-radius: 10px; background: #0007; }
@@ -632,8 +632,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .club-lobby .lobby-seat .club-text-button { position: absolute; top: 4px; right: 6px; font-size: 10px; }
   .club-lobby .lobby-seat--empty { justify-content: center; }
   .club-lobby .lobby-seat--empty small { display: none; }
-  .lobby-settings { grid-template-columns: 1fr; gap: 8px; }
+  .lobby-settings { grid-template-columns: minmax(0, 1fr); gap: 8px; }
   .lobby-setting__option { font-size: 11px; padding: 6px 4px; }
+  .lobby-setting__blurb { white-space: normal; }
   .lobby-bottom { flex-wrap: wrap; }
   .lobby-lounge { flex-basis: 100%; min-height: 40px; }
   .lobby-warning { flex-basis: 100%; text-align: center; }
@@ -733,3 +734,33 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .laydown-tablepick.is-stacked .laydown-tablepick__foot { flex-direction: row; align-items: center; justify-content: space-between; text-align: left; }
 .laydown-tablepick.is-stacked .laydown-tablepick__foot > span { flex: 1 1 auto; min-width: 0; }
 .laydown-tablepick.is-stacked .laydown-tablepick__foot .club-primary { flex: 1 1 auto; max-width: 320px; margin-left: auto; }
+
+/* Voice Play with turn tracking: buttons inside the turn banner */
+.turn-banner__btn { pointer-events: auto; margin-left: 6px; padding: 3px 10px; border-radius: 999px; border: 1px solid #f2d27a; background: #f2d27a; color: #1a2a22; font: inherit; font-weight: 700; cursor: pointer; }
+.turn-banner__btn--ghost { background: transparent; color: #f8e7b5; border-color: #f2d27a80; font-weight: 600; }
+
+/* Discord: an unseated player waits while a game is on */
+.spectator-wait { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 24px 16px; text-align: center; color: #f8e7b5; }
+.spectator-wait__icon { font-size: 48px; }
+.spectator-wait h2 { font-size: 22px; font-weight: 700; color: #f2d27a; }
+.spectator-wait p { color: #d6dccf; max-width: 320px; }
+
+/* Browser spectator page (/spectate) */
+.spectate-page { min-height: 100vh; background: #0f1a15; color: #f3ead2; padding: 0 16px 32px; }
+.spectate-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 0; }
+.spectate-user { font-size: 13px; color: #cfd8c8; }
+.spectate-user button { color: #f2d27a; text-decoration: underline; background: none; border: 0; cursor: pointer; font: inherit; }
+.spectate-card { max-width: 560px; margin: 24px auto; padding: 22px; border-radius: 16px; background: #1a2a22; border: 1px solid #f2d27a40; box-shadow: 0 10px 30px #0007; }
+.spectate-card h1 { font-size: 22px; font-weight: 700; color: #f2d27a; margin-bottom: 6px; }
+.spectate-card p { color: #cfd8c8; font-size: 14px; }
+.spectate-login { display: flex; flex-direction: column; gap: 12px; max-width: 380px; }
+.spectate-login label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #cfd8c8; }
+.spectate-login input { padding: 10px 12px; border-radius: 10px; border: 1px solid #f2d27a50; background: #0f1a15; color: #fff; font-size: 16px; }
+.spectate-error { padding: 8px 12px; border-radius: 10px; background: #5a1a1a; border: 1px solid #e06a6a; color: #ffd9d9; font-size: 13px; margin: 8px 0; }
+.spectate-rooms { list-style: none; padding: 0; margin: 12px 0 0; display: flex; flex-direction: column; gap: 8px; }
+.spectate-rooms button { width: 100%; text-align: left; display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; border-radius: 12px; background: #0f1a15; border: 1px solid #f2d27a30; color: #f3ead2; cursor: pointer; }
+.spectate-rooms button:hover { border-color: #f2d27a; }
+.spectate-rooms small { color: #9fb0a2; font-size: 12px; overflow-wrap: anywhere; }
+.spectate-phase { align-self: flex-start; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #33443a; color: #cfd8c8; }
+.spectate-phase--playing { background: #2f6b46; color: #e5ffe9; }
+.spectate-flash { position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 50; padding: 8px 14px; border-radius: 999px; background: #1a2a22f2; border: 1px solid #f2d27a; font-size: 13px; }

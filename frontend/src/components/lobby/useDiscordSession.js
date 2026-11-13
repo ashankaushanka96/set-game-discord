@@ -812,7 +812,7 @@ export default function useDiscordSession() {
   useEffect(() => {
     if (profileLoaded && state && me && roomId) {
       const currentPlayer = state.players[me.id];
-      const hasSeat = currentPlayer && (typeof currentPlayer.seat === 'number' && currentPlayer.seat >= 0 || (currentPlayer.is_spectator && !currentPlayer.spectator_request_pending));
+      const hasSeat = currentPlayer && (typeof currentPlayer.seat === 'number' && currentPlayer.seat >= 0);
       const gameActive = state.phase === "ready" || state.phase === "playing" || state.phase === "ended";
       
       console.debug("[Lobby] Reconnection check:", {

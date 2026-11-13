@@ -6,16 +6,17 @@ import { send } from '../../ws';
 
 const sameCard = (a, b) => a.suit === b.suit && a.rank === b.rank;
 
-export default function SpectatorView({ players, gamePhase }) {
-  const ws = useStore(state => state.ws);
+export default function SpectatorView({ players, gamePhase, ws: wsProp = null, tools = TEST_MODE_ENABLED }) {
+  const storeWs = useStore(state => state.ws);
+  const ws = wsProp || storeWs;
   const [selection, setSelection] = useState({ source: null, cards: [] });
   const [hovered, setHovered] = useState(null);
   const active = Object.values(players).filter(player => !player.is_spectator && player.seat != null).sort((a,b) => a.seat - b.seat);
   const visible = gamePhase === 'lobby' ? Object.values(players).filter(player => !player.is_spectator) : active;
-  const canMove = player => TEST_MODE_ENABLED && gamePhase === 'playing' && ws?.readyState === 1 && /bot/i.test(player.name || '');
+  const canMove = player => tools && gamePhase === 'playing' && ws?.readyState === 1;   // testing tool: any player's cards
   const targetFor = (source, id) => {
     const target = players[id];
-    return target && target.id !== source.id && target.team && target.team !== source.team && target.seat != null && !target.is_spectator && target.connected !== false ? target : null;
+    return target && target.id !== source.id && target.seat != null && !target.is_spectator ? target : null;   // anyone to anyone, no rules
   };
   const pass = (source, cards, id) => {
     if (!canMove(source) || !targetFor(source,id) || !cards.length || cards.some(card => !source.hand?.some(held => sameCard(card,held)))) return;
@@ -38,8 +39,8 @@ export default function SpectatorView({ players, gamePhase }) {
       <p>{gamePhase === 'lobby' ? 'Watching the room come together.' : 'Every hand, together at one table.'}</p>
       <span className="spectator-live"><i className="room-live-dot" />{gamePhase === 'playing' ? 'Round in play' : gamePhase === 'lobby' ? 'Watching lobby' : 'Between rounds'}</span>
     </header>
-    {TEST_MODE_ENABLED && gamePhase === 'playing' && <div className="spectator-guide" role="status">
-      <span>{selection.cards.length ? `${selection.cards.length} selected from ${players[selection.source]?.name}. Drop near an opponent or use their pass button.` : 'Practice controls · Drag a bot’s card to an opponent. Select several cards to move them together.'}</span>
+    {tools && gamePhase === 'playing' && <div className="spectator-guide" role="status">
+      <span>{selection.cards.length ? `${selection.cards.length} selected from ${players[selection.source]?.name}. Drop near any player or use their pass button.` : 'Practice controls · Drag any player’s card to anyone. Select several cards to move them together.'}</span>
       {selection.cards.length > 0 && <button type="button" onClick={() => setSelection({source:null,cards:[]})}>Clear selection</button>}
     </div>}
     <div className="spectator-grid">

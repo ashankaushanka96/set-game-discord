@@ -22,10 +22,16 @@ jobs:
         run: |
           cp -rf backend app
       
-      - name: Create .env file with Discord secrets
+      - name: Create .env file with Discord and spectator secrets
+        env:
+          SPECTATOR_USERNAME: ${{ secrets.SPECTATOR_USERNAME }}
+          SPECTATOR_PASSWORD: ${{ secrets.SPECTATOR_PASSWORD }}
+          SPECTATOR_SECRET: ${{ secrets.SPECTATOR_SECRET }}
         run: |
           echo "DISCORD_CLIENT_ID=${{ vars.DISCORD_CLIENT_ID }}" > app/.env
           echo "DISCORD_CLIENT_SECRET=${{ secrets.DISCORD_CLIENT_SECRET }}" >> app/.env
+          # the browser spectator login and the key that signs its tokens
+          printf 'SPECTATOR_USERNAME=%s\nSPECTATOR_PASSWORD=%s\nSPECTATOR_SECRET=%s\n' "$SPECTATOR_USERNAME" "$SPECTATOR_PASSWORD" "$SPECTATOR_SECRET" >> app/.env
       
       - name: Create tarball of the repository
         run: tar -czvf app.tar.gz app

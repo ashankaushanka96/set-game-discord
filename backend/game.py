@@ -287,6 +287,7 @@ class Game:
         
         # No turn player set yet - will be set after shuffle & deal
         self.state.turn_player = None
+        self.state.voice_spot = None
         
         # Lock the lobby to prevent new players from joining
         self.state.lobby_locked = True
@@ -339,6 +340,7 @@ class Game:
 
         # Reset game state
         self.state.turn_player = None
+        self.state.voice_spot = None
         self.state.ask_chain_from = None
         self.state.deck_count = 0
         self.state.current_dealer = None
@@ -652,6 +654,11 @@ class Game:
                 raise ValueError("You can only lay down on your turn")
             if self.state.pending_ask or self.state.pending_handoff:
                 raise ValueError("Finish the current ask or turn handoff first")
+        if self._voice_tracked():
+            if self.state.turn_player != who_id:
+                raise ValueError("You can only lay down on your turn")
+            if self.state.voice_spot:
+                raise ValueError("Finish the current ask first")
         my = self.state.players[who_id]
         needed_ranks = set(self.ranks_for(set_type))
 
@@ -840,7 +847,7 @@ class Game:
             for c in contributors
             if c["player_id"] != who_id and self.state.players[c["player_id"]].team == owner_team
         ]
-        if self.state.game_mode == "turns":
+        if self.state.game_mode == "turns" or self._voice_tracked():
             handoff_eligible = self._turn_after_laydown(who_id, handoff_eligible)
 
         # Check if game has ended
@@ -919,6 +926,56 @@ class Game:
             return {"success": False, "message": "Only the room admin can change the game mode"}
         self.state.game_mode = mode
         return {"success": True}
+
+    def set_voice_turns(self, requester_id: str, on: bool) -> dict:
+        if self.state.phase != "lobby":
+            return {"success": False, "message": "Turn tracking can only be changed in the lobby"}
+        if self.state.admin_player_id and requester_id != self.state.admin_player_id:
+            return {"success": False, "message": "Only the room admin can change turn tracking"}
+        self.state.voice_turns = bool(on)
+        return {"success": True}
+
+    def _voice_tracked(self) -> bool:
+        return self.state.game_mode == "voice" and self.state.voice_turns and self.state.phase == "playing"
+
+    def voice_spot_set(self, asker_id: str, target_id: Optional[str]) -> dict:
+        """Voice Play with turn tracking: the turn player points the gold spotlight at the opponent
+        they are asking out loud (or takes it back with target_id=None)."""
+        if not self._voice_tracked():
+            raise ValueError("Turn tracking is off")
+        if self.state.turn_player != asker_id:
+            raise ValueError("Not your turn")
+        if target_id is None:
+            self.state.voice_spot = None
+            return {"success": True}
+        if self.state.voice_spot:
+            raise ValueError("Finish the current ask first")
+        if self.state.pending_handoff:
+            raise ValueError("Choose who plays next first")
+        asker, target = self.state.players.get(asker_id), self.state.players.get(target_id)
+        if not asker or not target:
+            raise ValueError("Unknown player")
+        if asker.team == target.team:
+            raise ValueError("Must ask an opponent")
+        if not target.hand:
+            raise ValueError("That player has no cards")
+        self.state.voice_spot = {"asker_id": asker_id, "target_id": target_id}
+        return {"success": True}
+
+    def voice_no_card(self, target_id: str) -> dict:
+        """The asked player doesn't have it: the turn goes to them (or on, if their hand is empty)."""
+        spot = self.state.voice_spot
+        if not self._voice_tracked() or not spot or spot["target_id"] != target_id:
+            raise ValueError("Nobody is asking you")
+        self.state.voice_spot = None
+        target = self.state.players[target_id]
+        if target.hand:
+            self.state.turn_player = target_id
+        else:
+            self.state.turn_player = self._next_ccw_matching(
+                target.seat or 0, lambda pid: self.state.players[pid].team == target.team and self._has_cards(pid)
+            ) or self._next_ccw_matching(target.seat or 0, self._has_cards)
+        return {"success": True, "asker_id": spot["asker_id"], "target_id": target_id, "next_turn": self.state.turn_player}
 
     def ask_card(self, asker_id: str, target_id: str, suit: str, set_type: str, ranks) -> dict:
         """Turns mode: the turn player asks an opponent for one or more cards of one set.
@@ -1009,7 +1066,8 @@ class Game:
 
     def penalty_laydown(self, who_id: str, suit: str, set_type: str) -> dict:
         """Voice Play: a player owns up to a wrong ask (made out loud) and gives the set to the other team.
-        The turn is left alone; the table carries on in voice."""
+        The turn is left alone; the table carries on in voice. With turn tracking on, the turn goes
+        to the other team the way it does after a failed laydown."""
         if self.state.phase != "playing":
             raise ValueError("No round in play")
         if self.state.game_mode != "voice":
@@ -1021,7 +1079,10 @@ class Game:
             raise ValueError("Unknown set")
         if any(t.suit == suit and t.set_type == set_type for t in self.state.table_sets):
             raise ValueError("That set is already on the table")
-        res = self.forfeit_set(who_id, None, suit, set_type, None, "penalty", move_turn=False)
+        tracked = self._voice_tracked()
+        res = self.forfeit_set(who_id, None, suit, set_type, None, "penalty", move_turn=tracked)
+        if tracked:
+            self.state.voice_spot = None
         res["ranks"] = []
         return res
 
@@ -1099,20 +1160,24 @@ class Game:
         return self.state.turn_player
 
     # ---------------- Pass Cards ----------------
-    def pass_cards(self, from_player_id: str, to_player_id: str, cards: List[Card]):
-        """Pass cards from one player to another (opponent only)"""
-        if self.state.game_mode == "turns":
+    def pass_cards(self, from_player_id: str, to_player_id: str, cards: List[Card], free: bool = False):
+        """Pass cards from one player to another (opponent only).
+        free: spectator testing tool - any player to any player, any mode, any time, no rules."""
+        if self.state.game_mode == "turns" and not free:
             raise ValueError("In Turn Play, cards move only when someone asks for them")
         if from_player_id not in self.state.players or to_player_id not in self.state.players:
             raise ValueError("Unknown player")
         
         from_player = self.state.players[from_player_id]
         to_player = self.state.players[to_player_id]
-        if not to_player.hand:
+        spot = self.state.voice_spot if self._voice_tracked() and not free else None
+        if self._voice_tracked() and not free and (not spot or spot["target_id"] != from_player_id or spot["asker_id"] != to_player_id):
+            raise ValueError("Cards can only go to the player asking you")
+        if not to_player.hand and not free:
             raise ValueError("That player has no cards left and is out of this round")
         
         # Can only pass to opponent team
-        if from_player.team == to_player.team:
+        if from_player.team == to_player.team and not free:
             raise ValueError("Can only pass cards to opponent team")
         
         # Check if from_player has all the cards
@@ -1127,6 +1192,9 @@ class Game:
         
         # Add cards to to_player's hand
         to_player.hand.extend(cards)
+        if spot:   # answered: the asker keeps the turn and asks again
+            self.state.voice_spot = None
+            self.state.turn_player = to_player_id
         
         # Log all player hands after card passing
         self.log_all_player_hands(f"AFTER PASS - {from_player.name} -> {to_player.name}")
@@ -1159,7 +1227,7 @@ class Game:
         if not b.hand:
             return {"ok": False, "reason": "empty_hand", "turn_player": self.state.turn_player}
 
-        if self.state.game_mode == "turns":
+        if self.state.game_mode == "turns" or self._voice_tracked():
             handoff = self.state.pending_handoff
             if not handoff or handoff["who_id"] != who_id or to_id not in handoff["options"]:
                 return {"ok": False, "reason": "not_offered", "turn_player": self.state.turn_player}
@@ -1364,6 +1432,7 @@ class Game:
         self.state.pending_ask = None
         self.state.pending_handoff = None
         self.state.turn_player = None
+        self.state.voice_spot = None
         self.state.ask_chain_from = None
         self.state.deck_count = 0
         self.state.team_scores = {"A": 0, "B": 0}

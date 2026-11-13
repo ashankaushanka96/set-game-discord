@@ -8,7 +8,6 @@ import {
   DealingAnimation, 
   MessageBubbles 
 } from '../';
-import SpectatorView from './SpectatorView';
 import TableSceneDetails, { SeatCardStack } from './TableSceneDetails';
 import PassedCardsAnimation from './PassedCardsAnimation';
 import LaydownAnimation from './LaydownAnimation';
@@ -27,7 +26,6 @@ import {
   VotingResultModal, 
   CompletedSetsModal,
   BackToLobbyModal,
-  SpectatorRequestsModal,
   AskCardModal,
   AnswerAskModal,
   PassTurnModal
@@ -158,7 +156,6 @@ export default function Table() {
   const [isDraggingCards, setIsDraggingCards] = useState(false);
   const [completedSetsOpen, setCompletedSetsOpen] = useState(false);
   const [emojiSettingsOpen, setEmojiSettingsOpen] = useState(false);
-  const [spectatorRequestsOpen, setSpectatorRequestsOpen] = useState(false);
   // In-progress choices (who I'm asking, a penalty I'm about to confirm) are kept on this device so a
   // player who drops out comes back to the same prompt.
   const progressKey = `in_progress:${state?.room_id}:${me?.id}`;
@@ -323,7 +320,10 @@ export default function Table() {
     const player = players[id];
     return state.phase === 'playing' && ws?.readyState === 1 && player && player.id !== me.id &&
       player.team && player.team !== my?.team && !player.is_spectator && player.connected !== false && typeof player.seat === 'number' &&
-      (player.hand?.length ?? 0) > 0 ? player : null; // a player with no cards left is out of the round
+      (player.hand?.length ?? 0) > 0 &&
+      // Voice Play with turn tracking: cards only go from the asked player to the one asking them
+      (!(state.game_mode !== 'turns' && state.voice_turns) || (state.voice_spot?.target_id === me.id && state.voice_spot?.asker_id === id))
+      ? player : null; // a player with no cards left is out of the round
   };
 
   const passCards = (cards, playerId) => {
@@ -345,12 +345,21 @@ export default function Table() {
   const botWait = useStore((st) => st.botWait);
   const laydownPick = useStore((st) => st.laydownPick); // laying down: tap the teammate who holds this card
   const pendingAsk = isTurnPlay ? state.pending_ask : null;
-  const pendingHandoff = isTurnPlay ? state.pending_handoff : null;
+  // Voice Play with turn tracking: the same blue (turn) and gold (asked player) spotlights as Turn
+  // Play, but the asking happens out loud. The turn player taps who they're asking; only that player
+  // can then send cards (to the asker), or say they don't have it, which hands them the turn.
+  const voiceTurns = !isTurnPlay && !!state.voice_turns && state.phase === 'playing';
+  const voiceSpot = voiceTurns ? state.voice_spot || null : null;
+  const pendingHandoff = isTurnPlay || voiceTurns ? state.pending_handoff || null : null;
+  const myVoiceTurn = voiceTurns && state.turn_player === me.id && !voiceSpot && !pendingHandoff && ws?.readyState === 1 && !paused;
+  const askedMe = !!voiceSpot && voiceSpot.target_id === me.id;
+  const canSpot = (player) => myVoiceTurn && !!player && player.team && player.team !== my?.team &&
+    !player.is_spectator && (player.hand?.length ?? 0) > 0;
   const awaitingStart = isTurnPlay && state.phase === 'playing' && !!state.awaiting_start;
   const myTurn = isTurnPlay && state.phase === 'playing' && state.turn_player === me.id && !awaitingStart && !pendingAsk && !pendingHandoff && ws?.readyState === 1 && !paused;
   const canAsk = (player) => myTurn && !!player && player.team && player.team !== my?.team &&
     !player.is_spectator && (player.hand?.length ?? 0) > 0;
-  const turnPlayer = isTurnPlay && state.phase === 'playing' ? players[state.turn_player] : null;
+  const turnPlayer = (isTurnPlay || voiceTurns) && state.phase === 'playing' ? players[state.turn_player] : null;
   const sendAsk = ({ target_id, suit, set_type, ranks }) => {
     send(ws, 'ask', { asker_id: me.id, target_id, suit, set_type, ranks });
     setAskTarget(null);
@@ -358,7 +367,7 @@ export default function Table() {
   // close the ask only when the turn has really moved on (not for a pause or a reconnect)
   useEffect(() => { if (state.phase !== 'playing' || state.turn_player !== me.id || pendingAsk || pendingHandoff) setAskTarget(null); }, [state.phase, state.turn_player, me.id, pendingAsk, pendingHandoff]);
   // Turn Play: lay down only on your own turn
-  const layLocked = paused || (isTurnPlay && !myTurn);
+  const layLocked = paused || (isTurnPlay && !myTurn) || (voiceTurns && !myVoiceTurn);
   // Laying down starts from the hand: select a card (or several) of one set, then tap Lay.
   // A laydown restored after reconnecting picks up its set (and step) from the saved draft.
   const [layPick, setLayPick] = useState(() => layOpen ? loadLaydownDraft(state?.room_id, me?.id)?.pick ?? null : null);
@@ -408,7 +417,12 @@ export default function Table() {
     return (
       <div className="card-room h-screen w-screen overflow-hidden flex flex-col bg-gradient-vibrant">
         <div className="flex-1 overflow-y-auto">
-          <SpectatorView players={players} myId={me.id} gamePhase={state.phase} />
+          {/* Watching happens from the browser spectator page; in Discord an unseated player just waits */}
+          <div className="spectator-wait">
+            <div className="spectator-wait__icon" aria-hidden="true">⏳</div>
+            <h2>Game in progress</h2>
+            <p>You can pick a seat when the table returns to the lobby.</p>
+          </div>
         </div>
         
         {/* Toast Notifications */}
@@ -433,12 +447,12 @@ export default function Table() {
           dealOrder={dealingAnimation?.dealingSequence?.map(d => (Number(d.seat) - mySeatIndex + 6) % 6)}
           dealerRel={(() => { if (dealingAnimation?.dealerSeat != null) return (Number(dealingAnimation.dealerSeat) - mySeatIndex + 6) % 6; const seat = Object.keys(seats).find((k) => seats[k] === state.current_dealer); return seat == null ? 0 : (Number(seat) - mySeatIndex + 6) % 6; })()}
           mySeatIndex={mySeatIndex}
-          ask={pendingAsk}
+          ask={pendingAsk || voiceSpot}
           hand={handSorted}
           selectedKeys={shownSelection.map((c) => `${c.suit}-${c.rank}`)}
           handTappable={!dealingAnimation && !paused && state.phase === 'playing' && ws?.readyState === 1 && !layOpen && (isTurnPlay ? myTurn : true)}
           onCardTap={handleHandCardClick}
-          dragPass={!dealingAnimation && !paused && !isTurnPlay && state.phase === 'playing' && ws?.readyState === 1 && !layOpen}
+          dragPass={!dealingAnimation && !paused && !isTurnPlay && (!voiceTurns || askedMe) && state.phase === 'playing' && ws?.readyState === 1 && !layOpen}
           resolveDropTarget={resolveDropTarget}
           onDragStart={cards => { setSelectedCardsToPass(cards); setIsDraggingCards(true); }}
           onDragHover={setDragTarget}
@@ -519,37 +533,17 @@ export default function Table() {
         </button>
       </div>
 
-      {/* Spectator Requests Button - Admin Only */}
-      {state.admin_player_id === me.id && Object.keys(state.spectator_requests || {}).length > 0 && (
-        <div className="game-secondary-control fixed top-14 right-14 md:top-16 md:right-16 z-40">
-          <button 
-            className="group bg-gradient-warm hover:shadow-glow-amber text-white p-2 rounded-lg shadow-lg transition-all duration-200 transform hover:scale-105 active:scale-95 relative border border-accent-amber/30"
-            onClick={() => setSpectatorRequestsOpen(true)}
-            title="Spectator Requests"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-            </svg>
-            {/* Notification badge */}
-            <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-              {Object.keys(state.spectator_requests || {}).length}
-            </div>
-          </button>
-        </div>
-      )}
-
       {/* Card Passing Indicator */}
-      {selectedCardsToPass.length > 0 && !isDraggingCards && !isTurnPlay && (
+      {selectedCardsToPass.length > 0 && !isDraggingCards && !isTurnPlay && (!voiceTurns || askedMe) && (
         <div className="table-selection-hint">
           <div className="text-sm font-semibold">
             {selectedCardsToPass.length} card{selectedCardsToPass.length !== 1 ? 's' : ''} selected
           </div>
-          <div className="text-xs opacity-80">{use3d ? "Drag up onto an opponent, or tap their seat" : "Drag onto an opponent to pass, or click their seat"}</div>
+          <div className="text-xs opacity-80">{voiceTurns ? `Drag up onto ${players[voiceSpot?.asker_id]?.name || 'the asker'}, or tap their seat` : use3d ? "Drag up onto an opponent, or tap their seat" : "Drag onto an opponent to pass, or click their seat"}</div>
         </div>
       )}
 
-       <AskPointer seatEls={seatEls} seatVersion={seatVersion} ask={pendingAsk} />
+       <AskPointer seatEls={seatEls} seatVersion={seatVersion} ask={pendingAsk || voiceSpot} />
        <FlowArrows seatEls={seatEls} seatVersion={seatVersion} />
        <MessageBubbles seatEls={seatEls} seatVersion={seatVersion} />
        <ChatBubble selectedCardsToPass={selectedCardsToPass} />
@@ -642,7 +636,7 @@ export default function Table() {
               const i = Number(k);
               const pid = seats[i];
               const p = pid ? players[pid] : null;
-              const selectable = laydownPick ? (!!p && laydownPick.mates.includes(p.id)) : reactionAim ? !!p : isTurnPlay ? canAsk(p) : selectedCardsToPass.length > 0 && !!p && !!resolveDropTarget(p.id);
+              const selectable = laydownPick ? (!!p && laydownPick.mates.includes(p.id)) : reactionAim ? !!p : isTurnPlay ? canAsk(p) : myVoiceTurn ? canSpot(p) : selectedCardsToPass.length > 0 && !!p && !!resolveDropTarget(p.id);
               const ringClass = p?.team === 'A' ? TEAM_RING.A : p?.team === 'B' ? TEAM_RING.B : TEAM_RING.unknown;
               const isMe = p && p.id === me.id;
               // Out of cards: greyed, and nobody can ask them or pass to them
@@ -668,9 +662,9 @@ export default function Table() {
                       selectable={selectable}
                       dropTarget={dragTarget === p?.id}
                       draggingCards={isDraggingCards}
-                      onSelect={p ? () => (laydownPick ? window.dispatchEvent(new CustomEvent('laydown_seat_pick', { detail: { pid: p.id } })) : reactionAim ? throwReaction(p) : isTurnPlay ? setAskTarget(p) : handleSeatClick(p)) : null}
+                      onSelect={p ? () => (laydownPick ? window.dispatchEvent(new CustomEvent('laydown_seat_pick', { detail: { pid: p.id } })) : reactionAim ? throwReaction(p) : isTurnPlay ? setAskTarget(p) : myVoiceTurn ? send(ws, 'voice_spot', { target_id: p.id }) : handleSeatClick(p)) : null}
                       isTurn={!!turnPlayer && p?.id === turnPlayer.id}
-                      askMode={isTurnPlay}
+                      askMode={isTurnPlay || myVoiceTurn}
                       reactEmoji={reactionAim?.emoji}
                       pickLabel={laydownPick ? `Has the ${laydownPick.rank}${SUIT_GLYPH[laydownPick.suit] || ''}` : null}
                       team={p?.team}
@@ -718,13 +712,18 @@ export default function Table() {
          )}
          {turnPlayer && !awaitingStart && botWait && <BotWaitPill canContinue={!!my?.team && !my?.is_spectator} />}
          {turnPlayer && !awaitingStart && !botWait && (
-        <div className={`turn-banner ${turnPlayer.id === me.id && !pendingAsk ? 'turn-banner--mine' : ''}`} role="status" aria-live="polite">
+        <div className={`turn-banner ${(turnPlayer.id === me.id && !pendingAsk && !voiceSpot) || askedMe ? 'turn-banner--mine' : ''}`} role="status" aria-live="polite">
           {pendingHandoff
             ? <span>{pendingHandoff.who_id === me.id ? 'Choose a teammate to play next' : `${players[pendingHandoff.who_id]?.name || 'Declarer'} is choosing who plays next…`}</span>
+            : voiceSpot
+            ? <span>{voiceSpot.asker_id === me.id ? 'You are asking' : `${players[voiceSpot.asker_id]?.name || 'Someone'} is asking`} {askedMe ? 'you' : players[voiceSpot.target_id]?.name}
+                {askedMe && <> — send the cards, or <button type="button" className="turn-banner__btn" onClick={() => send(ws, 'voice_no_card', {})}>I don't have it</button></>}
+                {voiceSpot.asker_id === me.id && <> <button type="button" className="turn-banner__btn turn-banner__btn--ghost" onClick={() => send(ws, 'voice_spot', { target_id: null })}>Change</button></>}
+              </span>
             : pendingAsk
             ? <span>{pendingAsk.asker_id === me.id ? 'Waiting for' : `${players[pendingAsk.asker_id]?.name || 'Someone'} asked`} {pendingAsk.target_id === me.id ? 'you' : players[pendingAsk.target_id]?.name}…</span>
             : turnPlayer.id === me.id
-              ? <span>{laydownPick ? `Tap the teammate who has the ${laydownPick.rank}${SUIT_GLYPH[laydownPick.suit] || ''}` : 'Your turn — tap an opponent to ask for a card'}</span>
+              ? <span>{laydownPick ? `Tap the teammate who has the ${laydownPick.rank}${SUIT_GLYPH[laydownPick.suit] || ''}` : voiceTurns ? 'Your turn — tap who you\'re asking, or lay down' : 'Your turn — tap an opponent to ask for a card'}</span>
               : <span>{turnPlayer.name}'s turn</span>}
         </div>
       )}
@@ -903,10 +902,6 @@ export default function Table() {
       />
 
       {/* Spectator Requests Modal */}
-      <SpectatorRequestsModal
-        open={spectatorRequestsOpen}
-        onClose={() => setSpectatorRequestsOpen(false)}
-      />
 
       {/* Toast Notifications */}
       <Toast />

@@ -31,9 +31,22 @@ export function LobbySetting({ label, options, current, isAdmin, adminName, onPi
   );
 }
 
+export const VOICE_TURNS = [
+  { id: "off", name: "Free", icon: "🗣️", blurb: "Anyone can ask any time; cards are passed freely." },
+  { id: "on", name: "Track turns", icon: "🔦", blurb: "Blue spotlight on whose turn it is. They tap who they're asking (gold spotlight); only that player can send cards." },
+];
+
 export default function GameModePicker({ state, me }) {
   const ws = useStore((s) => s.ws);
-  return <LobbySetting label="Game mode" options={GAME_MODES} current={state?.game_mode || "voice"}
-    isAdmin={isRoomAdmin(state, me)} adminName={state?.players?.[state?.admin_player_id]?.name}
-    onPick={(id) => send(ws, "set_game_mode", { mode: id })} />;
+  const isAdmin = isRoomAdmin(state, me), adminName = state?.players?.[state?.admin_player_id]?.name;
+  return <>
+    <LobbySetting label="Game mode" options={GAME_MODES} current={state?.game_mode || "voice"}
+      isAdmin={isAdmin} adminName={adminName}
+      onPick={(id) => send(ws, "set_game_mode", { mode: id })} />
+    {(state?.game_mode || "voice") === "voice" && (
+      <LobbySetting label="Turns" options={VOICE_TURNS} current={state?.voice_turns ? "on" : "off"}
+        isAdmin={isAdmin} adminName={adminName}
+        onPick={(id) => send(ws, "set_voice_turns", { on: id === "on" })} />
+    )}
+  </>;
 }

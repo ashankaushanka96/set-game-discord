@@ -115,7 +115,7 @@ async def bot_laydown(game, room_id: str, bot_id: str, move: dict):
 # While a seated player is disconnected mid-round the game is paused: nobody can ask, pass or lay
 # down (the missing player would miss it), bots wait, and the rest can only look and talk.
 PAUSE_BLOCKED = {"ask", "penalty_laydown", "begin_play", "bot_continue", "answer_ask", "laydown",
-                 "pass_cards", "handoff_after_laydown", "spectator_pass_cards"}
+                 "pass_cards", "handoff_after_laydown", "voice_spot", "voice_no_card"}
 
 
 def paused_by(game) -> list:
@@ -269,7 +269,7 @@ async def check_and_cleanup_empty_room(room_id: str):
         # Check if there are any WebSocket connections for this room
         has_connections = (
             room_id in WebSocketService.connections and 
-            len(WebSocketService.connections[room_id]) > 0
+            any(not k.startswith("watch:") for k in WebSocketService.connections[room_id])
         )
         
         if not has_connections:
@@ -499,6 +499,24 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                     await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
                 else:
                     await WebSocketService.send_to_player(room_id, player_id, "error", {"message": res["message"]})
+
+            elif t == "set_voice_turns":
+                res = game.set_voice_turns(player_id, bool(p.get("on")))
+                if res["success"]:
+                    await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
+                else:
+                    await WebSocketService.send_to_player(room_id, player_id, "error", {"message": res["message"]})
+
+            elif t in ("voice_spot", "voice_no_card"):
+                # Voice Play with turn tracking: point the gold spotlight / "I don't have it"
+                try:
+                    if t == "voice_spot":
+                        game.voice_spot_set(player_id, p.get("target_id"))
+                    else:
+                        game.voice_no_card(player_id)
+                    await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
+                except ValueError as e:
+                    await WebSocketService.send_to_player(room_id, player_id, "error", {"message": str(e)})
 
             elif t == "ask":
                 # Turns mode: the turn player asks an opponent for one card
@@ -734,65 +752,6 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                         "state": game.state.model_dump()
                     })
 
-            elif t == "spectator_pass_cards":
-                # Spectator passes cards from one player to another (test mode only)
-                from_player_id = p["from_player_id"]
-                to_player_id = p["to_player_id"]
-                cards = [Card(**card) for card in p["cards"]]
-                
-                # Validate source player
-                from_player = game.state.players.get(from_player_id)
-                if not from_player:
-                    await ws.send_text(json.dumps({
-                        "type": "spectator_pass_cards_result",
-                        "payload": {"success": False, "error": "Source player not found"}
-                    }))
-                    continue
-                
-                # Validate target player
-                target_player = game.state.players.get(to_player_id)
-                if not target_player:
-                    await ws.send_text(json.dumps({
-                        "type": "spectator_pass_cards_result",
-                        "payload": {"success": False, "error": "Target player not found"}
-                    }))
-                    continue
-                
-                # Validate that target is an opponent
-                if target_player.team == from_player.team:
-                    await ws.send_text(json.dumps({
-                        "type": "spectator_pass_cards_result",
-                        "payload": {"success": False, "error": "Cannot pass cards to teammate"}
-                    }))
-                    continue
-                
-                try:
-                    # Use the existing pass_cards logic
-                    res = game.pass_cards(from_player_id, target_player.id, cards)
-                    
-                    # Broadcast the result
-                    await WebSocketService.broadcast(room_id, "spectator_pass_cards_result", {
-                        "success": True,
-                        "from_player_id": from_player_id,
-                        "from_name": from_player.name,
-                        "to_player_id": target_player.id,
-                        "to_name": target_player.name,
-                        "cards": [c.model_dump() for c in cards],
-                        "state": game.state.model_dump()
-                    })
-                    
-                    # Also broadcast the normal cards_passed event for consistency
-                    await WebSocketService.broadcast(room_id, "cards_passed", {**res, "state": game.state.model_dump()})
-                    
-                except ValueError as e:
-                    await WebSocketService.broadcast(room_id, "spectator_pass_cards_result", {
-                        "success": False,
-                        "error": str(e),
-                        "from_player_id": from_player_id,
-                        "to_player_id": target_player.id,
-                        "state": game.state.model_dump()
-                    })
-
             elif t == "sync":
                 await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
 
@@ -835,12 +794,14 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                 logger.debug(f"Removed player {player_id} from connections in room {room_id}")
                 
                 # Check if this was the last WebSocket connection
-                remaining_connections = len(WebSocketService.connections.get(room_id, {}))
+                # browser spectators ("watch:" sockets) don't keep a room alive
+                remaining_connections = len([k for k in WebSocketService.connections.get(room_id, {}) if not k.startswith("watch:")])
                 logger.info(f"Room {room_id} now has {remaining_connections} WebSocket connections")
                 
                 if remaining_connections == 0:
                     # Last player disconnected, clean up the room immediately
                     logger.info(f"Last player disconnected from room {room_id}, cleaning up room")
+                    await WebSocketService.broadcast(room_id, "room_closed", {})
                     await cleanup_room_immediately(room_id)
                     return  # Exit early since room is being cleaned up
             

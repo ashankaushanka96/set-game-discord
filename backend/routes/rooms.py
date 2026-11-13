@@ -86,7 +86,8 @@ def http_join_room(room_id: str, body: JoinReq):
     else:
         # Add new player (even if lobby is locked, so they can see the UI)
         if game.state.lobby_locked:
-            # Add as spectator with pending request when lobby is locked
+            # Lobby locked: they wait outside the game until the table returns to the lobby.
+            # (Watching happens from the browser spectator page, not inside Discord.)
             spectator_player = Player(
                 id=body.id,
                 name=body.name,
@@ -96,11 +97,10 @@ def http_join_room(room_id: str, body: JoinReq):
                 hand=[],    # No hand for spectators
                 connected=True,
                 is_spectator=True,
-                spectator_request_pending=True
+                spectator_request_pending=False
             )
             game.state.players[body.id] = spectator_player
-            game.state.spectator_requests[body.id] = body.name
-            logger.info(f"Player {body.id} joined locked room {room_id} as spectator with pending request")
+            logger.info(f"Player {body.id} joined locked room {room_id} and waits for the lobby")
         else:
             # Add as normal player when lobby is not locked
             game.state.players[body.id] = Player(**body.model_dump())

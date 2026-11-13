@@ -133,7 +133,7 @@ export default function Lobby() {
   console.debug("[Lobby] Lobby locked:", state?.lobby_locked);
   console.debug("[Lobby] Phase:", state?.phase);
   console.debug("[Lobby] Current player seat:", me ? state?.players[me.id]?.seat : "No me");
-  console.debug("[Lobby] Has seat in active game:", me && state?.players[me.id] && (typeof state.players[me.id].seat === 'number' && state.players[me.id].seat >= 0 || (state.players[me.id].is_spectator && !state.players[me.id].spectator_request_pending)) && (state?.phase === "ready" || state?.phase === "playing" || state?.phase === "ended"));
+  console.debug("[Lobby] Has seat in active game:", me && state?.players[me.id] && (typeof state.players[me.id].seat === 'number' && state.players[me.id].seat >= 0) && (state?.phase === "ready" || state?.phase === "playing" || state?.phase === "ended"));
 
   // Early return: show only loading screen until profile retrieval completes
   if (!profileLoaded) {
@@ -256,7 +256,7 @@ export default function Lobby() {
         )}
 
         {/* Show lobby locked screen when game is in progress and player has no seat (but not for approved spectators) */}
-        {profileLoaded && !checkingReconnection && !redirectingToGame && (state?.lobby_locked === true || (state?.phase && state?.phase !== "lobby")) && !(me && state?.players?.[me.id] && (typeof state.players[me.id].seat === 'number' && state.players[me.id].seat >= 0 || (state.players[me.id].is_spectator && !state.players[me.id].spectator_request_pending))) ? (
+        {profileLoaded && !checkingReconnection && !redirectingToGame && (state?.lobby_locked === true || (state?.phase && state?.phase !== "lobby")) && !(me && state?.players?.[me.id] && (typeof state.players[me.id].seat === 'number' && state.players[me.id].seat >= 0)) ? (
           <div className="bg-zinc-900/50 backdrop-blur-sm rounded-xl p-8 border border-zinc-700/50 text-center">
             <div className="max-w-md mx-auto">
               <div className="text-6xl mb-4">🔒</div>
@@ -276,7 +276,7 @@ export default function Lobby() {
               </div>
             </div>
           </div>
-        ) : profileLoaded && !checkingReconnection && !redirectingToGame && !(me && state?.players[me.id] && (typeof state.players[me.id].seat === 'number' && state.players[me.id].seat >= 0 || (state.players[me.id].is_spectator && !state.players[me.id].spectator_request_pending)) && (state?.phase === "ready" || state?.phase === "playing" || state?.phase === "ended")) ? (
+        ) : profileLoaded && !checkingReconnection && !redirectingToGame && !(me && state?.players[me.id] && (typeof state.players[me.id].seat === 'number' && state.players[me.id].seat >= 0) && (state?.phase === "ready" || state?.phase === "playing" || state?.phase === "ended")) ? (
           <div className="lobby-content">
             <SeatSelector players={players} state={state} me={me} speakingUsers={speakingUsers} adminId={state?.admin_player_id} />
 

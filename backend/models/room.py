@@ -34,6 +34,10 @@ class RoomState(BaseModel):
     # "voice": players ask out loud and pass cards freely by dragging.
     # "turns": players ask through the game; the asked player answers with a button and turns are enforced.
     game_mode: Literal["voice", "turns"] = "voice"
+    # Voice Play option: the game tracks turns. The turn player (blue spotlight) picks who they ask
+    # (gold spotlight, voice_spot); only the asked player can then send cards, only to the asker.
+    voice_turns: bool = False
+    voice_spot: Optional[dict] = None   # {"asker_id": ..., "target_id": ...}
     # Turns mode with bots filling empty seats: how clever they are. Set by the admin in the lobby.
     bot_level: Literal["easy", "medium", "hard", "expert"] = "medium"
     # Turns mode: the ask waiting for the target's answer (asker_id, target_id, suit, set_type, ranks, has_card)

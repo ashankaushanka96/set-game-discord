@@ -422,7 +422,7 @@ export const useStore = create((set, get) => ({
             .filter((pid) => pid && pid !== who && s.players?.[pid]?.team === s.players?.[who]?.team)
             .map((pid) => ({ id: `lay-${now}-${pid}`, from: pid, to: who, tone: "lay", until: now + 4500 }))];
         }
-        if (s.game_mode === "turns" && s.phase === "playing" && !s.pending_handoff && s.turn_player && s.turn_player !== who) {
+        if ((s.game_mode === "turns" || s.voice_turns) && s.phase === "playing" && !s.pending_handoff && s.turn_player && s.turn_player !== who) {
           arrows = [...arrows.filter((a) => a.tone !== "turn"),
             { id: `turn-${now}`, from: who, to: s.turn_player, tone: "turn", label: "Turn", start: now + 4500, until: now + 11000 }];
         }

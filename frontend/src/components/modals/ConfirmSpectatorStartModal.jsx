@@ -1,7 +1,7 @@
 import GlassmorphismModal from '../ui/GlassmorphismModal';
 
 // Asks the admin whether to start while some players still have no seat;
-// those players watch the game as spectators.
+// those players wait until the table returns to the lobby.
 export default function ConfirmSpectatorStartModal({ open, players = [], onConfirm, onClose }) {
   if (!open) return null;
   const several = players.length > 1;
@@ -23,7 +23,7 @@ export default function ConfirmSpectatorStartModal({ open, players = [], onConfi
             ))}
           </ul>
           <div className="text-sm text-zinc-300">
-            Start anyway? They will join as {several ? 'spectators' : 'a spectator'} and
+            Start anyway? They will wait outside the game and
             can pick a seat when the table returns to the lobby.
           </div>
         </div>
