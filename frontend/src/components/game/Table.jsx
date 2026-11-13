@@ -738,7 +738,7 @@ export default function Table() {
           </div>
         </div>
       )}
-      {layOpen && layPick && <LaydownModal initialPick={layPick} restore={layRestore} onClose={() => { setLayOpen(false); setLayPick(null); setLayRestore(false); }} />}}
+      {layOpen && layPick && <LaydownModal initialPick={layPick} restore={layRestore} onClose={() => { setLayOpen(false); setLayPick(null); setLayRestore(false); }} />}
 
       {paused && (
         <div className="game-paused" role="status" aria-live="polite">
