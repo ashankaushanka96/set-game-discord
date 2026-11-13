@@ -183,7 +183,7 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
               <FannedCards 
                 cards={m.cards || []} 
                 size="xs" 
-                maxCards={6}
+                maxCards={7}
               />
             </div>
           );
@@ -193,7 +193,7 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
               <FannedCards 
                 cards={m.cards || []} 
                 size="xs" 
-                maxCards={6}
+                maxCards={7}
               />
             </div>
           );

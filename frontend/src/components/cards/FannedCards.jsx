@@ -1,7 +1,7 @@
 import { Card } from './';
 import { RANKS_LOWER, RANKS_UPPER } from '../../lib/deck';
 
-export default function FannedCards({ cards, size = "sm", maxCards = 6, reserveFanSpace = false }) {
+export default function FannedCards({ cards, size = "sm", maxCards = 7, reserveFanSpace = false }) {
   if (!cards || cards.length === 0) return null;
 
   // Sort cards by rank (lower set: 2-7, upper set: 8-A)

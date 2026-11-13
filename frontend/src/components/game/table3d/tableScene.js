@@ -481,7 +481,7 @@ export function createGameTable3D(container, { portrait, onLift, quality = 'auto
       const chip = labelSprite(pt.label || 'turn', color); chip.scale.set(1.1, 0.34, 1); flyer.add(chip); owned.push(chip.material.map, chip.material);
     } else {
       // one card, or a small fan when several cards are asked for at once
-      const list = (pt.cards?.length ? pt.cards : pt.card ? [pt.card] : [null]).slice(0, 6);
+      const list = (pt.cards?.length ? pt.cards : pt.card ? [pt.card] : [null]).slice(0, 7);   // a whole upper set is 7 cards
       const n = list.length, size = n > 1 ? 1.35 : 1.6, step = n > 1 ? Math.min(0.24, 0.9 / (n - 1)) : 0;
       list.forEach((c, i) => {
         const face = c?.rank && c?.suit ? faceMat(c.rank, c.suit) : backMat;
