@@ -129,6 +129,43 @@ export default function EmojiSettings({ isOpen, onClose }) {
 
       {/* Settings Content */}
       <div className="space-y-4">
+        {/* Table view (per device) */}
+        <div className="space-y-3">
+          <h4 className="text-sm font-medium text-white/80">Table view</h4>
+          <div className="graphics-quality graphics-quality--two" role="radiogroup" aria-label="Table view">
+            {[
+              { id: '3d', name: '3D table', blurb: 'The full room, cards flying across the table' },
+              { id: '2d', name: 'Flat (2D)', blurb: 'Lightest on battery and heat' },
+            ].map((o) => (
+              <button key={o.id} type="button" role="radio" aria-checked={view === o.id}
+                className={`graphics-quality__option ${view === o.id ? 'is-selected' : ''}`}
+                onClick={() => { setViewLocal(o.id); setView(o.id); }}>
+                <strong>{o.name}</strong><small>{o.blurb}</small>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Table sharpness (per device, 3D only) */}
+        {view === '3d' && 
+        <div className="space-y-3">
+          <h4 className="text-sm font-medium text-white/80">Table sharpness</h4>
+          <div className="graphics-quality" role="radiogroup" aria-label="Table sharpness">
+            {[
+              { id: 'auto', name: 'Auto', blurb: isPhoneLike() ? 'Battery saver on this device' : 'Sharp on this device' },
+              { id: 'saver', name: 'Battery saver', blurb: 'Less heat and battery, slightly softer' },
+              { id: 'sharp', name: 'Sharp', blurb: 'Crispest picture, uses more battery' },
+            ].map((o) => (
+              <button key={o.id} type="button" role="radio" aria-checked={quality === o.id}
+                className={`graphics-quality__option ${quality === o.id ? 'is-selected' : ''}`}
+                onClick={() => { setQualityLocal(o.id); setQuality(o.id); }}>
+                <strong>{o.name}</strong><small>{o.blurb}</small>
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-white/60">Saved on this device only.</p>
+        </div>}
+
         {/* Sound Settings */}
         <div className="space-y-3">
           <h4 className="text-sm font-medium text-white/80">Sound Effects</h4>
@@ -248,43 +285,6 @@ export default function EmojiSettings({ isOpen, onClose }) {
               </div>
             )}
           </div>
-
-        {/* Table view (per device) */}
-        <div className="space-y-3">
-          <h4 className="text-sm font-medium text-white/80">Table view</h4>
-          <div className="graphics-quality graphics-quality--two" role="radiogroup" aria-label="Table view">
-            {[
-              { id: '3d', name: '3D table', blurb: 'The full room, cards flying across the table' },
-              { id: '2d', name: 'Flat (2D)', blurb: 'Lightest on battery and heat' },
-            ].map((o) => (
-              <button key={o.id} type="button" role="radio" aria-checked={view === o.id}
-                className={`graphics-quality__option ${view === o.id ? 'is-selected' : ''}`}
-                onClick={() => { setViewLocal(o.id); setView(o.id); }}>
-                <strong>{o.name}</strong><small>{o.blurb}</small>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Table sharpness (per device, 3D only) */}
-        {view === '3d' && 
-        <div className="space-y-3">
-          <h4 className="text-sm font-medium text-white/80">Table sharpness</h4>
-          <div className="graphics-quality" role="radiogroup" aria-label="Table sharpness">
-            {[
-              { id: 'auto', name: 'Auto', blurb: isPhoneLike() ? 'Battery saver on this device' : 'Sharp on this device' },
-              { id: 'saver', name: 'Battery saver', blurb: 'Less heat and battery, slightly softer' },
-              { id: 'sharp', name: 'Sharp', blurb: 'Crispest picture, uses more battery' },
-            ].map((o) => (
-              <button key={o.id} type="button" role="radio" aria-checked={quality === o.id}
-                className={`graphics-quality__option ${quality === o.id ? 'is-selected' : ''}`}
-                onClick={() => { setQualityLocal(o.id); setQuality(o.id); }}>
-                <strong>{o.name}</strong><small>{o.blurb}</small>
-              </button>
-            ))}
-          </div>
-          <p className="text-xs text-white/60">Saved on this device only.</p>
-        </div>}
 
         {/* Info Section */}
         <div className="p-3 bg-accent-blue/10 backdrop-blur-sm border border-accent-blue/30 rounded-xl">

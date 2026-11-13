@@ -61,7 +61,7 @@ function AskedCards({ m }) {
   const cards = m.cards?.length && m.variant !== "laydown" ? m.cards : m.card ? [m.card] : [];
   if (!cards.length) return null;
   return <span className="inline-flex items-center gap-1 align-middle flex-wrap">
-    {cards.map((c) => <Card key={`${c.suit}-${c.rank}`} suit={c.suit} rank={c.rank} size="xs" />)}
+    {cards.map((c) => <Card key={`${c.suit}-${c.rank}`} suit={c.suit} rank={c.rank} size="bubble" />)}
     <span className="text-xs opacity-80">({cards.map((c) => c.rank).join(", ")} of {cards[0].suit})</span>
   </span>;
 }
@@ -86,7 +86,8 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
         let top = head.top, bottom = head.bottom;
         // Only the seat's fixed parts: hover tags ("Ask for a card?") come and go and must not move the bubble.
         el.querySelectorAll('.game-seat__avatar, .game-seat__name, .game-seat__badge').forEach((c) => { const b = c.getBoundingClientRect(); if (b.width && b.height) { top = Math.min(top, b.top); bottom = Math.max(bottom, b.bottom); } });
-        const place = "above";   // always over the player's head
+        // Over the player's head, unless the seat is too near the top of the screen for a bubble (top row on short screens).
+        const place = top - 12 < 110 ? "below" : "above";
         let x = head.left + head.width / 2;
         const y = place === "above" ? top - 12 : bottom + 12;
         const reach = place === "above" ? head.top + 2 - y : y - (head.bottom - 2);
@@ -139,7 +140,7 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
           content = (
             // Just the asked card(s) and a question mark: the tail shows who is asking.
             <div className="ask-bubble flex items-center gap-1.5">
-              {(m.cards?.length ? m.cards : m.card ? [m.card] : []).map((c) => <Card key={`${c.suit}-${c.rank}`} suit={c.suit} rank={c.rank} size="xs" />)}
+              {(m.cards?.length ? m.cards : m.card ? [m.card] : []).map((c) => <Card key={`${c.suit}-${c.rank}`} suit={c.suit} rank={c.rank} size="bubble" />)}
               <span className="ask-bubble__q">?</span>
             </div>
           );

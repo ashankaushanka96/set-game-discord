@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store';
 import { send } from '../../ws';
@@ -428,6 +428,7 @@ export default function Table() {
     (['2','3','4','5','6','7'].includes(c.rank) ? 'lower' : 'upper') === layPick.setType) : null;
   const shownSelection = layShown || selectedCardsToPass;
 
+  const BannerSlot = use3d ? Fragment : 'div';
   const handleTableClick = () => window.dispatchEvent(new Event('dismiss_passed_cards'));
 
   // Show spectator view if player is a spectator
@@ -723,7 +724,8 @@ export default function Table() {
        <div className="game-hand-dock">
          {/* Flat table: the banner row always keeps its space, so the dock (and the table above it)
              never changes height as banners come and go. The 3D room is left as it was. */}
-         <div className={use3d ? 'contents' : 'dock-banner-slot'}>
+         {/* (3D: no wrapper at all, so the 3D room's banner styles still apply) */}
+         <BannerSlot {...(use3d ? {} : { className: 'dock-banner-slot' })}>
          {/* While a bot is holding its move, the countdown + Continue takes the turn banner's place */}
          {awaitingStart && !dealingAnimation && (
            <div className="bot-wait start-play" role="status">
@@ -748,7 +750,7 @@ export default function Table() {
               : <span>{turnPlayer.name}'s turn</span>}
         </div>
       )}
-         </div>
+         </BannerSlot>
 
          {/* Player Hand */}
          <div className="game-hand-wrap flex flex-col items-center">

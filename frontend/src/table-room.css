@@ -454,7 +454,7 @@
 
 /* Flat table: a dock of fixed height from before the deal onwards. The banner row keeps its slot
    even when empty, and the hand keeps its height while dealing or empty. (3D room untouched.) */
-.card-room:not(.room-3d) .dock-banner-slot { height:48px; flex:0 0 48px; display:flex; align-items:center; justify-content:center; width:100%; }
+.card-room:not(.room-3d) .dock-banner-slot { height:48px; min-height:48px; flex:0 0 100%; display:flex; align-items:center; justify-content:center; width:100%; }
 .card-room:not(.room-3d) .dock-banner-slot > * { margin-top:0; margin-bottom:0; }
 @media (max-width:767px) {
   .card-room:not(.room-3d) .game-hand-wrap { min-height:140px; justify-content:center; }
@@ -478,3 +478,35 @@
    under it, so the hand area (and the table above) is the same height before and after the deal. */
 .card-room:not(.room-3d) .player-hand { position:relative; }
 .card-room:not(.room-3d) .player-hand > .hand-status { position:absolute; left:0; right:0; top:50%; margin:0; text-align:center; pointer-events:none; }
+@media (max-width:767px) { .card-room .dock-banner-slot > .turn-banner { padding-top:4px; padding-bottom:4px; } }
+
+/* Flat table: labels under the bottom seats ("Ask for a card ?") show over the top edge of the
+   hand area instead of being hidden behind it. */
+.card-room:not(.room-3d) .game-stage { z-index:3; }
+/* Flat table on short landscape screens (desktop Discord with voice tiles): no room for the title
+   above the scores, as in the 3D room. */
+@media (max-height:550px) and (orientation:landscape) {
+  .card-room:not(.room-3d) .game-room-heading { display:none; }
+}
+/* 3D room: while the turn / bot banner is up it sits where the "Round in play" line is; hide that line. */
+.card-room.room-3d .game-hand-dock:has(> .turn-banner, > .bot-wait) .game-hand-status { visibility:hidden; }
+
+/* Flat table on desktop: the card row keeps a card's height when empty, so the hand area (and the
+   table) is the same size before and after the deal; side room so the end cards aren't clipped. */
+@media (min-width:768px) {
+  .card-room:not(.room-3d) .player-hand__cards { min-height:88px; }
+  .card-room:not(.room-3d) .player-hand__scroll { padding:18px 20px 14px; }
+  .card-room:not(.room-3d) .game-hand-wrap { min-height:120px; justify-content:center; }
+  .card-room:not(.room-3d) .game-stage { min-height:0; }
+  .card-room:not(.room-3d) .dock-banner-slot { height:40px; min-height:40px; }
+  .card-room:not(.room-3d) .game-hand-status { display:none; }
+  .card-room:not(.room-3d) .table-top-scores { position:absolute; top:12px; left:25%; right:25%; padding:0; }   /* in the top bar, as in 3D */
+  .card-room:not(.room-3d) .table-top-scores .match-score-strip { display:none; }
+  .card-room:not(.room-3d) .felt-table { width:68% !important; height:66% !important; }
+  .card-room:not(.room-3d) .game-stage { padding-top:26px; padding-bottom:14px; }   /* top seat clear of the scores */
+}
+/* Flat table on narrow desktop windows: the cards overlap a little so a full hand fits without scrolling. */
+@media (min-width:768px) and (max-width:1100px) {
+  .card-room:not(.room-3d) .player-hand__cards { gap:0; }
+  .card-room:not(.room-3d) .player-hand__cards > * + * { margin-left:-14px; }
+}
