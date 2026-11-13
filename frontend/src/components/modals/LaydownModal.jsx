@@ -217,7 +217,13 @@ export default function LaydownModal({ onClose, onPenalty, initialPick = null })
     });
   }
 
-  // Started from the Lay button: nothing is shown to the table until the player confirms.
+  const [setConfirmed, setSetConfirmed] = useState(false);
+  function confirmSet() {
+    send(ws, "bubble_message", { player_id: me.id, variant: "laydown_set", suit: pick.suit, set_type: pick.setType });
+    setSetConfirmed(true);
+  }
+
+  // Started from the Lay button: the cards are shown only once the player confirms.
   function confirmStart() {
     send(ws, "bubble_message", {
       player_id: me.id,
@@ -288,6 +294,22 @@ export default function LaydownModal({ onClose, onPenalty, initialPick = null })
     return () => window.removeEventListener("laydown_seat_pick", onSeat);
   }, [step, activeRank, mateIds, neededRanks, collabRanks]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Started from the hand, the table sees the same three steps as a bot's laydown:
+  // "Going to Laydown" -> the chosen set -> my cards of it.
+  if (step === 1 && initialPick && !setConfirmed) {
+    return (
+      <div className="laydown-tablepick" role="dialog" aria-label="Confirm the set">
+        <div className="laydown-tablepick__head laydown-tablepick__head--plain">
+          <strong>Is the set <span className="capitalize">{pick.suit}</span> {pick.setType}?</strong>
+          <span>The table will see which set you are laying down.</span>
+        </div>
+        <div className="laydown-tablepick__foot">
+          <button type="button" className="club-secondary laydown-tablepick__no" onClick={handleClose}>Cancel</button>
+          <button type="button" className="club-primary" onClick={confirmSet}>Yes, this set</button>
+        </div>
+      </div>
+    );
+  }
   if (step === 1 && initialPick) {
     return (
       <div className="laydown-tablepick" role="dialog" aria-label="Confirm laydown">

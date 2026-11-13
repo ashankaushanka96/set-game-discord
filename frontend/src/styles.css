@@ -655,7 +655,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .laydown-tablepick__cards small { font-size: 10px; line-height: 12px; color: #9fb0a6; max-width: 48px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .laydown-tablepick__cards button.is-set small { color: #6ee7a8; font-weight: 600; }
 .laydown-tablepick__foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; color: #c9d3c6; }
-.laydown-tablepick__foot .club-primary { padding: 7px 20px; }
+.laydown-tablepick__foot .club-primary { padding: 7px 20px; border-radius: 10px; font-size: 13px; }
 .laydown-tablepick__foot span.is-warning { color: #ffb4a8; }
 .laydown-tablepick__foot .club-primary { white-space: nowrap; flex-shrink: 0; }
 .laydown-tablepick__foot .club-primary.is-risky { background: #5f1d1d; color: #ffd2cf; border-color: #f8717188; }

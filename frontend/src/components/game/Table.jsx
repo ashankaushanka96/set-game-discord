@@ -297,17 +297,11 @@ export default function Table() {
   useEffect(() => { if (isTurnPlay && !myTurn) setSelectedCardsToPass([]); }, [isTurnPlay, myTurn]);
   // Lay is only live once the selected cards belong to exactly one set.
   const laySets = new Set(selectedCardsToPass.map((c) => `${c.suit}|${['2','3','4','5','6','7'].includes(c.rank) ? 'lower' : 'upper'}`));
-  const layReady = !layLocked && !layOpen && laySets.size === 1 && (() => {
-    // ...and every card of that set in this hand is selected
-    const [suit, type] = [...laySets][0].split('|');
-    const inSet = (c) => c.suit === suit && (['2','3','4','5','6','7'].includes(c.rank) ? 'lower' : 'upper') === type;
-    return (my?.hand || []).filter(inSet).length === selectedCardsToPass.length;
-  })();
+  const layReady = !layLocked && !layOpen && laySets.size === 1;   // one card of a set is enough to start
   const startLaydown = () => {
     if (layLocked || layOpen) return;
     const sets = new Set(selectedCardsToPass.map((c) => `${c.suit}|${['2','3','4','5','6','7'].includes(c.rank) ? 'lower' : 'upper'}`));
     if (sets.size !== 1) { setLayHint(sets.size ? 'mixed' : 'pick'); return; }
-    if (!layReady) { setLayHint('partial'); return; }
     const [suit, setType] = [...sets][0].split('|');
     setLayHint(null);
     setLayPick({ suit, setType });
@@ -315,6 +309,11 @@ export default function Table() {
     setLayOpen(true);
   };
 
+
+  // While laying down, the hand shows every card of that set raised as selected (display only).
+  const layShown = layOpen && layPick ? (my?.hand || []).filter((c) => c.suit === layPick.suit &&
+    (['2','3','4','5','6','7'].includes(c.rank) ? 'lower' : 'upper') === layPick.setType) : null;
+  const shownSelection = layShown || selectedCardsToPass;
 
   const handleTableClick = () => window.dispatchEvent(new Event('dismiss_passed_cards'));
 
@@ -350,7 +349,7 @@ export default function Table() {
           mySeatIndex={mySeatIndex}
           ask={pendingAsk}
           hand={handSorted}
-          selectedKeys={selectedCardsToPass.map((c) => `${c.suit}-${c.rank}`)}
+          selectedKeys={shownSelection.map((c) => `${c.suit}-${c.rank}`)}
           handTappable={!dealingAnimation && state.phase === 'playing' && ws?.readyState === 1 && !layOpen && (isTurnPlay ? myTurn : true)}
           onCardTap={handleHandCardClick}
           dragPass={!dealingAnimation && !isTurnPlay && state.phase === 'playing' && ws?.readyState === 1 && !layOpen}
@@ -648,7 +647,7 @@ export default function Table() {
          <div className="game-hand-wrap flex flex-col items-center">
            <PlayerHand 
              cards={my?.hand || []} 
-             selectedCards={selectedCardsToPass}
+             selectedCards={shownSelection}
              onCardSelect={handleHandCardClick}
              selectable={!isTurnPlay && state.phase === 'playing' && ws?.readyState === 1}
              tapSelect={isTurnPlay && myTurn && !layOpen}
@@ -780,7 +779,7 @@ export default function Table() {
        {/* Laydown Button - Fixed in bottom right corner */}
        {(state.phase === 'playing' || state.phase === 'ready') && (<>
          {layHint && !layOpen && <div className="lay-hint" role="status">
-           <span>{layHint === 'mixed' ? 'Select cards from one set only, then tap Lay.' : layHint === 'partial' ? 'Select all of your cards of that set, then tap Lay.' : 'Select all of your cards of one set, then tap Lay.'}</span>
+           <span>{layHint === 'mixed' ? 'Select cards from one set only, then tap Lay.' : layHint === 'partial' ? 'Select all of your cards of that set, then tap Lay.' : 'Select a card of the set you want to lay down, then tap Lay.'}</span>
          </div>}
          <div className="game-laydown-action">
            <button
