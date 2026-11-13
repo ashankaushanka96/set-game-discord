@@ -41,7 +41,7 @@ export default function SeatSelector({ players, me, speakingUsers, adminId }) {
             <MakeAdmin player={player} me={me} adminId={adminId} />
           </div> : <button key={seat} type="button" className="lobby-seat lobby-seat--empty" disabled={!me}
             onClick={() => send(ws, 'select_seat', { player_id: me.id, seat, team })}>
-            <span className="lobby-seat__plus" aria-hidden="true">+</span><span><strong>Join</strong><small>Seat {seat + 1}</small></span>
+            <span className="lobby-seat__plus" aria-hidden="true"><svg viewBox="0 0 16 16" width="45%" height="45%"><path d="M8 2v12M2 8h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg></span><span><strong>Join</strong><small>Seat {seat + 1}</small></span>
           </button>;
         })}
       </div>
