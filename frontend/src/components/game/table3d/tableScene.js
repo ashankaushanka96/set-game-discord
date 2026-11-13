@@ -5,6 +5,7 @@
 // Players, bubbles, arrows and every button stay ordinary page elements on top; this
 // module tells the page where each seat sits on screen.
 import * as THREE from 'three';
+import { isLightGraphics } from './graphicsQuality';
 
 const SUIT = { hearts: ['♥', '#c0283a'], diamonds: ['♦', '#c0283a'], clubs: ['♣', '#1c2430'], spades: ['♠', '#1c2430'] };
 const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
@@ -73,11 +74,18 @@ const faceTexture = (rank, suit, onReady) => {
 };
 
 
-export function createGameTable3D(container, { portrait, onLift }) {
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+// Looping touches (speaking rings, spotlights) run at about 30 frames a second; card moves stay at full rate.
+const AMBIENT_FRAME_MS = 1000 / 30 - 2;
+
+export function createGameTable3D(container, { portrait, onLift, quality = 'auto' }) {
+  // Battery saver (Settings → Table sharpness; on phones by default): draw at 1.5x instead of 2x
+  // (about 45% fewer pixels), skip antialiasing and use a cheaper, smaller shadow map.
+  const LIGHT = isLightGraphics(quality);
+  const PIXEL_RATIO = Math.min(window.devicePixelRatio || 1, LIGHT ? 1.5 : 2);
+  const renderer = new THREE.WebGLRenderer({ antialias: !LIGHT, powerPreference: LIGHT ? 'low-power' : 'default' });
+  renderer.setPixelRatio(PIXEL_RATIO);
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = LIGHT ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   Object.assign(renderer.domElement.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', pointerEvents: 'none' });
   container.prepend(renderer.domElement);
@@ -88,7 +96,7 @@ export function createGameTable3D(container, { portrait, onLift }) {
   const camera = new THREE.PerspectiveCamera(portrait ? 50 : 40, 1, 0.1, 100);
   scene.add(new THREE.HemisphereLight(0xf6f4e9, 0x344b45, 1.5));
   const lamp = new THREE.SpotLight(0xfff0d6, 85, 34, 0.8, 0.5, 1.6);
-  lamp.position.set(0.5, 8.5, 1.5); lamp.castShadow = true; lamp.shadow.mapSize.set(1024, 1024); lamp.shadow.bias = -0.0005;
+  lamp.position.set(0.5, 8.5, 1.5); lamp.castShadow = true; lamp.shadow.mapSize.set(LIGHT ? 512 : 1024, LIGHT ? 512 : 1024); lamp.shadow.bias = -0.0005;
   scene.add(lamp, lamp.target);
   const fill = new THREE.DirectionalLight(0x9fc4ff, 0.35); fill.position.set(-4, 5, 6); scene.add(fill);
 
@@ -344,7 +352,12 @@ export function createGameTable3D(container, { portrait, onLift }) {
   // a card picture finished loading: draw it (once per frame at most; nothing after dispose)
   let alive = true, repaintQueued = false;
   const repaint = () => { if (!alive || repaintQueued) return; repaintQueued = true; requestAnimationFrame(() => { repaintQueued = false; if (alive) render(); }); };
+  let lastDraw = 0;
   function tick(now) {
+    // Only looping touches running (no card moving, no shuffle): every other frame is enough.
+    const ambient = !tweens.length && !(dealing && dealing.shuffleTime < SHUFFLE_SECONDS);
+    if (ambient && now - lastDraw < AMBIENT_FRAME_MS) { lastT = now; raf = requestAnimationFrame(tick); return; }
+    lastDraw = now;
     const dt = Math.min((now - lastT) / 1000, 0.05); lastT = now;
     if (dealing && dealing.shuffleTime < SHUFFLE_SECONDS) {
       dealing.shuffleTime = Math.min(SHUFFLE_SECONDS, dealing.shuffleTime + dt);
@@ -378,7 +391,13 @@ export function createGameTable3D(container, { portrait, onLift }) {
     render();
     raf = tweens.length || pointers.size || turnAnim || !voiceIdle ? requestAnimationFrame(tick) : 0;
   }
-  function kick() { if (!raf) { lastT = performance.now(); raf = requestAnimationFrame(tick); } }
+  function kick() { if (!raf && !document.hidden) { lastT = performance.now(); raf = requestAnimationFrame(tick); } }
+  // Nothing to draw while the app is in the background; pick up again when it's back.
+  const onVisibility = () => {
+    if (document.hidden) { cancelAnimationFrame(raf); raf = 0; }
+    else if (alive) { kick(); render(); }
+  };
+  document.addEventListener('visibilitychange', onVisibility);
   function fly(mesh, from, to, o = {}) {
     if (!o.keepVisible) mesh.visible = false;      // cards already on screen keep showing while they slide
     mesh.position.copy(from); mesh.rotation.set(o.rx0 ?? 0, o.ry0 ?? 0, o.rz0 ?? 0);
@@ -887,7 +906,7 @@ export function createGameTable3D(container, { portrait, onLift }) {
   };
   // The hand is drawn on its own see-through layer that the page puts above the players' seats,
   // so the cards in front of the player cover their own avatar like real held cards.
-  const handRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  const handRenderer = new THREE.WebGLRenderer({ antialias: !LIGHT, alpha: true, powerPreference: LIGHT ? 'low-power' : 'default' });
   handRenderer.setPixelRatio(renderer.getPixelRatio());
   handRenderer.outputColorSpace = THREE.SRGBColorSpace;
   handRenderer.setClearColor(0x000000, 0);
@@ -1090,7 +1109,7 @@ export function createGameTable3D(container, { portrait, onLift }) {
     lay,
     startDeal, stopDeal, pass, clearRest, setPointers, setTurn,
     dispose() {
-      alive = false; cancelAnimationFrame(raf); cancelAnimationFrame(resetRaf); pointers.forEach(dropPointer); pointers.clear(); beamTex.dispose(); poolTex.dispose(); askHook.dispose(); askDot.dispose(); askCap.dispose(); askGold.dispose(); turnBeam.geometry.dispose(); turnPool.geometry.dispose(); turnBeamMat.dispose(); turnPoolMat.dispose(); timers.forEach((id) => clearTimeout(id)); tweens.length = 0;
+      alive = false; document.removeEventListener('visibilitychange', onVisibility); cancelAnimationFrame(raf); cancelAnimationFrame(resetRaf); pointers.forEach(dropPointer); pointers.clear(); beamTex.dispose(); poolTex.dispose(); askHook.dispose(); askDot.dispose(); askCap.dispose(); askGold.dispose(); turnBeam.geometry.dispose(); turnPool.geometry.dispose(); turnBeamMat.dispose(); turnPoolMat.dispose(); timers.forEach((id) => clearTimeout(id)); tweens.length = 0;
       scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); for (const m of [].concat(o.material || [])) { m.map?.dispose(); m.dispose(); } });
       faceMats.forEach((m) => { m.map?.dispose(); m.dispose(); });
       handFaceMats.forEach((m) => { m.map?.dispose(); m.dispose(); });

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useStore } from '../../store';
 import emojiSoundManager from '../../utils/sounds';
 import { setTTSEnabled, isTTSAvailable } from '../../utils/tts';
+import { getQuality, setQuality, isPhoneLike } from './table3d/graphicsQuality';
 import GlassmorphismModal from '../ui/GlassmorphismModal';
 
 async function safeForceInitAudio() {
@@ -108,13 +109,15 @@ export default function EmojiSettings({ isOpen, onClose }) {
     saveSettings({ ...settings, reduceMotion: newReduceMotion });
   };
 
+  const [quality, setQualityLocal] = useState(getQuality);
+
   if (!isOpen) return null;
 
   return (
     <GlassmorphismModal isOpen={isOpen} onClose={onClose} size="md">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-white">Emoji Settings</h3>
+        <h3 className="text-lg font-semibold text-white">Settings</h3>
         <button
           onClick={onClose}
           className="text-white/70 hover:text-white transition-colors p-1"
@@ -244,6 +247,25 @@ export default function EmojiSettings({ isOpen, onClose }) {
               </div>
             )}
           </div>
+
+        {/* Table sharpness (per device) */}
+        <div className="space-y-3">
+          <h4 className="text-sm font-medium text-white/80">Table sharpness</h4>
+          <div className="graphics-quality" role="radiogroup" aria-label="Table sharpness">
+            {[
+              { id: 'auto', name: 'Auto', blurb: isPhoneLike() ? 'Battery saver on this device' : 'Sharp on this device' },
+              { id: 'saver', name: 'Battery saver', blurb: 'Less heat and battery, slightly softer' },
+              { id: 'sharp', name: 'Sharp', blurb: 'Crispest picture, uses more battery' },
+            ].map((o) => (
+              <button key={o.id} type="button" role="radio" aria-checked={quality === o.id}
+                className={`graphics-quality__option ${quality === o.id ? 'is-selected' : ''}`}
+                onClick={() => { setQualityLocal(o.id); setQuality(o.id); }}>
+                <strong>{o.name}</strong><small>{o.blurb}</small>
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-white/60">Saved on this device only.</p>
+        </div>
 
         {/* Info Section */}
         <div className="p-3 bg-accent-blue/10 backdrop-blur-sm border border-accent-blue/30 rounded-xl">

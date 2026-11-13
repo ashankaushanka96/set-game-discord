@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { createGameTable3D } from './tableScene';
+import { getQuality } from './graphicsQuality';
 import Card from '../../cards/Card';
 import { nearestPlayerAt } from '../cardDropTarget';
 import { useStore } from '../../../store';
@@ -45,6 +46,13 @@ export default function GameTable3D({ arenaRef, ids, counts, teams, sets, dealin
   const turnRel = shownTurnId && ids.indexOf(shownTurnId) >= 0 ? ids.indexOf(shownTurnId) : null;
   const table = useRef(null);
   const [portrait, setPortrait] = useState(null);
+  // Table sharpness from Settings: changing it rebuilds the table (antialiasing is fixed at creation)
+  const [quality, setQualityState] = useState(getQuality);
+  useEffect(() => {
+    const on = (e) => setQualityState(e.detail || getQuality());
+    window.addEventListener('graphics_quality', on);
+    return () => window.removeEventListener('graphics_quality', on);
+  }, []);
   const [turned, setTurned] = useState(false);
   const [setPositions, setSetPositions] = useState([]);
   const [inspected, setInspected] = useState(null);
@@ -108,7 +116,7 @@ export default function GameTable3D({ arenaRef, ids, counts, teams, sets, dealin
     if (portrait === null) return;
     let t;
     try {
-      t = createGameTable3D(host.current, { portrait, onLift: (rels) => {
+      t = createGameTable3D(host.current, { portrait, quality, onLift: (rels) => {
         // seats nearer to us than travelling cards sit above the hand layer those cards are drawn on
         arenaRef.current?.querySelectorAll(':scope > .table-seat-position').forEach((el) => {
           const rel = (Number(el.dataset.seat) - data.current.mySeatIndex + 6) % 6;
@@ -280,7 +288,7 @@ export default function GameTable3D({ arenaRef, ids, counts, teams, sets, dealin
       el.removeEventListener('wheel', wheel);
       table.current = null; t.dispose();
     };
-  }, [portrait]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [portrait, quality]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const key = JSON.stringify([counts, teams, sets.map((s) => [s.suit, s.set_type, s.owner_team])]);
   useEffect(() => {

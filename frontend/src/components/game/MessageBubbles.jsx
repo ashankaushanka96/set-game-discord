@@ -101,9 +101,8 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
     };
     compute();
     // Seats move when the 3D table turns or settles: follow them while any bubble is up.
-    let raf = 0;
-    const follow = () => { compute(); raf = requestAnimationFrame(follow); };
-    if (messages?.length) raf = requestAnimationFrame(follow);
+    // (a few times a second is plenty: seats only drift when the layout settles)
+    const follow = messages?.length ? setInterval(compute, 120) : 0;
     const onResize = () => compute();
     const onScroll = () => compute();
     window.addEventListener("resize", onResize);
@@ -111,7 +110,7 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
     return () => {
       window.removeEventListener("resize", onResize);
       window.removeEventListener("scroll", onScroll, true);
-      cancelAnimationFrame(raf);
+      clearInterval(follow);
     };
   }, [messages, seatVersion, seatEls]);
 

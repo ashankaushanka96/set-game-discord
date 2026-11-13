@@ -543,8 +543,8 @@ export default function Table() {
         </div>
       )}
 
-       <AskPointer seatEls={seatEls} seatVersion={seatVersion} ask={pendingAsk || voiceSpot} />
-       <FlowArrows seatEls={seatEls} seatVersion={seatVersion} />
+       {!use3d && <AskPointer seatEls={seatEls} seatVersion={seatVersion} ask={pendingAsk || voiceSpot} />}
+       {!use3d && <FlowArrows seatEls={seatEls} seatVersion={seatVersion} />}
        <MessageBubbles seatEls={seatEls} seatVersion={seatVersion} />
        <ChatBubble selectedCardsToPass={selectedCardsToPass} />
        {reactionAim && <div className="reaction-aim" role="status">
