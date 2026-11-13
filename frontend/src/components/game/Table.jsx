@@ -352,7 +352,7 @@ export default function Table() {
   const botWait = useStore((st) => st.botWait);
   const laydownPick = useStore((st) => st.laydownPick); // laying down: tap the teammate who holds this card
   const pendingAsk = isTurnPlay ? state.pending_ask : null;
-  // Voice Play with turn tracking: the same blue (turn) and gold (asked player) spotlights as Turn
+  // Voice Play with turn tracking: the same purple (turn) and gold (asked player) spotlights as Turn
   // Play, but the asking happens out loud. The turn player taps who they're asking; only that player
   // can then send cards (to the asker), or say they don't have it, which hands them the turn.
   const voiceTurns = !isTurnPlay && !!state.voice_turns && state.phase === 'playing';

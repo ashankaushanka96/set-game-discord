@@ -43,11 +43,11 @@ function arrowPath(g, p) {
 }
 
 // Arrow colours by meaning: gold = asking for a card, green = cards going into a laydown,
-// blue = the turn passing to another player.
+// purple = the turn passing to another player (blue and red are the team colours).
 const TONES = {
   ask: { from: '#f5a623', mid: '#ffd34d', tip: '#fff2b8', edge: '#6b3f00', glow: 'rgba(255,196,70,.65)', ring: '#ffd34d' },
   lay: { from: '#22c55e', mid: '#6ee7a8', tip: '#dcfce7', edge: '#064e2a', glow: 'rgba(110,231,168,.6)', ring: '#6ee7a8' },
-  turn: { from: '#38bdf8', mid: '#7dd3fc', tip: '#e0f2fe', edge: '#0c3b5a', glow: 'rgba(125,211,252,.65)', ring: '#7dd3fc' },
+  turn: { from: '#9b6cf5', mid: '#b98cff', tip: '#efe4ff', edge: '#2f1a5c', glow: 'rgba(185,140,255,.65)', ring: '#b98cff' },
 };
 
 export default function AskPointer({ seatEls, seatVersion, ask }) {

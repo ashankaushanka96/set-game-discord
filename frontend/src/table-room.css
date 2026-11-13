@@ -467,7 +467,7 @@
    see-through fill, so the colour reads at a glance and the face still shows. */
 .card-room:not(.room-3d) .game-seat--turn .game-seat__avatar::after,
 .card-room:not(.room-3d) .game-seat--asked .game-seat__avatar::after { content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:1; }
-.card-room:not(.room-3d) .game-seat--turn .game-seat__avatar::after { background:#8fd3ff4d; }
+.card-room:not(.room-3d) .game-seat--turn .game-seat__avatar::after { background:#b98cff4d; }
 .card-room:not(.room-3d) .game-seat--asked .game-seat__avatar::after { background:#ffd27a55; }
 
 /* Flat table: the asked seat has its own gold ring, so the ask arrow's extra circle (drawn above
@@ -510,3 +510,8 @@
   .card-room:not(.room-3d) .player-hand__cards { gap:0; }
   .card-room:not(.room-3d) .player-hand__cards > * + * { margin-left:-14px; }
 }
+
+/* Teams at a glance (3D and flat): each name tag is filled with the team colour, Team A blue and
+   Team B red. The turn is purple and the asked player gold, so no ring reads as a team. */
+.card-room .game-seat--a .game-seat__name, .room-3d .game-seat--a .game-seat__name { background:#2f5f8f !important; border:1px solid #9cc8f2 !important; color:#fff !important; }
+.card-room .game-seat--b .game-seat__name, .room-3d .game-seat--b .game-seat__name { background:#8f3a3a !important; border:1px solid #f2a7a2 !important; color:#fff !important; }

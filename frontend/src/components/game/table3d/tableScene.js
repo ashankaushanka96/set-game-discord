@@ -581,7 +581,7 @@ export function createGameTable3D(container, { portrait, onLift, quality = 'auto
   // ---- Whose turn it is (Turn Play): a cool spotlight on that player, a cone of light from above
   // and a pool at their chair. When the turn passes it glides around the table to the next player
   // (dimming a little on the way), and it fades in and out when Turn Play starts or stops. ----
-  const TURN_COLOR = 0x8fd3ff;
+  const TURN_COLOR = 0xb98cff;
   const turnBeamMat = glowMat(TURN_COLOR, beamTex, 0), turnPoolMat = glowMat(TURN_COLOR, poolTex, 0);
   const turnBeam = makeBeam(turnBeamMat);
   const turnPool = new THREE.Mesh(new THREE.CircleGeometry(1.4, 48), turnPoolMat);

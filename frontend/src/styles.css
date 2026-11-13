@@ -778,7 +778,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
 /* Flat (2D) table: the same spotlights as the 3D room, drawn as still rings (nothing loops).
    Blue: whose turn it is. Gold: the player being asked. */
-.card-room:not(.room-3d) .game-seat--turn { border-color: #8fd3ff !important; box-shadow: 0 0 0 4px #8fd3ff, 0 0 18px 4px #8fd3ff66 !important; animation: none !important; }
+.card-room:not(.room-3d) .game-seat--turn { border-color: #b98cff !important; box-shadow: 0 0 0 4px #b98cff, 0 0 18px 4px #b98cff66 !important; animation: none !important; }
 .card-room:not(.room-3d) .game-seat--asked { border-color: #ffd27a !important; box-shadow: 0 0 0 4px #ffd27a, 0 0 18px 4px #ffd27a66 !important; animation: none !important; }
 .card-room:not(.room-3d) .game-seat--selectable { animation: none; box-shadow: 0 0 0 3px #dfbf7955; }
 .card-room:not(.room-3d) .ask-arrow__ring { animation: none; }

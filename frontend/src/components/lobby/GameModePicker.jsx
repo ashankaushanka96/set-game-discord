@@ -33,7 +33,7 @@ export function LobbySetting({ label, options, current, isAdmin, adminName, onPi
 
 export const VOICE_TURNS = [
   { id: "off", name: "Free", icon: "🗣️", blurb: "Anyone can ask any time; cards are passed freely." },
-  { id: "on", name: "Track turns", icon: "🔦", blurb: "Blue spotlight on whose turn it is. They tap who they're asking (gold spotlight); only that player can send cards." },
+  { id: "on", name: "Track turns", icon: "🔦", blurb: "Purple spotlight on whose turn it is. They tap who they're asking (gold spotlight); only that player can send cards." },
 ];
 
 export default function GameModePicker({ state, me }) {
