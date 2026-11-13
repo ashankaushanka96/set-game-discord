@@ -77,9 +77,6 @@ body .playing-card.playing-card--art > img { display:block; width:100%; height:1
 /* 3D table: whose turn it is shows as a spotlight in the scene, so the seat's 2D glow is dropped. */
 .room-3d .game-seat--turn { border-color:#84b2dc66 !important; box-shadow:none; animation:none; }
 .room-3d .game-seat--turn.game-seat--b { border-color:#dc9b9a66 !important; }
-/* 3D table: the asked card(s) float over to the asked player, so the "Do you have…" bubble would only repeat it.
-   Answer bubbles ("No." and the rest) still show. */
-.room-3d .club-bubble--ask { display:none; }
 
 /* Desktop / landscape: the ask dialog lies flat across the top (suits side by side, the cards and the
    Ask button on one row) and doesn't blur what's behind it, so your hand stays in view below it. */
@@ -107,3 +104,26 @@ body .playing-card.playing-card--art > img { display:block; width:100%; height:1
 .laydown-points3d span { font:600 17px system-ui, sans-serif; letter-spacing:.04em; margin-left:4px; vertical-align:middle; }
 .laydown-points3d--a { color:#8cc4ff; text-shadow:0 2px 0 #1d3f63, 0 0 22px #5fa8f0aa; }
 .laydown-points3d--b { color:#ff9fae; text-shadow:0 2px 0 #6b2430, 0 0 22px #f07a8caa; }
+
+/* 3D table: speech bubbles are raised glass tiles. See-through and frosted (the table blurs behind them),
+   tinted by tone, with a bright top rim, a thin glass edge underneath for depth, and a pop in that tilts toward you. */
+.room-3d .club-bubble { --bubble-tint:47,110,82; --bubble-bg:rgba(var(--bubble-tint),.42); --bubble-side:rgba(var(--bubble-tint),.55);
+  background:linear-gradient(170deg, rgba(255,255,255,.22) 0%, rgba(var(--bubble-tint),.38) 45%, rgba(var(--bubble-tint),.24) 100%);
+  backdrop-filter:blur(12px) saturate(1.6); -webkit-backdrop-filter:blur(12px) saturate(1.6);
+  border:1px solid rgba(255,255,255,.35); border-bottom-color:rgba(255,255,255,.12);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.6), inset 0 -1px 0 rgba(255,255,255,.12), 0 3px 0 var(--bubble-side), 0 14px 26px -8px #0009;
+  text-shadow:0 1px 2px #0009;
+  scale:1; rotate:x 0deg; transform-origin:50% 100%;
+  animation:bubble3dIn .42s cubic-bezier(.2,1.5,.4,1) both; }
+.room-3d .club-bubble::before { content:''; position:absolute; left:8px; right:8px; top:2px; height:45%; border-radius:12px 12px 50% 50% / 12px 12px 30% 30%;
+  background:linear-gradient(180deg,rgba(255,255,255,.28),rgba(255,255,255,0)); pointer-events:none; }
+.room-3d .club-bubble > *:not(svg) { position:relative; }
+.room-3d .club-bubble--ask { --bubble-tint:184,138,42; }
+.room-3d .club-bubble--success { --bubble-tint:46,160,92; }
+.room-3d .club-bubble--error { --bubble-tint:196,64,64; }
+.room-3d .club-bubble .seat-bubble-tail path { fill:rgba(var(--bubble-tint),.4); stroke:rgba(255,255,255,.3); }
+@keyframes bubble3dIn { 0% { scale:.4; rotate:x 70deg; opacity:0; } 60% { opacity:1; } 100% { scale:1; rotate:x 0deg; opacity:1; } }
+@media (prefers-reduced-motion: reduce) { .room-3d .club-bubble { animation:none; } }
+
+/* Ask bubble: the asked card(s) and a big question mark. */
+.ask-bubble__q { font:700 26px/1 Georgia, serif; color:#ffe08a; text-shadow:0 2px 0 #0006; margin-left:2px; }

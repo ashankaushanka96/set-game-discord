@@ -6,33 +6,37 @@ import { Card, FannedCards } from "../cards";
 // when the bubble has been shifted inward to fit a narrow screen.
 function SeatMessageBubble({ message, anchor, theme, ownerName, children }) {
   const bubbleRef = useRef(null);
-  const [tail, setTail] = useState({ base: 0, tip: 0 });
+  const [tail, setTail] = useState({ base: 0, tip: 0, left: anchor.x });
   useLayoutEffect(() => {
     const el = bubbleRef.current;
     const update = () => {
-      const rect = el.getBoundingClientRect();
-      const tip = anchor.seatX - rect.left;
-      setTail({ tip, base: Math.max(18, Math.min(rect.width - 18, tip)) });
+      // Layout size, not the on-screen box: the bubble may still be mid pop-in (scaled).
+      // Centred over the head, nudged in only as far as needed to stay on screen.
+      const w = el.offsetWidth, vw = window.innerWidth;
+      const left = Math.max(8, Math.min(vw - w - 8, anchor.seatX - w / 2)), tip = anchor.seatX - left;
+      setTail({ left, tip, base: Math.max(18, Math.min(w - 18, tip)) });
     };
     update();
     const observer = new ResizeObserver(update);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [anchor.x, anchor.y, anchor.seatX, anchor.place]);
+  }, [anchor.x, anchor.y, anchor.seatX, anchor.place, anchor.reach]);
   const above = anchor.place === 'above';
-  const edge = above ? 0 : 14;
-  const tipY = above ? 14 : 0;
+  // The tail runs all the way from the bubble to the player's head.
+  const reach = Math.max(10, anchor.reach || 14);
+  const edge = above ? 0 : reach;
+  const tipY = above ? reach : 0;
   return <div ref={bubbleRef}
     className={`fixed z-[90] pointer-events-none rounded-2xl border ${theme} text-white px-4 py-3 shadow-lg`}
     aria-label={message.variant?.startsWith('laydown_') ? `Laydown from ${ownerName}` : undefined}
-    style={{ left: anchor.x, top: anchor.y,
-      transform: above ? 'translate(-50%,-100%)' : 'translate(-50%,0)',
+    style={{ left: Math.round(tail.left), top: anchor.y,
+      transform: above ? 'translateY(-100%)' : undefined,
       whiteSpace: 'normal', width: 'max-content',
       maxWidth: 'min(280px, calc(100vw - 32px))', overflowWrap: 'anywhere',
       animation: message.sticky === false ? 'bubbleFadeOut 0.6s ease forwards' : undefined,
       animationDelay: message.sticky === false ? '5s' : undefined,
     }}>
-    <svg className="seat-bubble-tail" aria-hidden="true" width="100%" height="14"
+    <svg className="seat-bubble-tail" aria-hidden="true" width="100%" height={reach}
       style={{ position: 'absolute', left: 0, overflow: 'visible', ...(above ? { top: '100%' } : { bottom: '100%' }) }}>
       <path d={`M ${tail.base - 8} ${edge} L ${tail.tip} ${tipY} L ${tail.base + 8} ${edge}`}
         fill="var(--bubble-bg, #253b30)" stroke="var(--bubble-border)" strokeWidth="1" strokeLinejoin="round" />
@@ -77,22 +81,28 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
       (messages || []).forEach((m) => {
         const el = seatEls.current?.[m.player_id];
         if (!el) return;
-        const r = el.getBoundingClientRect();
-        // Decide placement
-        const place = r.top < 120 ? "below" : "above";
-        // Position base point
-        let x = r.left + r.width / 2;
-        let y = place === "above" ? r.top - 16 : r.bottom + 16;
+        // Anchor on the avatar (the head) and keep clear of the whole badge, name tag included.
+        const head = (el.querySelector('.game-seat__avatar') || el).getBoundingClientRect();
+        let top = head.top, bottom = head.bottom;
+        el.querySelectorAll('*').forEach((c) => { const b = c.getBoundingClientRect(); if (b.width && b.height) { top = Math.min(top, b.top); bottom = Math.max(bottom, b.bottom); } });
+        const place = top < 120 ? "below" : "above";
+        let x = head.left + head.width / 2;
+        const y = place === "above" ? top - 12 : bottom + 12;
+        const reach = place === "above" ? head.top + 2 - y : y - (head.bottom - 2);
         // Clamp X so the bubble never leaves viewport
         const pad = Math.min(156, viewportW / 2);
         if (x < pad) x = pad;
         if (x > viewportW - pad) x = viewportW - pad;
         // Whole pixels only: a bubble placed on a half pixel renders its cards slightly soft.
-        next[m.id] = { x: Math.round(x), y: Math.round(y), place, seatX: r.left + r.width / 2 };
+        next[m.id] = { x: Math.round(x), y: Math.round(y), place, seatX: head.left + head.width / 2, reach: Math.round(reach) };
       });
-      setPos(next);
+      setPos((prev) => JSON.stringify(prev) === JSON.stringify(next) ? prev : next);
     };
     compute();
+    // Seats move when the 3D table turns or settles: follow them while any bubble is up.
+    let raf = 0;
+    const follow = () => { compute(); raf = requestAnimationFrame(follow); };
+    if (messages?.length) raf = requestAnimationFrame(follow);
     const onResize = () => compute();
     const onScroll = () => compute();
     window.addEventListener("resize", onResize);
@@ -100,6 +110,7 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
     return () => {
       window.removeEventListener("resize", onResize);
       window.removeEventListener("scroll", onScroll, true);
+      cancelAnimationFrame(raf);
     };
   }, [messages, seatVersion, seatEls]);
 
@@ -120,34 +131,29 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
       )}
       {items.map((m) => {
         const asker = players[m.player_id];
-        const target = players[m.target_id];
         const xy = pos[m.id];
         if (!xy) return null;
 
         let content = null;
         if (m.variant === "ask") {
           content = (
-            <div className="text-sm">
-              <span className="font-semibold">{target?.name || "Player"}</span>
-              <span className="opacity-80">, do you have</span>{" "}
-              <AskedCards m={m} />
-              <span className="opacity-80">?</span>
+            // Just the asked card(s) and a question mark: the tail shows who is asking.
+            <div className="ask-bubble flex items-center gap-1.5">
+              {(m.cards?.length ? m.cards : m.card ? [m.card] : []).map((c) => <Card key={`${c.suit}-${c.rank}`} suit={c.suit} rank={c.rank} size="xs" />)}
+              <span className="ask-bubble__q">?</span>
             </div>
           );
         } else if (m.variant === "yes") {
           content = (
             <div className="text-sm">
-              <span className="font-semibold">{asker?.name || "Player"}</span>
-              <span className="opacity-80">: Yes, I have.</span>{" "}
+              <span>Yes, I have.</span>{" "}
               <AskedCards m={m} />
             </div>
           );
         } else if (m.variant === "no") {
           content = (
             <div className="text-sm">
-              <span className="font-semibold">{asker?.name || "Player"}</span>
-              <span className="opacity-80">: No.</span>{" "}
-              <AskedCards m={m} />
+              <span>No.</span>
             </div>
           );
         } else if (m.variant === "laydown_start") {
@@ -211,8 +217,7 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
         } else {
           content = (
             <div className="text-sm">
-              <span className="font-semibold">{asker?.name || "Player"}</span>
-              <span className="opacity-80">: {m.text}</span>
+              {m.text}
             </div>
           );
         }

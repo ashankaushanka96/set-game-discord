@@ -12,6 +12,7 @@ import BotLevelPicker, { getBotLevel } from "./BotLevelPicker";
 import { generateUUID } from "../../utils/uuid";
 import { DiscordSDK, Events }  from "@discord/embedded-app-sdk";
 import { readyDiscordSDK } from "../../utils/discordSdkSingleton";
+import { watchVoiceState } from "../../utils/speaking";
 import { discordAvatarUrl } from "../../utils/discord";
 import { TEST_MODE_ENABLED } from "../../config";
 import { getStoredDiscordToken, storeDiscordToken, clearStoredDiscordToken, fetchDiscordUser } from "../../utils/discordAuth";
@@ -245,6 +246,7 @@ export default function Lobby() {
 
         try {
           await trySubscribe();
+          watchVoiceState(discordSdk, Events, subArgs, startHandler, stopHandler);
           if (!cancelled) console.debug('[Discord] Speaking subscriptions active');
           return;
         } catch (subErr) {
@@ -268,6 +270,7 @@ export default function Lobby() {
             storeDiscordToken(access_token);
             await discordSdk.commands.authenticate({ access_token });
             await trySubscribe();
+            watchVoiceState(discordSdk, Events, subArgs, startHandler, stopHandler);
             if (!cancelled) console.debug('[Discord] Speaking subscriptions active after re-auth');
           } else {
             console.warn('[Discord] Voice re-auth token exchange failed');

@@ -525,7 +525,7 @@ export default function Table() {
                style={use3d && layout3d ? {left:`${layout3d.center.x}px`,top:`${layout3d.center.y}px`,transform:'translate(-50%, -50%)'} : {left:'50%',top:'50%',transform:'translate(-50%, -50%)'}}>
               <div className="table-hallmark" aria-hidden="true"><span>♠</span><strong>SET CLUB</strong><small>THE TABLE IS YOURS</small></div>
               {/* Shuffle & Deal button - show for current dealer when game is ready, ended, or when no cards are dealt, but NOT when game is actively playing */}
-              {!state.match_finished && me?.id === state.current_dealer && state.phase !== 'playing' && (state.phase === 'ready' || state.phase === 'ended' || !state.deck_count || state.deck_count === 0 || !my?.hand?.length) && (
+              {!state.match_finished && me?.id === state.current_dealer && state.phase !== 'playing' && state.phase !== 'ended' && !gameResult && (state.phase === 'ready' || !state.deck_count || state.deck_count === 0 || !my?.hand?.length) && (
                 <button 
                   className="bg-gradient-warm hover:shadow-glow-amber text-white px-6 py-3 rounded-lg font-semibold shadow-lg transition-all duration-200 border border-accent-amber/30"
                   onClick={() => send(ws, 'shuffle_deal', {})}

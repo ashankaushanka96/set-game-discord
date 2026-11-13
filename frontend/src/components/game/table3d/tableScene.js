@@ -474,6 +474,7 @@ export function createGameTable3D(container, { portrait, onLift }) {
     group.add(beam, pool, fromPool, flyer, cards);
     scene.add(group);
     beam.userData.pool = pool;
+    if (pt.spotOnly) { flyer.visible = false; cards.visible = false; }   // just the spotlight on the receiver
     return { key: pt.key, group, flyer, cards, cardR: nCards ? CH * (nCards > 1 ? 1.35 : 1.6) / 2 + 0.1 + (pt.tone === 'ask' ? 0.55 : 0) : 0.25, beam, beamMat, poolMat, pool, curve, aPos: a.pos.clone(), bPos: b.pos.clone(), owned, born: performance.now(), sig: sigOf(pt) };
   }
   const sigOf = (pt) => `${pt.from}>${pt.to}:${pt.tone}:${pt.label || ''}:${(pt.cards || (pt.card ? [pt.card] : [])).map((c) => c.rank + c.suit).join(',')}`;

@@ -30,8 +30,8 @@ export default function GameTable3D({ arenaRef, ids, counts, teams, sets, dealin
   }, [flowArrows]);
   const relOf = (pid) => (pid ? ids.indexOf(pid) : -1);
   const pointers = [
-    ...(ask?.asker_id && ask?.target_id ? [{ key: 'ask', from: relOf(ask.asker_id), to: relOf(ask.target_id), tone: 'ask',
-      cards: ask.suit && ask.ranks?.length ? ask.ranks.map((rank) => ({ suit: ask.suit, rank })) : undefined }] : []),
+    // An ask: the asker's speech bubble shows the card and a question mark; here only the spotlight swings to the asked player.
+    ...(ask?.asker_id && ask?.target_id ? [{ key: 'ask', from: relOf(ask.asker_id), to: relOf(ask.target_id), tone: 'ask', spotOnly: true }] : []),
     // (laydowns show their own cards flying onto the table, so they get no flyer here)
     // (turn changes are shown by the spotlight itself moving, so turn arrows get no flyer either)
     ...(flowArrows || []).filter((a) => a.tone !== 'lay' && a.tone !== 'turn' && (a.start || 0) <= clock && a.until > clock)
