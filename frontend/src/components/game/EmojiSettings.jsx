@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useStore } from '../../store';
 import emojiSoundManager from '../../utils/sounds';
 import { setTTSEnabled, isTTSAvailable } from '../../utils/tts';
-import { getQuality, setQuality, isPhoneLike } from './table3d/graphicsQuality';
+import { getQuality, setQuality, isPhoneLike, getView, setView } from './table3d/graphicsQuality';
 import GlassmorphismModal from '../ui/GlassmorphismModal';
 
 async function safeForceInitAudio() {
@@ -110,6 +110,7 @@ export default function EmojiSettings({ isOpen, onClose }) {
   };
 
   const [quality, setQualityLocal] = useState(getQuality);
+  const [view, setViewLocal] = useState(getView);
 
   if (!isOpen) return null;
 
@@ -248,7 +249,25 @@ export default function EmojiSettings({ isOpen, onClose }) {
             )}
           </div>
 
-        {/* Table sharpness (per device) */}
+        {/* Table view (per device) */}
+        <div className="space-y-3">
+          <h4 className="text-sm font-medium text-white/80">Table view</h4>
+          <div className="graphics-quality graphics-quality--two" role="radiogroup" aria-label="Table view">
+            {[
+              { id: '3d', name: '3D table', blurb: 'The full room, cards flying across the table' },
+              { id: '2d', name: 'Flat (2D)', blurb: 'Lightest on battery and heat' },
+            ].map((o) => (
+              <button key={o.id} type="button" role="radio" aria-checked={view === o.id}
+                className={`graphics-quality__option ${view === o.id ? 'is-selected' : ''}`}
+                onClick={() => { setViewLocal(o.id); setView(o.id); }}>
+                <strong>{o.name}</strong><small>{o.blurb}</small>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Table sharpness (per device, 3D only) */}
+        {view === '3d' && 
         <div className="space-y-3">
           <h4 className="text-sm font-medium text-white/80">Table sharpness</h4>
           <div className="graphics-quality" role="radiogroup" aria-label="Table sharpness">
@@ -265,7 +284,7 @@ export default function EmojiSettings({ isOpen, onClose }) {
             ))}
           </div>
           <p className="text-xs text-white/60">Saved on this device only.</p>
-        </div>
+        </div>}
 
         {/* Info Section */}
         <div className="p-3 bg-accent-blue/10 backdrop-blur-sm border border-accent-blue/30 rounded-xl">

@@ -43,6 +43,31 @@ function GatheringCard({ item, success }) {
   return <div ref={ref} className="laydown-flight"><div><Card suit={item.suit} rank={item.rank} size="md" /></div></div>;
 }
 
+// Flat table, the way the 3D table does it: each card flies from whoever held it into a face-up row
+// in the middle, waits there, then slides into the collected sets (the Sets button) and is gone.
+const ROW_FLY_MS = 900, ROW_STAGGER_MS = 140, ROW_HOLD_MS = 4300, TO_SETS_MS = 600;
+function RowCard({ item, setsAt }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const { from, to, index, count } = item;
+    const at = (p, extra = '') => `translate(${p.x}px,${p.y}px) ${extra}`;
+    const arrive = ROW_FLY_MS + index * ROW_STAGGER_MS;
+    const leave = ROW_HOLD_MS + count * ROW_STAGGER_MS + index * 50;
+    const total = leave + TO_SETS_MS;
+    const frames = [
+      { transform: at(from, 'scale(.55) rotate(-10deg)'), opacity: 0, offset: 0 },
+      { transform: at(from, 'scale(.6) rotate(-8deg)'), opacity: 1, offset: (index * ROW_STAGGER_MS) / total },
+      { transform: at({ x: (from.x + to.x) / 2, y: Math.min(from.y, to.y) - 60 }, 'scale(.85) rotate(4deg)'), opacity: 1, offset: (index * ROW_STAGGER_MS + ROW_FLY_MS * .5) / total },
+      { transform: at(to, `rotate(${item.angle}deg)`), opacity: 1, offset: arrive / total },
+      { transform: at(to, `rotate(${item.angle}deg)`), opacity: 1, offset: leave / total },
+      { transform: at(setsAt, 'scale(.35)'), opacity: 0, offset: 1 },
+    ];
+    const animation = ref.current.animate(frames, { duration: total, easing: 'cubic-bezier(.3,.7,.3,1)', fill: 'both' });
+    return () => animation.cancel();
+  }, [item, setsAt]);
+  return <div ref={ref} className="laydown-flight"><div><Card suit={item.suit} rank={item.rank} size="md" /></div></div>;
+}
+
 // 3D table: the points won pop up over the table in the team's colour, then fly into that team's
 // score pill at the top, which gives a little pulse as they land.
 function PointsToScore({ scene }) {
@@ -118,6 +143,18 @@ export default function LaydownAnimation({ seatEls, tableCenterRef, onViewResult
         timer.current = setTimeout(() => setScene(null), reducedMotion() ? 2500 : 4200);
         return;
       }
+      // Flat table: the same as the 3D table, with the cards drawn flat.
+      const setsBtn = [...(tableCenterRef.current?.querySelectorAll('button') || [])].find((b) => /sets/i.test(b.textContent || ''));
+      const sr = setsBtn?.getBoundingClientRect();
+      const setsAt = sr && sr.width ? { x: sr.left + sr.width / 2, y: sr.top + sr.height / 2 } : { x: cx, y: cy };
+      const rowStep = Math.min(46, (Math.min(window.innerWidth, 640) - 90) / Math.max(1, cards.length));
+      const row = cards.map((card, index) => ({ ...card, index, count: cards.length, angle: (index - (cards.length - 1) / 2) * 1.5,
+        to: { x: cx + (index - (cards.length - 1) / 2) * rowStep, y: cy } }));
+      const reduced = reducedMotion();
+      setScene({ id: Date.now(), x: cx, y: cy, points, team, simple: true, row: reduced ? null : row, setsAt });
+      const total = ROW_HOLD_MS + cards.length * (ROW_STAGGER_MS + 50) + TO_SETS_MS;
+      timer.current = setTimeout(() => setScene(null), reduced ? 2500 : Math.max(4200, total));
+      return;
       const setName = suit ? `${suit[0].toUpperCase()}${suit.slice(1)} ${set_type === 'lower' ? 'Lower' : 'Upper'}` : 'The set';
       setScene({ id: Date.now(), items, success, x: cx, y: cy, suit, points, team, setName, penalty, reduced: reducedMotion(), cardsIn3d });
       setLeaving(false); setButtonReady(false);
@@ -130,7 +167,10 @@ export default function LaydownAnimation({ seatEls, tableCenterRef, onViewResult
   }, [seatEls, tableCenterRef, cardsIn3d]);
 
   if (!scene) return null;
-  if (scene.simple) return createPortal(<PointsToScore key={scene.id} scene={scene} />, document.body);
+  if (scene.simple) return createPortal(<>
+    {scene.row && <div className="laydown-row" key={`row-${scene.id}`}>{scene.row.map((item, i) => <RowCard key={i} item={item} setsAt={scene.setsAt} />)}</div>}
+    <PointsToScore key={scene.id} scene={scene} />
+  </>, document.body);
   const { success, x, y } = scene;
   const symbol = SUIT_SYMBOL[scene.suit] || '★';
   return createPortal(<div className={`laydown-reveal ${success ? 'laydown-reveal--success' : 'laydown-reveal--failed'} ${leaving ? 'laydown-reveal--leaving' : ''}`} key={scene.id}>

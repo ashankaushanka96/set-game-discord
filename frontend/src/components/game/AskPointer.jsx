@@ -137,7 +137,7 @@ export function SeatArrow({ seatEls, seatVersion, fromId, toId, tone = 'ask', la
         p = 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); // ease-out-back
         p = Math.max(.12, Math.min(1.0, p * .97 + (t > .7 ? .03 : 0)));
       } else {
-        p = .955 + .045 * (0.5 + 0.5 * Math.cos((el - SHOOT_MS) / 1100 * 2 * Math.PI)); // nudge
+        draw(1); return;   // then it holds still (a looping nudge kept the page redrawing)
       }
       draw(p);
       raf = requestAnimationFrame(tick);

@@ -444,3 +444,37 @@
 .card-room .seat-frame--speaking::after { content:none !important; animation:none !important; }
 .card-room .game-seat--speaking, .game-seat--me.game-seat--speaking { box-shadow:none !important; }
 .card-room .game-seat--speaking::after { inset:-6px; border:4px solid #43d98c; box-shadow:none !important; animation:none !important; }
+
+/* Flat table on phones: the scores sit just under the top bar, and the table runs taller to fill
+   the height (the seats spread up and down with it). */
+@media (max-width:767px) {
+  .card-room:not(.room-3d) .table-top-scores { padding-top:8px; }
+  .card-room:not(.room-3d) .felt-table { height:70% !important; }
+}
+
+/* Flat table: a dock of fixed height from before the deal onwards. The banner row keeps its slot
+   even when empty, and the hand keeps its height while dealing or empty. (3D room untouched.) */
+.card-room:not(.room-3d) .dock-banner-slot { height:48px; flex:0 0 48px; display:flex; align-items:center; justify-content:center; width:100%; }
+.card-room:not(.room-3d) .dock-banner-slot > * { margin-top:0; margin-bottom:0; }
+@media (max-width:767px) {
+  .card-room:not(.room-3d) .game-hand-wrap { min-height:140px; justify-content:center; }
+}
+
+/* Flat table laydown: the cards' row in the middle of the table (same as the 3D table) */
+.laydown-row { position:fixed; inset:0; z-index:94; pointer-events:none; }
+
+/* Flat table: the turn (blue) and asked (gold) rings also tint the player's picture with a
+   see-through fill, so the colour reads at a glance and the face still shows. */
+.card-room:not(.room-3d) .game-seat--turn .game-seat__avatar::after,
+.card-room:not(.room-3d) .game-seat--asked .game-seat__avatar::after { content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:1; }
+.card-room:not(.room-3d) .game-seat--turn .game-seat__avatar::after { background:#8fd3ff4d; }
+.card-room:not(.room-3d) .game-seat--asked .game-seat__avatar::after { background:#ffd27a55; }
+
+/* Flat table: the asked seat has its own gold ring, so the ask arrow's extra circle (drawn above
+   everything, over the card count) isn't needed. */
+.card-room:not(.room-3d) .ask-arrow__ring { display:none; }
+
+/* Flat table: before the deal, "No cards in this hand." sits inside the empty card row instead of
+   under it, so the hand area (and the table above) is the same height before and after the deal. */
+.card-room:not(.room-3d) .player-hand { position:relative; }
+.card-room:not(.room-3d) .player-hand > .hand-status { position:absolute; left:0; right:0; top:50%; margin:0; text-align:center; pointer-events:none; }

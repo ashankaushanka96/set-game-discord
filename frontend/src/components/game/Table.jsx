@@ -30,12 +30,10 @@ import {
   AnswerAskModal,
   PassTurnModal
 } from '../modals';
-import { 
-  Toast, 
-  Celebration
-} from '../ui';
+import { Toast } from '../ui';
 import Card from '../cards/Card';
 import { RANKS_LOWER, RANKS_UPPER, SUITS } from '../../lib/deck';
+import { getView } from './table3d/graphicsQuality';
 import { loadLaydownDraft, clearLaydownDraft } from '../modals/LaydownModal';
 
 // The 3D table (three.js) is a separate download, fetched only when it is switched on.
@@ -224,8 +222,18 @@ export default function Table() {
      return () => ro.disconnect();
    }, []);
    useEffect(() => { setSeatVersion(v => v + 1); }, [arenaAspect, wideTable]);
+   // 3D room or flat 2D table: chosen per device in Settings (the flat table is also the fallback
+   // for devices that can't draw 3D; that fallback isn't saved, so it's tried again next time)
+   const [use3d, setUse3d] = useState(() => getView() === '3d');
+   useEffect(() => {
+     const on = (e) => setUse3d((e.detail || getView()) === '3d');
+     window.addEventListener('table_view', on);
+     return () => window.removeEventListener('table_view', on);
+   }, []);
    const seatPositions = useMemo(() => {
-     const R = 35; // % of the arena, both ways
+     const R = 35; // % of the arena across
+     // Flat table on a tall phone screen: the seats spread further up and down to use the height
+     const RY = !use3d && arenaAspect < 1.15 ? 40 : 35;
      const w = arenaAspect, h = 1; // relative pixel size of the arena
      const STEPS = 720, cum = [0];
      // Phones: an ellipse. Desktop: a squarer path that follows the rounded-rectangle table.
@@ -244,13 +252,12 @@ export default function Table() {
        const [cx, cy] = at(k);
        const dx = cx * w, dy = cy * h, d = Math.hypot(dx, dy) || 1; // real direction from the table centre
        const deg = Math.atan2(dy, dx) * 180 / Math.PI - 90;
-       pos[i] = { left: `${50 + R * cx}%`, top: `${50 + R * cy}%`, transform: 'translate(-50%, -50%)', '--chair-angle': `${deg}deg`, '--hand-x': `${-dx / d * 80}px`, '--hand-y': `${-dy / d * 80}px`, '--hand-direction': `${deg}deg` };
+       pos[i] = { left: `${50 + R * cx}%`, top: `${50 + RY * cy}%`, transform: 'translate(-50%, -50%)', '--chair-angle': `${deg}deg`, '--hand-x': `${-dx / d * 80}px`, '--hand-y': `${-dy / d * 80}px`, '--hand-direction': `${deg}deg` };
      }
      return pos;
-   }, [mySeatIndex, arenaAspect, wideTable]);
+   }, [mySeatIndex, arenaAspect, wideTable, use3d]);
 
    // The table is 3D.
-   const [use3d, setUse3d] = useState(true);   // the flat table is only a fallback for devices that can't draw 3D
    const [layout3d, setLayout3d] = useState(null);
    useEffect(() => { if (!use3d) setLayout3d(null); }, [use3d]);
    useEffect(() => { setSeatVersion(v => v + 1); }, [layout3d, use3d]);
@@ -360,6 +367,17 @@ export default function Table() {
   const canAsk = (player) => myTurn && !!player && player.team && player.team !== my?.team &&
     !player.is_spectator && (player.hand?.length ?? 0) > 0;
   const turnPlayer = (isTurnPlay || voiceTurns) && state.phase === 'playing' ? players[state.turn_player] : null;
+  // After a laydown the turn waits on the declarer until the laydown has played out (as on the 3D
+  // table), then moves. The store's turn arrow says when.
+  const flowArrows = useStore((st) => st.flowArrows);
+  const [turnClock, setTurnClock] = useState(() => Date.now());
+  const heldTurnArrow = (flowArrows || []).find((a) => a.tone === 'turn' && a.to === turnPlayer?.id && (a.start || 0) > turnClock && a.until > turnClock);
+  useEffect(() => {
+    if (!heldTurnArrow) return;
+    const t = setTimeout(() => setTurnClock(Date.now()), Math.max(0, heldTurnArrow.start - Date.now()) + 20);
+    return () => clearTimeout(t);
+  }, [heldTurnArrow]);
+  const shownTurnId = heldTurnArrow ? heldTurnArrow.from : turnPlayer?.id;
   const sendAsk = ({ target_id, suit, set_type, ranks }) => {
     send(ws, 'ask', { asker_id: me.id, target_id, suit, set_type, ranks });
     setAskTarget(null);
@@ -462,7 +480,7 @@ export default function Table() {
         />
       </Suspense>}
       <div className="game-room-heading"><span className="club-eyebrow">SET CLUB <i className="room-live-dot" /></span><span>{state.phase === 'playing' ? 'Round in play' : state.phase === 'ready' ? 'Waiting for the deal' : 'Round complete'}</span></div>
-      {!use3d && <Celebration tableCenterRef={tableCenterRef} />}
+      {/* (no confetti on laydowns in either view: it covered the laid cards) */}
       <DealingAnimation cardsIn3d={use3d} />
       {!use3d && <PassedCardsAnimation seatEls={seatEls} phase={state.phase} />}
       <LaydownAnimation seatEls={seatEls} tableCenterRef={tableCenterRef} cardsIn3d={use3d} onActiveChange={setLayAnimActive}
@@ -662,7 +680,8 @@ export default function Table() {
                       dropTarget={dragTarget === p?.id}
                       draggingCards={isDraggingCards}
                       onSelect={p ? () => (laydownPick ? window.dispatchEvent(new CustomEvent('laydown_seat_pick', { detail: { pid: p.id } })) : reactionAim ? throwReaction(p) : isTurnPlay ? setAskTarget(p) : myVoiceTurn ? send(ws, 'voice_spot', { target_id: p.id }) : handleSeatClick(p)) : null}
-                      isTurn={!!turnPlayer && p?.id === turnPlayer.id}
+                      isTurn={!!turnPlayer && p?.id === shownTurnId}
+                      isAsked={!!p && !!(pendingAsk || voiceSpot) && (pendingAsk || voiceSpot).target_id === p.id}
                       askMode={isTurnPlay || myVoiceTurn}
                       reactEmoji={reactionAim?.emoji}
                       pickLabel={laydownPick ? `Has the ${laydownPick.rank}${SUIT_GLYPH[laydownPick.suit] || ''}` : null}
@@ -702,6 +721,9 @@ export default function Table() {
 
        {/* Bottom section - Scoreboard, Player Hand, and Controls */}
        <div className="game-hand-dock">
+         {/* Flat table: the banner row always keeps its space, so the dock (and the table above it)
+             never changes height as banners come and go. The 3D room is left as it was. */}
+         <div className={use3d ? 'contents' : 'dock-banner-slot'}>
          {/* While a bot is holding its move, the countdown + Continue takes the turn banner's place */}
          {awaitingStart && !dealingAnimation && (
            <div className="bot-wait start-play" role="status">
@@ -726,6 +748,7 @@ export default function Table() {
               : <span>{turnPlayer.name}'s turn</span>}
         </div>
       )}
+         </div>
 
          {/* Player Hand */}
          <div className="game-hand-wrap flex flex-col items-center">

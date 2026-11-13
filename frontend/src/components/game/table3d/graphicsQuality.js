@@ -23,3 +23,13 @@ export function isPhoneLike() {
 export function isLightGraphics(q = getQuality()) {
   return q === 'saver' || (q === 'auto' && isPhoneLike());
 }
+
+// Table view, per device: the 3D room or the flat 2D table (lightest on battery).
+const VIEW_KEY = 'tableView';
+export function getView() {
+  try { return localStorage.getItem(VIEW_KEY) === '2d' ? '2d' : '3d'; } catch { return '3d'; }
+}
+export function setView(v) {
+  try { localStorage.setItem(VIEW_KEY, v); } catch {}
+  window.dispatchEvent(new CustomEvent('table_view', { detail: v }));
+}
