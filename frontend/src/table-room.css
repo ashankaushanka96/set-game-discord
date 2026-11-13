@@ -485,9 +485,7 @@
 .card-room:not(.room-3d) .game-stage { z-index:3; }
 /* Flat table on short landscape screens (desktop Discord with voice tiles): no room for the title
    above the scores, as in the 3D room. */
-@media (max-height:550px) and (orientation:landscape) {
-  .card-room:not(.room-3d) .game-room-heading { display:none; }
-}
+
 /* 3D room: while the turn / bot banner is up it sits where the "Round in play" line is; hide that line. */
 .card-room.room-3d .game-hand-dock:has(> .turn-banner, > .bot-wait) .game-hand-status { visibility:hidden; }
 
@@ -515,3 +513,12 @@
    Team B red. The turn is purple and the asked player gold, so no ring reads as a team. */
 .card-room .game-seat--a .game-seat__name, .room-3d .game-seat--a .game-seat__name { background:#2f5f8f !important; border:1px solid #9cc8f2 !important; color:#fff !important; }
 .card-room .game-seat--b .game-seat__name, .room-3d .game-seat--b .game-seat__name { background:#8f3a3a !important; border:1px solid #f2a7a2 !important; color:#fff !important; }
+
+/* Desktop: the scores sit in the top bar, so the SET CLUB title goes just under them (flat always;
+   3D on short screens, where its scores move up too). Bubbles may cover it. */
+@media (min-width:768px) {
+  .card-room:not(.room-3d) .game-room-heading { display:flex; top:50px; z-index:4; pointer-events:none; }
+}
+@media (min-width:768px) and (max-height:550px) and (orientation:landscape) {
+  .card-room.room-3d .game-room-heading { display:flex !important; top:50px; z-index:4; pointer-events:none; }
+}

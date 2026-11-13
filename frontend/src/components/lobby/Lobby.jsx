@@ -32,7 +32,34 @@ export default function Lobby() {
     doStartGame();
   };
 
+  // Seat the players who haven't picked a seat (smaller team first, as many as there are free
+  // seats), wait until the server shows them seated, then start. Bots fill any seats left.
+  const seatThemAndStart = (waiting) => {
+    const st = useStore.getState().state;
+    const seated = Object.values(st?.players || {}).filter((p) => p.seat != null);
+    const meId = useStore.getState().me?.id;
+    const meNeedsSeat = !seated.some((p) => p.id === meId);
+    let free = 6 - seated.length - (meNeedsSeat ? 1 : 0);
+    let a = seated.filter((p) => p.team === "A").length + (meNeedsSeat ? 1 : 0);   // admin is seated in A at start
+    let b = seated.filter((p) => p.team === "B").length;
+    const ids = [];
+    for (const p of waiting) {
+      if (free <= 0) break;
+      const team = a <= b ? "A" : "B";
+      team === "A" ? a++ : b++;
+      free--;
+      ids.push(p.id);
+      send(useStore.getState().ws, "select_team", { player_id: p.id, team });
+    }
+    const ready = () => ids.every((id) => useStore.getState().state?.players?.[id]?.seat != null);
+    if (ready()) return doStartGame();
+    const t0 = Date.now();
+    const unsub = useStore.subscribe(() => { if (ready() || Date.now() - t0 > 3000) { unsub(); clearTimeout(timer); doStartGame(); } });
+    const timer = setTimeout(() => { unsub(); doStartGame(); }, 3000);
+  };
+
   const doStartGame = () => {
+    const state = useStore.getState().state;   // fresh: seats may have just changed
     const meRef = useStore.getState().me;
     // Unseated players become spectators when the game starts, so only seated
     // players (plus the admin, who is auto-seated below) count toward the table.
@@ -315,10 +342,15 @@ export default function Lobby() {
       {/* Toast Notifications */}
       <Toast />
       
-      {/* Start with unseated players as spectators */}
+      {/* Some players have no seat: seat them, or start without them (they wait for the next lobby) */}
       <ConfirmSpectatorStartModal
         open={spectatorStart.open}
         players={spectatorStart.players}
+        onSeat={() => {
+          const waiting = spectatorStart.players;
+          setSpectatorStart({ open: false, players: [] });
+          seatThemAndStart(waiting);
+        }}
         onConfirm={() => {
           setSpectatorStart({ open: false, players: [] });
           doStartGame();

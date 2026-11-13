@@ -353,7 +353,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   :root { --game-safe-top: max(44px, env(safe-area-inset-top, 0px)); }
   .card-room { padding-top: calc(66px + var(--game-safe-top)); }
   .game-top-control { top: calc(8px + var(--game-safe-top)); }
-  .game-secondary-control { top: calc(56px + var(--game-safe-top)); }
+  .game-secondary-control { top: calc(60px + var(--game-safe-top)); }
   .game-room-heading { top: calc(14px + var(--game-safe-top)); }
   .club-toast { top: calc(72px + var(--game-safe-top)); }
   .club-lobby { padding-top: calc(18px + var(--game-safe-top)); }

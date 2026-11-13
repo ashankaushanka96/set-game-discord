@@ -26,9 +26,9 @@
   .room-3d .table-top-scores { padding:0 12px 6px; }
   .room-3d .game-stage { padding:0 8px; }
   .room-3d .game-hand-dock { min-height:66px; padding:2px 76px max(14px,env(safe-area-inset-bottom)); }
-  .room-3d .game-secondary-control { top:calc(var(--game-safe-top,44px) + 49px); }
+  .room-3d .game-secondary-control { top:calc(var(--game-safe-top,44px) + 58px); }   /* a clear gap under New Game */
   .room-3d .game-secondary-control > button { padding:7px; }
-  .room-3d .table3d-reset { top:calc(var(--game-safe-top,44px) + 105px); right:10px; }
+  .room-3d .table3d-reset { top:calc(var(--game-safe-top,44px) + 112px); right:10px; }
 }
 @media(max-height:550px) and (orientation:landscape) {
   .card-room.room-3d { padding-top:44px; }

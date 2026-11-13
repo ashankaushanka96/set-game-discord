@@ -1,8 +1,9 @@
 import GlassmorphismModal from '../ui/GlassmorphismModal';
 
-// Asks the admin whether to start while some players still have no seat;
-// those players wait until the table returns to the lobby.
-export default function ConfirmSpectatorStartModal({ open, players = [], onConfirm, onClose }) {
+// Asks the admin what to do when some players still have no seat: seat them (bots fill the rest),
+// or start without them; they then wait until the table returns to the lobby.
+// (Watching a game is only on the browser spectator page now, not inside Discord.)
+export default function ConfirmSpectatorStartModal({ open, players = [], onSeat, onConfirm, onClose }) {
   if (!open) return null;
   const several = players.length > 1;
 
@@ -23,8 +24,8 @@ export default function ConfirmSpectatorStartModal({ open, players = [], onConfi
             ))}
           </ul>
           <div className="text-sm text-zinc-300">
-            Start anyway? They will wait outside the game and
-            can pick a seat when the table returns to the lobby.
+            Seat them now and start, or start without them? If you start without them,
+            they wait until the table returns to the lobby.
           </div>
         </div>
 
@@ -33,13 +34,19 @@ export default function ConfirmSpectatorStartModal({ open, players = [], onConfi
             className="px-3 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-white transition-colors"
             onClick={onClose}
           >
-            Wait for them
+            Wait
+          </button>
+          <button
+            className="px-3 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-white transition-colors"
+            onClick={onConfirm}
+          >
+            Start without them
           </button>
           <button
             className="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-500 text-white transition-colors"
-            onClick={onConfirm}
+            onClick={onSeat}
           >
-            Start with {several ? 'spectators' : 'spectator'}
+            Seat them &amp; start
           </button>
         </div>
       </div>
