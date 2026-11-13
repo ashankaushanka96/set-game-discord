@@ -440,7 +440,6 @@ export default function Table() {
           counts={[0,1,2,3,4,5].map((rel) => { const pid = seats[(rel + mySeatIndex) % 6]; return !pid || state.phase !== 'playing' ? 0 : handCount(pid); })}
           teams={[0,1,2,3,4,5].map((rel) => players[seats[(rel + mySeatIndex) % 6]]?.team || null)}
           sets={state.table_sets || []}
-          speakingIds={Object.keys(speakingUsers || {}).filter((id) => speakingUsers[id])}
           dealing={!!dealingAnimation}
           turnId={turnPlayer && !awaitingStart ? turnPlayer.id : null}
           dealId={dealingAnimation?.id}
@@ -642,7 +641,7 @@ export default function Table() {
               // Out of cards: greyed, and nobody can ask them or pass to them
               const isOut = !!p && state.phase === 'playing' && !dealingAnimation && (p.hand?.length ?? 0) === 0;
               const isLaydownPlayer = p && pendingLay && p.id === pendingLay.who_id;
-              const isSpeaking = !use3d && p && speakingUsers && speakingUsers[p.id];   // the 3D table shows talking on the figure
+              const isSpeaking = p && speakingUsers && speakingUsers[p.id];   // a still green ring on the seat (cheap; the 3D bubbles kept redrawing the table)
               
               return (
                 <div key={`seatwrap-${i}-${pid || 'empty'}`} className="table-seat-position absolute" style={seatPlace[i]} ref={p ? setSeatRef(p.id) : undefined} data-seat={i} data-player-id={p?.id} data-team={p?.team || 'none'}>

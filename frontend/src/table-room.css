@@ -438,3 +438,9 @@
 /* Until the 3D table has drawn and placed the seats, keep them hidden, then fade them in. */
 .table-3d-on > .table-seat-position { transition: opacity .25s ease; }
 .table-3d-waiting > * { opacity: 0; pointer-events: none; }
+
+/* Talking: one still green circle around the player, no glow, no spreading wave (cheap on battery). */
+.card-room .seat-frame--speaking::before, .card-room .table-3d-on .seat-frame--speaking::before { display:none !important; animation:none !important; }
+.card-room .seat-frame--speaking::after { content:none !important; animation:none !important; }
+.card-room .game-seat--speaking, .game-seat--me.game-seat--speaking { box-shadow:none !important; }
+.card-room .game-seat--speaking::after { inset:-6px; border:4px solid #43d98c; box-shadow:none !important; animation:none !important; }
