@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { useStore } from "../../store";
 import { Card } from "../cards";
 
-// "Last ask" replay in its own small panel: it never touches the table, the seats or the
+// Replay of the last or the one before in its own small panel: it never touches the table, the seats or the
 // bubbles, so the live game carries on underneath. Works the same in 2D and 3D.
 export default function LastAskReplay({ players }) {
-  const last = useStore((s) => s.lastAsk);
+  const asks = useStore((s) => s.lastAsks);
+  const [menu, setMenu] = useState(false);
   const [open, setOpen] = useState(null); // the ask being replayed (a copy, so a new ask doesn't jump the panel)
   const [step, setStep] = useState(0);    // 0 asking, 1 answer
 
@@ -17,7 +18,8 @@ export default function LastAskReplay({ players }) {
     return () => { clearTimeout(a); clearTimeout(b); };
   }, [open]);
 
-  if (!last) return null;
+  if (!asks?.length) return null;
+  const play = (a) => { setMenu(false); setOpen({ ...a, n: Date.now() }); };
   const name = (id) => players[id]?.name || "Player";
   const r = open;
   const cards = r ? (r.ranks.length ? r.ranks : []).map((rank) => ({ suit: r.suit, rank })) : [];
@@ -25,8 +27,12 @@ export default function LastAskReplay({ players }) {
 
   return <>
     <div className="game-replay-control">
-      <button type="button" className="game-replay-btn" onClick={() => setOpen({ ...last })}
-        title="Replay the last ask">↺ Last ask</button>
+      <button type="button" className="game-replay-btn" aria-expanded={menu}
+        onClick={() => (asks.length > 1 ? setMenu((m) => !m) : play(asks[0]))} title="Replay a recent ask">↺ Replay</button>
+      {menu && <div className="game-replay-menu" role="menu">
+        <button type="button" role="menuitem" onClick={() => play(asks[0])}>Last move</button>
+        <button type="button" role="menuitem" onClick={() => play(asks[1])}>Move before</button>
+      </div>}
     </div>
     {r && <div className="last-ask-panel" role="dialog" aria-label="Last ask replay" onClick={() => setOpen(null)}>
       <div className="last-ask-panel__row">

@@ -549,3 +549,6 @@
 .last-ask-panel__result.is-no { color: #ff8f8f; }
 @keyframes lastAskIn { from { opacity: 0; transform: translate(-50%, 6px); } }
 @keyframes lastAskPop { from { opacity: 0; transform: scale(0.85); } }
+.game-replay-menu { margin-top:6px; display:flex; flex-direction:column; gap:4px; }
+.game-replay-control .game-replay-menu > button { font-size:11px; font-weight:600; padding:6px 10px; border-radius:999px; background:#243b33f2; color:#e8e5d5; border:1px solid #bac3a540; box-shadow:0 3px 10px #0004; text-align:left; white-space:nowrap; }
+.game-replay-control .game-replay-menu > button:hover { border-color:#e3c89099; color:#fff; }
