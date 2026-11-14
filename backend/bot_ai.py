@@ -56,6 +56,11 @@ LEVELS = ("easy", "medium", "hard", "expert")
 #            that set (a hint); not holding it, chase that same card from opponents not yet asked
 # lay_odds   lays down a team set without being sure who holds each card (when no ask is good),
 #            if the guess is at least this likely (0 = never)
+# save       points a team set is worth kept in hand as a rescue: it is laid down only when
+#            handing the turn to a stuck teammate beats the best ask by this much, when it is at
+#            risk (opponents can see one of its cards), or when no ask is worth making
+# deny       weight against handing the turn (by a missed ask) to an opponent whose teammate just
+#            left them a hint to act on
 # chase      (optional) separate weight for the "chase the same card" half of golden
 # golden and lay_odds are off by default: in bot-vs-bot games (400 each) they didn't win more,
 # likely because bot teammates read hints only weakly. guard and the hard handoff did help.
@@ -68,10 +73,10 @@ PROFILES: Dict[str, dict] = {
                    guard=0.0, golden=0.0, lay_odds=0.0),
     "hard":   dict(miss=0.05, half_life=120, noise=0.07, deduce=True, hints=True, passed_up=False, sure_lay=True,
                    turn=10.0, progress=2.0, support=1.0, fear=1.5, threat=0.0, handoff=True,
-                   guard=6.0, golden=0.0, lay_odds=0.0),
+                   guard=6.0, golden=0.0, lay_odds=0.0, save=8.0, deny=0.0),
     "expert": dict(miss=0.015, half_life=600, noise=0.03, deduce=True, hints=True, passed_up=True, sure_lay=True,
                    turn=10.0, progress=2.0, support=1.0, fear=1.5, threat=0.3, handoff=True,
-                   guard=8.0, golden=0.0, lay_odds=0.0),
+                   guard=8.0, golden=0.0, lay_odds=0.0, save=8.0, deny=0.0),
 }
 
 STALEMATE = 12   # failed asks in a row before the table starts keeping careful track
@@ -426,6 +431,41 @@ def _team_misses(game, k: Knowledge) -> Dict[SetKey, Tuple[CardKey, Set[str]]]:
     return out
 
 
+def _stuck(k: Knowledge, pub: Knowledge, mate: str) -> float:
+    """How exposed a teammate is: their cards the whole table can place, in sets an opponent
+    may hold a card of (the opponents are hinting their way towards taking these)."""
+    total = 0.0
+    for s in k.live_sets:
+        known = [c for c in cards_in(s) if pub.loc[c] == mate]
+        if known:
+            chance = max((k.in_set(o, s) for o in k.players if k.team[o] != k.team[k.me]), default=0.0)
+            total += chance * len(known) * _card_value(s)
+    return total
+
+
+def _at_risk(k: Knowledge, pub: Knowledge, s: SetKey) -> bool:
+    """A team set the opponents could break up: one of its cards is public and an opponent
+    may hold a card of the set to ask with."""
+    if not any(pub.loc[c] for c in cards_in(s)):
+        return False
+    return any(k.in_set(o, s) > 0.05 for o in k.players if k.team[o] != k.team[k.me] and k.count[o] > 0)
+
+
+def _hint_ready(game, k: Knowledge) -> Dict[str, float]:
+    """Opponents with a fresh hint from a teammate: a teammate of theirs asked for a single
+    card in the last few asks and missed. Handing them the turn lets them act on it."""
+    my_team = k.team[k.me]
+    out: Dict[str, float] = {}
+    for age, ev in enumerate(reversed(getattr(game, "public_log", [])[-6:])):
+        a = ev["asker_id"]
+        if ev["success"] or a not in k.team or k.team[a] == my_team or (ev["suit"], ev["set_type"]) in k.laid:
+            continue
+        for o in k.players:
+            if o != a and k.team[o] == k.team[a] and k.count[o] > 0:
+                out[o] = out.get(o, 0.0) + 1.0 / (1 + age)
+    return out
+
+
 def _guess_laydown(k: Knowledge, min_odds: float) -> Optional[Tuple[dict, float]]:
     """A set the team may hold whole: own cards plus the likeliest teammate for each other card,
     when no opponent can hold any of it. Returns (laydown, chance it is right)."""
@@ -506,6 +546,7 @@ def decide(game, bot_id: str, level: str = "medium") -> Optional[dict]:
 
     danger = _danger(k) if P.get("guard") else {}
     misses = _team_misses(game, k) if P.get("golden") else {}
+    hinted = _hint_ready(game, k) if P.get("deny") else {}
 
     def gamble(o) -> float:
         p, s, c, t = o
@@ -524,6 +565,7 @@ def decide(game, bot_id: str, level: str = "medium") -> Optional[dict]:
         risk = P["turn"] + (P["threat"] * _threat(k, pub, t) if P["threat"] else 0.0)
         if danger:                                           # a miss hands the turn to t
             risk += P["guard"] * sum(v * k.in_set(t, ds) for ds, v in danger.items()) / 10.0
+        risk += P.get("deny", 0.0) * hinted.get(t, 0.0)      # don't feed the opponents' hint chain
         return p * _card_value(s) * pull - (1.0 - p) * risk + random.random() * 0.01
 
     live = [o for o in scored if o[0] > 0]
@@ -533,9 +575,10 @@ def decide(game, bot_id: str, level: str = "medium") -> Optional[dict]:
         def route(s: SetKey) -> float:
             helpers = sorted({k.loc[c] for c in cards_in(s)} - {me})
             alive = [h for h in helpers if k.count[h] > sum(1 for c in cards_in(s) if k.loc[c] == h)]
-            return max((_opportunity(k, pub, h) for h in alive), default=0.0)
-        s = max(shared, key=lambda x: (route(x), random.random()))
-        if best is None or route(s) >= gamble(best):
+            return max((_opportunity(k, pub, h) + (0.5 * _stuck(k, pub, h) if P.get("save") else 0.0) for h in alive), default=0.0)
+        s = max(shared, key=lambda x: (_at_risk(k, pub, x) if P.get("save") else 0, route(x), random.random()))
+        keep = 0.0 if (not P.get("save") or _at_risk(k, pub, s)) else P["save"]
+        if best is None or gamble(best) < 0 or route(s) >= gamble(best) + keep:
             return _declare(k, s, {c: k.loc[c] for c in cards_in(s)})
 
     if P.get("lay_odds") and (best is None or gamble(best) < 0):

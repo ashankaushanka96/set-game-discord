@@ -17,7 +17,7 @@ from typing import List, Optional, Tuple
 from loguru import logger
 
 import bot_ai
-from bot_ai import RANKS, Knowledge, cards_in, set_of, _card_value, _declare, _danger, _team_misses
+from bot_ai import RANKS, Knowledge, cards_in, set_of, _card_value, _declare, _danger, _team_misses, _stuck, _at_risk, _hint_ready
 
 MODEL = os.getenv("HAIKU_BOT_MODEL") or "claude-haiku-5-5"
 TIMEOUT = 12.0
@@ -46,6 +46,13 @@ odds it gives. Use judgment and these techniques from our table's best players:
 5. Keep building the set my team is working on; strike an opponent who keeps asking for cards I hold.
 6. Once everyone can place every card of a set, stop asking around in it and finish it or move on.
 7. Upper sets are worth more than lower sets.
+8. Keep a team set in hand. A set our team holds completely (marked KEEP) is a rescue: don't cash it just
+   because you can. Lay it down when a helping teammate is STUCK (the table knows their cards and the
+   opponents are hinting their way to take them), when the set is AT RISK, or when every ask is bad.
+   Laying down a set I hold alone is always safe and keeps my turn.
+9. Starve the opponents' hints. Every missed ask hands an opponent the turn, and opponents use their turns
+   to pass hints to each other. Prefer moves that keep the turn; when you must risk a miss, avoid an
+   opponent marked HINTED (a teammate just left them a hint to act on).
 
 Reply with JSON only: {"choice": <option number>, "why": "<short reason, under 15 words>"}."""
 
@@ -81,6 +88,8 @@ def options(game, bot_id: str) -> Tuple[List[dict], str]:
     who = lambda pid: ("me" if pid == me else ("teammate " if k.team[pid] == my_team else "opponent ") + seat(pid))
     danger = _danger(k)
     misses = _team_misses(game, k)
+    pub = Knowledge(game, bot_id, P, public=True)
+    hinted = _hint_ready(game, k)
     opts: List[dict] = []
 
     rules = bot_ai.decide(game, bot_id, "expert")
@@ -94,8 +103,10 @@ def options(game, bot_id: str) -> Tuple[List[dict], str]:
                          "text": f"LAY DOWN {_set_name(s)}: I hold all of it (certain, keeps my turn)"})
         elif all(k.loc[c] and k.team[k.loc[c]] == my_team for c in cs):
             helpers = sorted({k.loc[c] for c in cs} - {me})
+            tags = ["AT RISK" if _at_risk(k, pub, s) else "KEEP: safe to hold for later"]
+            tags += [f"{who(h)} is STUCK" for h in helpers if _stuck(k, pub, h) > 0]
             opts.append({"move": _declare(k, s, {c: k.loc[c] for c in cs}),
-                         "text": f"LAY DOWN {_set_name(s)} with {', '.join(who(h) for h in helpers)} (certain; turn can pass to a helper)"})
+                         "text": f"LAY DOWN {_set_name(s)} with {', '.join(who(h) for h in helpers)} (certain; turn can pass to a helper) [{'; '.join(tags)}]"})
     g = bot_ai._guess_laydown(k, 0.3)
     if g:
         mv, odds = g
@@ -121,6 +132,8 @@ def options(game, bot_id: str) -> Tuple[List[dict], str]:
                 note.append(f"hint: I hold {_name(wanted)} a teammate missed")
         if t in k.hunters.get(s, ()):
             note.append("this opponent is hunting my cards")
+        if p < 0.999 and t in hinted:
+            note.append("HINTED: a miss lets them act on a teammate's hint")
         asks.append((p * _card_value(s), {"move": {"action": "ask", "target_id": t, "suit": s[0], "set_type": s[1], "rank": c[1], "ranks": [c[1]]},
                                          "text": f"ASK {who(t)} for {_name(c)} ({p:.0%} they have it){' [' + '; '.join(note) + ']' if note else ''}"}))
     asks.sort(key=lambda x: -x[0])
