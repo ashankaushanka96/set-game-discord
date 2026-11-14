@@ -7,7 +7,7 @@ history of asks. Player ids are replaced by seat numbers, and names are never wr
 Bot moves carry "bot": their level, so they can be told apart or left out. At the end of each
 game one {"result": ...} line gives the scores, so moves can be weighed by who won.
 
-Set MOVE_LOG_PATH to change the file (default logs/human_moves.jsonl); MOVE_LOG=off turns it off.
+Set MOVE_LOG_PATH to change the file (default data/moves.jsonl; deploys keep data/); MOVE_LOG=off turns it off.
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ def _enabled() -> bool:
 
 
 def _path() -> str:
-    return os.getenv("MOVE_LOG_PATH") or os.path.join(os.path.dirname(__file__), "logs", "human_moves.jsonl")
+    return os.getenv("MOVE_LOG_PATH") or os.path.join(os.path.dirname(__file__), "data", "moves.jsonl")
 
 
 def view(game, player_id: str) -> Optional[dict]:
