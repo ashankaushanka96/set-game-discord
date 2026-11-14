@@ -672,7 +672,7 @@ def decide(game, bot_id: str, level: str = "medium") -> Optional[dict]:
             return max((_opportunity(k, pub, h) + (0.5 * _stuck(k, pub, h) if P.get("save") else 0.0) for h in alive), default=0.0)
         s = max(shared, key=lambda x: (_at_risk(k, pub, x) if P.get("save") else 0, route(x), random.random()))
         keep = 0.0 if (not P.get("save") or _at_risk(k, pub, s)) else P["save"]
-        if best is None or gamble(best) < 0 or route(s) >= gamble(best) + keep:
+        if best is None or gamble(best) < -keep or route(s) >= gamble(best) + keep:
             return _declare(k, s, {c: k.loc[c] for c in cards_in(s)})
 
     if P.get("lay_odds") and (best is None or gamble(best) < 0):

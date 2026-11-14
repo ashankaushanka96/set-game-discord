@@ -168,7 +168,7 @@ def options(game, bot_id: str) -> Tuple[List[dict], str]:
                 else f"LAY DOWN {rules['suit']} {rules['set_type']}")
         opts.insert(0, {"move": rules, "text": desc})
     for o in opts:
-        if o["move"] == rules:
+        if o["move"] == rules and "KEEP:" not in o["text"]:   # don't steer Claude into cashing a set worth keeping
             o["text"] += "  <- the rules engine's pick"
 
     # Table picture
