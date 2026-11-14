@@ -223,9 +223,10 @@ export function createGameTable3D(container, { portrait, onLift, quality = 'auto
   const flyGroup = new THREE.Group(); scene.add(flyGroup);
 
   const handEdge = () => new THREE.Vector3(0, HAND_Y, HAND_Z);              // the middle of the player's own hand
+  // Passed cards rest right at the receiver's edge of the table, outside the laid sets in the middle.
   const restSpot = (rel) => (rel === 0
-    ? new THREE.Vector3(0, 0.03, RZ * 0.62)
-    : new THREE.Vector3(spots[rel].dir.x * RX * 0.46, 0.03, spots[rel].dir.z * RZ * 0.44));
+    ? new THREE.Vector3(0, 0.03, RZ * 0.72)
+    : new THREE.Vector3(spots[rel].dir.x * RX * 0.86, 0.03, spots[rel].dir.z * RZ * 0.84));
 
   // Where card j of n sits in a player's hand fan, in world terms (position, Euler angles, scale).
   const probe = new THREE.Object3D(), probeQ = new THREE.Quaternion(), probeE = new THREE.Euler(0, 0, 0, 'XYZ');
