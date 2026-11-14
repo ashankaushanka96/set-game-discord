@@ -7,6 +7,7 @@ export const BOT_LEVELS = [
   { id: "medium", name: "Medium", icon: "🧠", blurb: "Remembers a fair amount for a while and weighs the odds." },
   { id: "hard", name: "Hard", icon: "🦊", blurb: "Remembers nearly everything and works out where cards are." },
   { id: "expert", name: "Expert", icon: "👑", blurb: "Sharp memory plus strategy about who gets the turn." },
+  { id: "claude", name: "Claude", icon: "✨", blurb: "Claude Haiku picks the move using our table's strategies (Turn Play)." },
 ];
 
 // How clever the bots that fill empty seats are: a room setting the admin chooses.

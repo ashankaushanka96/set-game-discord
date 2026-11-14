@@ -7,6 +7,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from loguru import logger
 
 from models import WSMessage, Card
+import move_log
 from services.game_service import GameService
 from services.websocket_service import WebSocketService
 
@@ -14,7 +15,8 @@ router = APIRouter(prefix="/api/v1")
 
 # Turn Play is a memory game: give people time to see who asked whom for what, and the answer.
 # A bot waits this long before each move (asking or answering), unless a player taps "Continue".
-BOT_WAIT_SECONDS = 10.0
+BOT_WAIT_SECONDS = 10.0          # a bot thinking about its own move
+BOT_ANSWER_SECONDS = 5.0         # a bot answering an ask: quicker, there's no choice to make
 # The shuffle-and-deal animation on players' screens runs for 31.2s (see dealTiming.js).
 # Nothing may start until it has finished or the dealer has skipped it.
 DEAL_ANIMATION_SECONDS = 31.5
@@ -27,9 +29,10 @@ BOT_DEAL_DELAY_SECONDS = 2.5
 async def wait_for_players(game, room_id: str, bot_id: str, kind: str):
     """Hold a bot's move until any seated player acknowledges, or BOT_WAIT_SECONDS pass."""
     game.bot_go = asyncio.Event()
-    await WebSocketService.broadcast(room_id, "bot_wait", {"bot_id": bot_id, "kind": kind, "seconds": BOT_WAIT_SECONDS})
+    seconds = BOT_ANSWER_SECONDS if kind == "answer" else BOT_WAIT_SECONDS
+    await WebSocketService.broadcast(room_id, "bot_wait", {"bot_id": bot_id, "kind": kind, "seconds": seconds})
     try:
-        await asyncio.wait_for(game.bot_go.wait(), BOT_WAIT_SECONDS)
+        await asyncio.wait_for(game.bot_go.wait(), seconds)
     except asyncio.TimeoutError:
         pass
     finally:
@@ -172,9 +175,11 @@ async def run_bots(game, room_id: str):
                 continue
             if game.state.turn_player != bot_id or game.state.pending_handoff:
                 continue
-            move = game.bot_decide(bot_id)
+            move = await game.bot_decide_async(bot_id)
             if not move:
                 return
+            if game.state.turn_player != bot_id or game.state.pending_ask or game.state.pending_handoff:
+                continue  # the table moved on while Claude was thinking
             if move["action"] == "laydown":
                 await bot_laydown(game, room_id, bot_id, move)
             else:
@@ -431,7 +436,7 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                 )
                 game.state.players[p["player_id"]] = ai_player
                 level = game.state.bot_level   # the room setting the admin chose
-                game.bot_levels[p["player_id"]] = level if level in ("easy", "medium", "hard", "expert") else "medium"
+                game.bot_levels[p["player_id"]] = level if level in ("easy", "medium", "hard", "expert", "claude") else "medium"
                 game.assign_seat(p["player_id"], p["team"])
                 await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
                 logger.info(f"AI player {p['player_id']} added successfully. Total players: {len(game.state.players)}")
@@ -521,7 +526,10 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
             elif t == "ask":
                 # Turns mode: the turn player asks an opponent for one card
                 try:
+                    before = move_log.view(game, player_id)
                     await start_ask(room_id, game, player_id, p["target_id"], p["suit"], p["set_type"], p.get("ranks") or [p.get("rank")])
+                    move_log.record(game, player_id, before, {"action": "ask", "target_id": p["target_id"], "suit": p["suit"],
+                                                              "set_type": p["set_type"], "ranks": p.get("ranks") or [p.get("rank")]})
                 except (ValueError, KeyError, IndexError) as e:
                     await WebSocketService.send_to_player(room_id, player_id, "error", {"message": str(e)})
 
@@ -562,7 +570,10 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                     "state": game.state.model_dump(),
                 })
                 try:
+                    before = move_log.view(game, p["who_id"])
                     res = game.laydown(p["who_id"], p["suit"], p["set_type"], p.get("collaborators"))
+                    move_log.record(game, p["who_id"], before, {"action": "laydown", "suit": p["suit"], "set_type": p["set_type"],
+                                                                "collaborators": p.get("collaborators") or [], "success": res.get("success", False)})
                     for c in [p["who_id"]] + [x.get("player_id") for x in (p.get("collaborators") or []) if isinstance(x, dict)]:
                         active_bubbles(game).pop(c, None)
                     success = res.get("success", False)
@@ -596,7 +607,9 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                     })
 
             elif t == "handoff_after_laydown":
+                before = move_log.view(game, p["who_id"])
                 res = game.handoff_after_laydown(p["who_id"], p["to_id"])
+                move_log.record(game, p["who_id"], before, {"action": "handoff", "to_id": p["to_id"]})
                 await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
                 await WebSocketService.broadcast(room_id, "handoff_result", {**res, "state": game.state.model_dump(), "from_id": p["who_id"]})
 

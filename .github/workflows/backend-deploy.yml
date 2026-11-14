@@ -27,11 +27,14 @@ jobs:
           SPECTATOR_USERNAME: ${{ secrets.SPECTATOR_USERNAME }}
           SPECTATOR_PASSWORD: ${{ secrets.SPECTATOR_PASSWORD }}
           SPECTATOR_SECRET: ${{ secrets.SPECTATOR_SECRET }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           echo "DISCORD_CLIENT_ID=${{ vars.DISCORD_CLIENT_ID }}" > app/.env
           echo "DISCORD_CLIENT_SECRET=${{ secrets.DISCORD_CLIENT_SECRET }}" >> app/.env
           # the browser spectator login and the key that signs its tokens
           printf 'SPECTATOR_USERNAME=%s\nSPECTATOR_PASSWORD=%s\nSPECTATOR_SECRET=%s\n' "$SPECTATOR_USERNAME" "$SPECTATOR_PASSWORD" "$SPECTATOR_SECRET" >> app/.env
+          # the "Claude" bot level (optional: without it those bots play the Expert rules)
+          printf 'ANTHROPIC_API_KEY=%s\n' "$ANTHROPIC_API_KEY" >> app/.env
       
       - name: Create tarball of the repository
         run: tar -czvf app.tar.gz app

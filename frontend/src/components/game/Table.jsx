@@ -15,6 +15,7 @@ import ChatBubble from './ChatBubble';
 import { markReactionUsed } from './ReactionTray';
 import EmojiPassAnimation from './EmojiPassAnimation';
 import AskPointer, { FlowArrows } from './AskPointer';
+import LastAskReplay from './LastAskReplay';
 import BotWaitPill from './BotWaitPill';
 import EmojiSettings from './EmojiSettings';
 import { 
@@ -352,6 +353,7 @@ export default function Table() {
   const botWait = useStore((st) => st.botWait);
   const laydownPick = useStore((st) => st.laydownPick); // laying down: tap the teammate who holds this card
   const pendingAsk = isTurnPlay ? state.pending_ask : null;
+
   // Voice Play with turn tracking: the same purple (turn) and gold (asked player) spotlights as Turn
   // Play, but the asking happens out loud. The turn player taps who they're asking; only that player
   // can then send cards (to the asker), or say they don't have it, which hands them the turn.
@@ -550,6 +552,9 @@ export default function Table() {
           </svg>
         </button>
       </div>
+
+      {/* Replay of the last ask in its own small panel (doesn't touch the table) */}
+      {isTurnPlay && state.phase === 'playing' && <LastAskReplay players={players} />}
 
       {/* Card Passing Indicator */}
       {selectedCardsToPass.length > 0 && !isDraggingCards && !isTurnPlay && (!voiceTurns || askedMe) && (

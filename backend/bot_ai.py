@@ -455,6 +455,7 @@ def _guess_laydown(k: Knowledge, min_odds: float) -> Optional[Tuple[dict, float]
 # ---- decisions --------------------------------------------------------------
 def decide(game, bot_id: str, level: str = "medium") -> Optional[dict]:
     """Choose this bot's move: {"action": "ask", ...}, {"action": "laydown", ...} or None."""
+    level = "expert" if level == "claude" else level
     P = profile_for(game, bot_id, level)
     k = Knowledge(game, bot_id, P)
     if not k.my_hand:
@@ -563,6 +564,7 @@ def choose_handoff(game, bot_id: str, options: List[str]) -> Optional[str]:
     if not live:
         return None
     level = getattr(game, "bot_levels", {}).get(bot_id, "medium")
+    level = "expert" if level == "claude" else level
     P = profile_for(game, bot_id, level)
     if P["handoff"] and game.state.players[bot_id].hand:
         k = Knowledge(game, bot_id, P)

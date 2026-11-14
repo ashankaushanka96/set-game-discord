@@ -3,4 +3,4 @@ uvicorn[standard]
 pydantic
 loguru
 httpx
-python-dotenv
+python-dotenvanthropic

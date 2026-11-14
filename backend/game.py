@@ -908,7 +908,7 @@ class Game:
         return {"success": True}
 
     def set_bot_level(self, requester_id: str, level: str) -> dict:
-        if level not in ("easy", "medium", "hard", "expert"):
+        if level not in ("easy", "medium", "hard", "expert", "claude"):
             return {"success": False, "message": "Unknown bot level"}
         if self.state.phase != "lobby":
             return {"success": False, "message": "Bot difficulty can only be changed in the lobby"}
@@ -1120,7 +1120,15 @@ class Game:
     def bot_decide(self, bot_id: str) -> Optional[dict]:
         """The bot's move on its turn: an ask, a laydown, or None if it has nothing to do."""
         import bot_ai
-        return bot_ai.decide(self, bot_id, self.bot_level(bot_id))
+        level = self.bot_level(bot_id)
+        return bot_ai.decide(self, bot_id, "expert" if level == "claude" else level)   # claude: see bot_decide_async
+
+    async def bot_decide_async(self, bot_id: str) -> Optional[dict]:
+        """Like bot_decide, but the "claude" level asks Claude Haiku (falls back to the rules)."""
+        if self.bot_level(bot_id) == "claude":
+            import haiku_bot
+            return await haiku_bot.decide(self, bot_id)
+        return self.bot_decide(bot_id)
 
     def _turn_after_laydown(self, who_id: str, helpers: List[str]) -> List[str]:
         """Turn Play, successful laydown. The turn goes to a teammate who helped:

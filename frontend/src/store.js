@@ -26,6 +26,7 @@ export const useStore = create((set, get) => ({
 
   pendingAsk: null,
   pendingLay: null,
+  lastAsk: null, // Turn Play: the last answered ask, for the "last ask" replay panel
   flowArrows: [], // laydown contributors and turn passes drawn on the table: {id, from, to, tone, label, start, until}
   handoffFor: null,
 
@@ -166,6 +167,7 @@ export const useStore = create((set, get) => ({
       // abort clears them all; and an ask bubble goes once no ask is pending any more.
       if (/^(dealt|new_game_started|new_round_started|game_started|back_to_lobby_success|game_aborted)$/.test(msg.type) || (st && st.phase && st.phase !== "playing")) {
         if ((get().messages || []).length) set({ messages: [] });
+        if (/^(dealt|new_game_started|new_round_started|game_started|back_to_lobby_success|game_aborted)$/.test(msg.type)) set({ lastAsk: null });
         // tell the table to drop anything in progress (laydown, ask, penalty, selection)
         if (/^(dealt|new_game_started|new_round_started|game_started|back_to_lobby_success|game_aborted)$/.test(msg.type)) {
           try { window.dispatchEvent(new CustomEvent("game_reset")); } catch {}
@@ -255,6 +257,11 @@ export const useStore = create((set, get) => ({
 
       // remove ASK bubble for this asker
       get().removeMessageByTag(`ask-${msg.payload.asker_id}`);
+      {
+        const p = msg.payload;
+        set({ lastAsk: { id: Date.now(), asker_id: p.asker_id, target_id: p.target_id, suit: p.suit, ranks: p.ranks || [],
+          success: !!p.success, reason: p.reason } });
+      }
 
       const players = s.players || {};
       const asker = players[msg.payload.asker_id]?.name || "Unknown";
