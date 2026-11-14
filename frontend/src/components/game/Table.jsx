@@ -136,7 +136,7 @@ export default function Table() {
   // Nobody opened the laydown results within 10s of the prompt showing: put it away so play can go on.
   // The prompt counts down like the bot-wait pill (a draining bar and the seconds left).
   // The score pills hold the old total while the "+N" flies up, and only count it once it lands
-  // (score_landed from LaydownAnimation). A drop (new game) or a missed landing still shows within 4.5s.
+  // (score_landed from LaydownAnimation). A drop (new game) shows at once; a landing that never comes still shows after 15s.
   const liveScores = state.team_scores || {};
   const [shownScores, setShownScores] = useState(liveScores);
   useEffect(() => {
@@ -144,7 +144,7 @@ export default function Table() {
     if (!rose) { setShownScores(liveScores); return; }
     const land = () => setShownScores(state.team_scores || {});
     window.addEventListener('score_landed', land);
-    const fallback = setTimeout(land, 4500);
+    const fallback = setTimeout(land, 15000);
     return () => { window.removeEventListener('score_landed', land); clearTimeout(fallback); };
   }, [liveScores.A, liveScores.B]); // eslint-disable-line react-hooks/exhaustive-deps
   const resultsPromptShown = !!pendingResult && resultsReady && !layAnimActive;
@@ -618,7 +618,7 @@ export default function Table() {
             <span className="hidden sm:inline">Team A</span>
             <span className="sm:hidden">A</span>
             <span className="text-text-secondary">—</span>
-            <span className="text-text-primary font-semibold">{shownScores.A ?? 0}</span>
+            <span key={`a${shownScores.A ?? 0}`} className={`text-text-primary font-semibold${shownScores.A ? " score-bump" : ""}`}>{shownScores.A ?? 0}</span>
             <span className="hidden sm:inline">pts</span>
             <span className="text-text-muted"> ({(state.table_sets||[]).filter(s=>s.owner_team==='A').length})</span>
           </span>
@@ -629,7 +629,7 @@ export default function Table() {
             <span className="hidden sm:inline">Team B</span>
             <span className="sm:hidden">B</span>
             <span className="text-text-secondary">—</span>
-            <span className="text-text-primary font-semibold">{shownScores.B ?? 0}</span>
+            <span key={`b${shownScores.B ?? 0}`} className={`text-text-primary font-semibold${shownScores.B ? " score-bump" : ""}`}>{shownScores.B ?? 0}</span>
             <span className="hidden sm:inline">pts</span>
             <span className="text-text-muted"> ({(state.table_sets||[]).filter(s=>s.owner_team==='B').length})</span>
           </span>

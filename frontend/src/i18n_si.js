@@ -69,6 +69,7 @@ export default {
   "Hand them over": "Cards දෙන්න",
   "I don't have it — take my turn": "මන් ගාව නෑ, turn එක ගන්න",
   "Not all — take my turn": "ඔක්කොම නෑ, turn එක ගන්න",
+  "from": "ගෙන්",
   "Declaration checked": "බාපු සෙට් එක බලන්න",
   "Back to Lobby": "ලොබියට", "Lobby": "ලොබිය",
   "New Game": "අලුත් ගේම්", "New": "අලුත්",

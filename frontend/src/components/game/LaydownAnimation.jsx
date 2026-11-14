@@ -97,7 +97,7 @@ function PointsToScore({ scene }) {
         if (!reduced) pulse = pill.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.15)', offset: .35 }, { transform: 'scale(1)' }], { duration: 450, easing: 'ease-out' });
       };
     };
-    return () => { pop.cancel(); fly?.cancel(); pulse?.cancel(); window.dispatchEvent(new CustomEvent('score_landed', { detail: { team: scene.team } })); };
+    return () => { pop.cancel(); fly?.cancel(); pulse?.cancel(); };
   }, [scene]);
   return <div ref={ref} className={`laydown-points3d laydown-points3d--${(scene.team || 'a').toLowerCase()}`}
     style={{ left: scene.x, top: scene.y }} role="status">+{scene.points} <span>Team {scene.team}</span></div>;

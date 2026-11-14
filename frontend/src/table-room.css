@@ -599,3 +599,12 @@
 @media (prefers-reduced-motion: reduce) { .card-room:not(.room-3d) .game-seat--turn::before, .card-room:not(.room-3d) .game-seat--turn .game-seat__avatar::after, .card-room:not(.room-3d) .game-seat--turn .game-seat__badge { animation:none; } }
 /* While the results prompt is up, the laid sets under it must not take its taps. */
 body:has(.laydown-results-prompt) .collected-set-hit { pointer-events:none; }
+/* The score number pops and glows gold as the flying points land in it. */
+.score-bump { display:inline-block; animation:scoreBump .9s cubic-bezier(.2,.9,.3,1.3); }
+@keyframes scoreBump {
+  0% { transform:scale(1); color:inherit; text-shadow:none; }
+  25% { transform:scale(1.7); color:#ffe08a; text-shadow:0 0 12px #ffd76a, 0 0 24px #ffb84d88; }
+  60% { transform:scale(.92); color:#ffe08a; }
+  100% { transform:scale(1); text-shadow:none; }
+}
+@media (prefers-reduced-motion: reduce) { .score-bump { animation:none; } }

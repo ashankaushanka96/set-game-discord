@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useStore, byRank } from "../../store";
 import { Card } from "../cards";
 import { useT } from "../../i18n";
@@ -36,17 +37,17 @@ export default function LastAskReplay({ players }) {
         <button type="button" role="menuitem" onClick={() => play(asks[1])}>{t("Move before")}</button>
       </div>}
     </div>
-    {r && <div className="last-ask-panel" role="dialog" aria-label="Last ask replay" onClick={() => setOpen(null)}>
+    {r && createPortal(<div className="last-ask-panel" role="dialog" aria-label="Last ask replay" onClick={() => setOpen(null)}>
       <div className="last-ask-panel__row">
         <span className="last-ask-panel__who">{name(r.asker_id)}</span>
         <span className="last-ask-panel__arrow">{t("asked")}</span>
-        <span className="last-ask-panel__who">{name(r.target_id)}</span>
+        <span className="last-ask-panel__who">{name(r.target_id)}</span>{t("from") !== "from" && <span className="last-ask-panel__arrow">{t("from")}</span>}
       </div>
       <div className={`last-ask-panel__cards${step && r.success ? " is-taken" : ""}`}>
         {cards.map((c) => <Card key={c.rank} suit={c.suit} rank={c.rank} size="bubble" />)}
         {!step && <span className="last-ask-panel__q">?</span>}
       </div>
       {step === 1 && <div className={`last-ask-panel__result ${r.success ? "is-yes" : "is-no"}`}>{result}</div>}
-    </div>}
+    </div>, document.body)}
   </>;
 }
