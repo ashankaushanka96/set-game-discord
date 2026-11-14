@@ -19,6 +19,7 @@ import SeatRings from './SeatRings';
 import { useT } from '../../i18n';
 import LastAskReplay from './LastAskReplay';
 import BotWaitPill from './BotWaitPill';
+import { playCue } from '../../utils/sounds';
 import EmojiSettings from './EmojiSettings';
 import { 
   LaydownModal, 
@@ -125,7 +126,7 @@ export default function Table() {
   const [resultsOpen, setResultsOpen] = useState(false);
   const [layAnimActive, setLayAnimActive] = useState(false);
   const [resultsReady, setResultsReady] = useState(false);
-  const pendingResult = laydownResult || gameResult;
+  const pendingResult = gameResult || laydownResult;   // the round's end outranks the last set's own result
   useEffect(() => {
     setResultsOpen(false);
     setResultsReady(false);
@@ -148,6 +149,16 @@ export default function Table() {
     return () => { window.removeEventListener('score_landed', land); clearTimeout(fallback); };
   }, [liveScores.A, liveScores.B]); // eslint-disable-line react-hooks/exhaustive-deps
   const resultsPromptShown = !!pendingResult && resultsReady && !layAnimActive;
+  const endShown = useRef(null);
+  // End of the round: once the last set's animation is done, go straight to one results screen
+  // (with a chime) instead of the set prompt, the set results, then the round prompt.
+  useEffect(() => {
+    if (!gameResult || !resultsReady || layAnimActive || endShown.current === gameResult) return;
+    endShown.current = gameResult;   // once per round, even if the screen is closed and reopened
+    if (laydownResult) clearLaydownResult();
+    setResultsOpen(true);
+    playCue('round_end');
+  }, [gameResult, resultsReady, layAnimActive]); // eslint-disable-line react-hooks/exhaustive-deps
   const [promptLeft, setPromptLeft] = useState(RESULTS_PROMPT_SECONDS);
   const [promptRun, setPromptRun] = useState(0);   // restarts the draining bar each time the countdown starts
   useEffect(() => {
@@ -888,7 +899,7 @@ export default function Table() {
 
       {/* Laydown Result Modal */}
       <LaydownResultModal
-        open={!!laydownResult && resultsOpen}
+        open={!!laydownResult && !gameResult && resultsOpen}
         onClose={() => { setResultsOpen(false); clearLaydownResult(); }}
         laydownData={laydownResult}
         state={state}
@@ -896,7 +907,7 @@ export default function Table() {
 
       {/* Game Over Modal */}
       <GameOverModal
-        open={!!gameResult && !laydownResult && resultsOpen}
+        open={!!gameResult && resultsOpen}
         onClose={() => setResultsOpen(false)}
         gameResult={gameResult}
       />

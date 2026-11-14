@@ -276,9 +276,14 @@ class EmojiSoundManager {
         case 'card': air(0, .12, 1400, .2); air(.06, .1, 1800, .14); break;                     // card slides over
         case 'pause': tone(0, .22, 523.25, 'sine', .14, 392); break;
         case 'resume': tone(0, .22, 392, 'sine', .14, 587.33); break;
+        case 'round_end':   // a warm rising chime that settles on a chord
+          [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(i * .11, .5, f, 'triangle', .13));
+          [523.25, 659.25, 783.99].forEach((f) => tone(.5, 1.4, f, 'sine', .08));
+          air(.45, .7, 2400, .05);
+          break;
         default: break;
       }
-      setTimeout(() => { try { out.disconnect(); } catch (_) {} }, 1500);
+      setTimeout(() => { try { out.disconnect(); } catch (_) {} }, 2500);
     } catch (_) {}
   }
 

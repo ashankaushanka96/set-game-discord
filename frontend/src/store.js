@@ -177,7 +177,8 @@ export const useStore = create((set, get) => ({
       // abort clears them all; and an ask bubble goes once no ask is pending any more.
       if (/^(dealt|new_game_started|new_round_started|game_started|back_to_lobby_success|game_aborted)$/.test(msg.type) || (st && st.phase && st.phase !== "playing")) {
         if ((get().messages || []).length) set({ messages: [] });
-        if (/^(dealt|new_game_started|new_round_started|game_started|back_to_lobby_success|game_aborted)$/.test(msg.type)) set({ lastAsks: [] });
+        // A new deal or a trip to the lobby: the last round's results must not come back.
+        if (/^(dealt|new_game_started|new_round_started|game_started|back_to_lobby_success|game_aborted)$/.test(msg.type)) set({ lastAsks: [], gameResult: null });
         // tell the table to drop anything in progress (laydown, ask, penalty, selection)
         if (/^(dealt|new_game_started|new_round_started|game_started|back_to_lobby_success|game_aborted)$/.test(msg.type)) {
           try { window.dispatchEvent(new CustomEvent("game_reset")); } catch {}
@@ -403,19 +404,6 @@ export const useStore = create((set, get) => ({
       // Keep the final declaration on the same success/failure path as every other set.
       if (msg.payload.game_end?.game_ended) {
         set({ gameResult: msg.payload.game_end });
-        // Announce the round after the laydown reveal.
-        setTimeout(() => {
-          // Play game over sound
-          if (typeof window !== 'undefined') {
-            import('./utils/sounds').then((m) => {
-              try {
-                if (typeof m.playKey === 'function') m.playKey('game_over');
-                else if (m.default && typeof m.default.playKey === 'function') m.default.playKey('game_over');
-              } catch {}
-            }).catch(()=>{});
-
-          }
-        }, 1500); // Wait for laydown animation to complete (1000ms + 500ms buffer)
       }
 
       // Every laydown, including the final set, gets its declaration result.

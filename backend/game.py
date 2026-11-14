@@ -350,6 +350,9 @@ class Game:
         self.state.pending_ask = None
         self.state.pending_handoff = None
         self.state.awaiting_start = False
+        # The finished match's result must not follow the players into the next game.
+        self.state.round_result = None
+        self.state.match_finished = False
 
         # Bots only fill seats for one game; the lobby starts with humans only.
         for pid in [pid for pid in self.state.players if self.is_bot(pid)]:
