@@ -61,6 +61,10 @@ LEVELS = ("easy", "medium", "hard", "expert")
 #            risk (opponents can see one of its cards), or when no ask is worth making
 # deny       weight against handing the turn (by a missed ask) to an opponent whose teammate just
 #            left them a hint to act on
+# shield     points it minds giving away its hand: an ask tells the table it holds the set and
+#            lacks the card, so it prefers asks the table could already read off past play
+# bluff      chance (per set, per deal) of staying quiet in a set teammates are already building,
+#            so the opponents think it holds none of it; it still takes sure cards there
 # chase      (optional) separate weight for the "chase the same card" half of golden
 # golden and lay_odds are off by default: in bot-vs-bot games (400 each) they didn't win more,
 # likely because bot teammates read hints only weakly. guard and the hard handoff did help.
@@ -73,10 +77,10 @@ PROFILES: Dict[str, dict] = {
                    guard=0.0, golden=0.0, lay_odds=0.0),
     "hard":   dict(miss=0.05, half_life=120, noise=0.07, deduce=True, hints=True, passed_up=False, sure_lay=True,
                    turn=10.0, progress=2.0, support=1.0, fear=1.5, threat=0.0, handoff=True,
-                   guard=6.0, golden=0.0, lay_odds=0.0, save=8.0, deny=0.0),
+                   guard=6.0, golden=0.0, lay_odds=0.0, save=8.0, deny=0.0, shield=0.0, bluff=0.0),
     "expert": dict(miss=0.015, half_life=600, noise=0.03, deduce=True, hints=True, passed_up=True, sure_lay=True,
                    turn=10.0, progress=2.0, support=1.0, fear=1.5, threat=0.3, handoff=True,
-                   guard=8.0, golden=0.0, lay_odds=0.0, save=8.0, deny=0.0),
+                   guard=8.0, golden=0.0, lay_odds=0.0, save=8.0, deny=0.0, shield=0.0, bluff=0.0),
 }
 
 STALEMATE = 12   # failed asks in a row before the table starts keeping careful track
@@ -542,7 +546,18 @@ def decide(game, bot_id: str, level: str = "medium") -> Optional[dict]:
         return _declare(k, s, {c: k.loc[c] for c in cards_in(s)})
 
     # 3. Nothing certain is left: choose what to try for.
-    pub = Knowledge(game, me, P, public=True) if (P["threat"] or P["handoff"]) else None
+    pub = Knowledge(game, me, P, public=True) if (P["threat"] or P["handoff"] or P.get("shield") or P.get("bluff")) else None
+
+    def revealed(s: SetKey) -> bool:                         # does the table already know I hold this set?
+        return (me, s) in pub.must_hold or any(pub.loc[c] == me for c in cards_in(s))
+
+    quiet = set()
+    if P.get("bluff"):
+        for s in k.live_sets:
+            mates_in = any(k.team[x] == my_team and x != me for x in k.interest.get(s, ()))
+            u = zlib.crc32(f"{k.seed}|bluff|{s}".encode()) / 4294967296.0
+            if mates_in and not revealed(s) and u < P["bluff"]:
+                quiet.add(s)
 
     danger = _danger(k) if P.get("guard") else {}
     misses = _team_misses(game, k) if P.get("golden") else {}
@@ -566,7 +581,12 @@ def decide(game, bot_id: str, level: str = "medium") -> Optional[dict]:
         if danger:                                           # a miss hands the turn to t
             risk += P["guard"] * sum(v * k.in_set(t, ds) for ds, v in danger.items()) / 10.0
         risk += P.get("deny", 0.0) * hinted.get(t, 0.0)      # don't feed the opponents' hint chain
-        return p * _card_value(s) * pull - (1.0 - p) * risk + random.random() * 0.01
+        cost = 0.0
+        if P.get("shield"):                                  # what this ask tells the table about my hand
+            cost += P["shield"] * ((0 if revealed(s) else 1.0) + (0 if me in pub.not_have[c] else 0.4))
+        if s in quiet:
+            cost += 50.0                                     # bluffing: act as if I hold none of it
+        return p * _card_value(s) * pull - (1.0 - p) * risk - cost + random.random() * 0.01
 
     live = [o for o in scored if o[0] > 0]
     best = max(live, key=gamble) if live else None
@@ -594,7 +614,7 @@ def decide(game, bot_id: str, level: str = "medium") -> Optional[dict]:
 
     if random.random() < P["noise"]:
         # A whim: any plausible ask, still inside the sets the team cares about when there are some.
-        focus = [o for o in live if o[1] in supported or o[3] in k.hunters.get(o[1], ())]
+        focus = [o for o in live if (o[1] in supported or o[3] in k.hunters.get(o[1], ())) and o[1] not in quiet]
         best = random.choice(focus or live)
     _, s, c, t = best
     return ask(s, [c], t)

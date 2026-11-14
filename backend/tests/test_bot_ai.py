@@ -147,6 +147,21 @@ class BotAiTests(unittest.TestCase):
             hits += 1 if (move['action'] == 'ask' and move['suit'] == 'hearts') else 0
         self.assertGreaterEqual(hits, 30, f'should support the teammate ({hits}/40)')
 
+    def test_rules_out_a_player_whose_whole_hand_is_placed(self):
+        # ai_1 and ai_3 (team B) hold spades lower between them, all taken in front of the table.
+        # ai_1 holds 4 cards, all of that set; ai_3 holds 3 of it plus one unknown card. The
+        # missing hearts 9 can only be with ai_3 (or ai_5), never ai_1.
+        game = self.scripted('hard')
+        game.state.players['ai_1'].hand = [Card(suit='spades', rank=r) for r in ('2', '3', '4', '5')]
+        game.state.players['ai_3'].hand = [Card(suit='spades', rank=r) for r in ('6', '7')] + [Card(suit='hearts', rank='9')]
+        self.give(game, 'ai_0', 'hearts', '10')
+        for who, ranks in (('ai_1', ('2', '3', '4', '5')), ('ai_3', ('6', '7'))):
+            for r in ranks:
+                game.public_log.append({'asker_id': who, 'target_id': 'ai_2', 'suit': 'spades', 'set_type': 'lower', 'ranks': [r], 'success': True})
+        k = bot_ai.Knowledge(game, 'ai_0', bot_ai.profile_for(game, 'ai_0', 'hard'))
+        self.assertEqual(k.prob(('hearts', '9'), 'ai_1'), 0.0)
+        self.assertGreater(k.prob(('hearts', '9'), 'ai_3'), 0.0)
+
 
 if __name__ == '__main__':
     unittest.main()

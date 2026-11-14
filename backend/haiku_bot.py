@@ -50,6 +50,13 @@ odds it gives. Use judgment and these techniques from our table's best players:
    because you can. Lay it down when a helping teammate is STUCK (the table knows their cards and the
    opponents are hinting their way to take them), when the set is AT RISK, or when every ask is bad.
    Laying down a set I hold alone is always safe and keeps my turn.
+10. Shield my hand. Every ask tells the table I hold that set and lack that card. Prefer asks marked
+   REVEALS NOTHING (the table already knows both); open a new set only when I or a teammate can really
+   get the card. The aim is to collect their cards while they learn little about mine.
+11. Bluff, now and then. When two teammates are already building a set I also hold, I may stay quiet in
+   it so the opponents think I hold none, and strike later. Not every time: it can confuse teammates too.
+12. Count hands late in the game. A player whose every card is already placed can't hold my card; ask the
+   one with unplaced cards (the odds already include this).
 9. Starve the opponents' hints. Every missed ask hands an opponent the turn, and opponents use their turns
    to pass hints to each other. Prefer moves that keep the turn; when you must risk a miss, avoid an
    opponent marked HINTED (a teammate just left them a hint to act on).
@@ -132,6 +139,12 @@ def options(game, bot_id: str) -> Tuple[List[dict], str]:
                 note.append(f"hint: I hold {_name(wanted)} a teammate missed")
         if t in k.hunters.get(s, ()):
             note.append("this opponent is hunting my cards")
+        shows = []
+        if not ((me, s) in pub.must_hold or any(pub.loc[x] == me for x in cards_in(s))):
+            shows.append("that I hold this set")
+        if me not in pub.not_have[c]:
+            shows.append("that I lack this card")
+        note.append("REVEALS " + " and ".join(shows) if shows else "REVEALS NOTHING")
         if p < 0.999 and t in hinted:
             note.append("HINTED: a miss lets them act on a teammate's hint")
         asks.append((p * _card_value(s), {"move": {"action": "ask", "target_id": t, "suit": s[0], "set_type": s[1], "rank": c[1], "ranks": [c[1]]},
