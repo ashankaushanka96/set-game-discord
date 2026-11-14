@@ -1292,6 +1292,9 @@ class Game:
             
             logger.info(f"Game ended in room {self.state.room_id}: Winner={winner}, A={team_a_score}, B={team_b_score}, Sets={len(self.state.table_sets)}")
             self.state.round_result = result
+            if getattr(self, "bot_params", None) is None:   # not a test/simulation game
+                import move_log
+                move_log.record_result(self, result)
             return result
         return {"game_ended": False}
 

@@ -180,6 +180,7 @@ async def run_bots(game, room_id: str):
                 return
             if game.state.turn_player != bot_id or game.state.pending_ask or game.state.pending_handoff:
                 continue  # the table moved on while Claude was thinking
+            move_log.record(game, bot_id, move_log.view(game, bot_id), move)
             if move["action"] == "laydown":
                 await bot_laydown(game, room_id, bot_id, move)
             else:

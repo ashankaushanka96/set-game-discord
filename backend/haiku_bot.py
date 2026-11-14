@@ -57,6 +57,10 @@ odds it gives. Use judgment and these techniques from our table's best players:
    it so the opponents think I hold none, and strike later. Not every time: it can confuse teammates too.
 12. Count hands late in the game. A player whose every card is already placed can't hold my card; ask the
    one with unplaced cards (the odds already include this).
+13. Read multi-asks. A player who asks for several cards of a set at once believes they hold the rest.
+14. Who gets the turn if I miss? Rank the opponents by what they could do with it (cards of ours they can
+   place, sets they are close to finishing) and miss towards the weakest.
+15. After a laydown with two helpers, hand the turn to the one who can take the most, or the STUCK one.
 9. Starve the opponents' hints. Every missed ask hands an opponent the turn, and opponents use their turns
    to pass hints to each other. Prefer moves that keep the turn; when you must risk a miss, avoid an
    opponent marked HINTED (a teammate just left them a hint to act on).
@@ -88,7 +92,7 @@ def _set_name(s) -> str:
 
 def options(game, bot_id: str) -> Tuple[List[dict], str]:
     """The legal moves worth considering, each {"move": ..., "text": ...}, and a picture of the table."""
-    P = {**bot_ai.PROFILES["expert"], "miss": 0.0, "half_life": None, "noise": 0.0}
+    P = {**bot_ai.PROFILES["expert"], "miss": 0.0, "half_life": None, "noise": 0.0, "solve": 12}
     k = Knowledge(game, bot_id, P)
     me, my_team = bot_id, k.team[bot_id]
     seat = lambda pid: f"seat {game.state.players[pid].seat}"

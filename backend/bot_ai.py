@@ -65,6 +65,13 @@ LEVELS = ("easy", "medium", "hard", "expert")
 #            lacks the card, so it prefers asks the table could already read off past play
 # bluff      chance (per set, per deal) of staying quiet in a set teammates are already building,
 #            so the opponents think it holds none of it; it still takes sure cards there
+# solve      endgame: with at most this many unplaced cards, work out exact odds from every
+#            consistent spread of them (0 = off)
+# passed_w   how much "left a known card untaken" lowers the odds they hold that set (0.35 = to a third)
+# hint_w     how strongly "asked a different card of the partner's set" points at the wanted card
+# multi      reads an ask for several cards at once as holding the rest of the set (weight, 0 = off)
+# pass_turn  when every ask is bad, may ask for a card it knows the target lacks, to hand the turn
+#            to the opponent who can do least with it
 # chase      (optional) separate weight for the "chase the same card" half of golden
 # golden and lay_odds are off by default: in bot-vs-bot games (400 each) they didn't win more,
 # likely because bot teammates read hints only weakly. guard and the hard handoff did help.
@@ -161,6 +168,9 @@ class Knowledge:
                     self.not_have[c].add(pid)
         if public or self.P["deduce"]:
             self._deduce()
+        self._exact: Optional[Dict[Tuple[CardKey, str], float]] = None
+        if not public and self.P.get("solve"):
+            self._solve(int(self.P["solve"]))
 
     # ---- memory -------------------------------------------------------------
     def _recalls(self, index: int, total: int, ev: dict) -> bool:
@@ -218,7 +228,13 @@ class Knowledge:
                 # already hold the card they were after.
                 for c, who in wanted.get(s, {}).items():
                     if c not in cards and who != asker and self.team[who] == self.team[asker] and self.loc.get(c) is None:
-                        self.hint.setdefault(c, {})[asker] = 3.0
+                        self.hint.setdefault(c, {})[asker] = self.P.get("hint_w", 3.0)
+            if self.P.get("multi") and len(cards) >= 2:
+                # Asking for several at once: they believe they hold the rest of the set.
+                for c2 in cards_in(s):
+                    if c2 not in cards and self.loc.get(c2) is None:
+                        h = self.hint.setdefault(c2, {})
+                        h[asker] = max(h.get(asker, 1.0), 1.0 + self.P["multi"])
             for c in cards:
                 wanted.setdefault(s, {})[c] = asker
             if ev["success"]:
@@ -263,6 +279,55 @@ class Knowledge:
             if not changed:
                 break
 
+    def _solve(self, limit: int, max_nodes: int = 200000):
+        """Endgame: with few unplaced cards, go through every way they could be spread over the
+        hands that fits the card counts, the "doesn't have" facts and the "holds one of the set"
+        facts, and take exact odds from that. Gives up quietly if it would take too long."""
+        unknown = [c for c in self.live_cards if self.loc[c] is None]
+        if not unknown or len(unknown) > limit:
+            return
+        known = {p: 0 for p in self.players}
+        for c, p in self.loc.items():
+            if p:
+                known[p] += 1
+        room = {p: max(0, self.count[p] - known[p]) for p in self.players}
+        if sum(room.values()) != len(unknown):
+            return                                           # beliefs don't add up (forgotten asks): keep the estimate
+        needs = [(p, s) for p, s in self.must_hold if not any(self.loc[c] == p for c in cards_in(s))]
+        tally: Dict[Tuple[CardKey, str], int] = {}
+        total, nodes = 0, 0
+        assign: Dict[CardKey, str] = {}
+
+        def ok_needs() -> bool:
+            return all(any(assign.get(c) == p for c in cards_in(s)) for p, s in needs)
+
+        def go(i: int) -> bool:
+            nonlocal total, nodes
+            nodes += 1
+            if nodes > max_nodes:
+                return False
+            if i == len(unknown):
+                if ok_needs():
+                    total += 1
+                    for c, p in assign.items():
+                        tally[(c, p)] = tally.get((c, p), 0) + 1
+                return True
+            c = unknown[i]
+            for p in self.players:
+                if room[p] > 0 and p not in self.not_have[c]:
+                    room[p] -= 1; assign[c] = p
+                    if not go(i + 1):
+                        return False
+                    room[p] += 1; del assign[c]
+            return True
+
+        if go(0) and total:
+            self._exact = {k: v / total for k, v in tally.items()}
+            for c in unknown:                                # a card with only one possible holder is placed
+                holders = [p for p in self.players if self._exact.get((c, p), 0) > 0]
+                if len(holders) == 1:
+                    self._place(c, holders[0])
+
     # ---- questions ----------------------------------------------------------
     def prob(self, card: CardKey, pid: str) -> float:
         """Chance that pid holds the card, as this bot sees it."""
@@ -271,6 +336,8 @@ class Knowledge:
             return 1.0 if holder == pid else 0.0
         if pid in self.not_have[card]:
             return 0.0
+        if self._exact is not None:
+            return self._exact.get((card, pid), 0.0)
         key = (card, pid)
         if key in self._prob:
             return self._prob[key]
@@ -291,7 +358,7 @@ class Knowledge:
                 w *= 2.0                                     # they hold something here we haven't placed
             w *= self.hint.get(card, {}).get(p, 1.0)
             if (p, s) in self.passed_up and not placed:
-                w *= 0.35
+                w *= self.P.get("passed_w", 0.35)
             return w
 
         total = sum(weight(p) for p in self.players)
@@ -590,6 +657,13 @@ def decide(game, bot_id: str, level: str = "medium") -> Optional[dict]:
 
     live = [o for o in scored if o[0] > 0]
     best = max(live, key=gamble) if live else None
+    if P.get("pass_turn") and (best is None or gamble(best) < 0):
+        # Every real ask is bad: maybe hand the turn on deliberately, to the opponent who can do
+        # least with it, rather than to whoever a long-shot ask lands on.
+        blanks = [o for o in scored if o[0] <= 0]
+        blank = max(blanks, key=gamble) if blanks else None
+        if blank and (best is None or gamble(blank) > gamble(best) + P["pass_turn"]):
+            best = blank
 
     if shared:                                               # expert: lay down to hand the turn on?
         def route(s: SetKey) -> float:
@@ -612,7 +686,7 @@ def decide(game, bot_id: str, level: str = "medium") -> Optional[dict]:
         # its own team holds the rest. Asking would only give the turn away: declare a guess.
         return _forced_laydown(k) or (ask(options[0][0], [options[0][1]], options[0][2]) if options else None)
 
-    if random.random() < P["noise"]:
+    if random.random() < P["noise"] and best[0] > 0:
         # A whim: any plausible ask, still inside the sets the team cares about when there are some.
         focus = [o for o in live if (o[1] in supported or o[3] in k.hunters.get(o[1], ())) and o[1] not in quiet]
         best = random.choice(focus or live)
@@ -632,5 +706,6 @@ def choose_handoff(game, bot_id: str, options: List[str]) -> Optional[str]:
     if P["handoff"] and game.state.players[bot_id].hand:
         k = Knowledge(game, bot_id, P)
         pub = Knowledge(game, bot_id, P, public=True)
-        return max(live, key=lambda pid: (_opportunity(k, pub, pid), len(game.state.players[pid].hand), random.random()))
+        stuck = (lambda pid: 0.5 * _stuck(k, pub, pid)) if P.get("save") else (lambda pid: 0.0)
+        return max(live, key=lambda pid: (_opportunity(k, pub, pid) + stuck(pid), len(game.state.players[pid].hand), random.random()))
     return max(live, key=lambda pid: (len(game.state.players[pid].hand), random.random()))

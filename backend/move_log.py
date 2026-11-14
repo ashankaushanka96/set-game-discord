@@ -1,8 +1,11 @@
-"""Records the moves real players make in Turn Play, as training data for the bots.
+"""Records the moves players make in Turn Play (humans and bots), as training data for the bots.
 
 Each line of the log (JSON) is one human move with only what that player could see at the time:
 their own hand, every player's card count and team, the sets already laid down and the public
 history of asks. Player ids are replaced by seat numbers, and names are never written.
+
+Bot moves carry "bot": their level, so they can be told apart or left out. At the end of each
+game one {"result": ...} line gives the scores, so moves can be weighed by who won.
 
 Set MOVE_LOG_PATH to change the file (default logs/human_moves.jsonl); MOVE_LOG=off turns it off.
 """
@@ -46,8 +49,8 @@ def view(game, player_id: str) -> Optional[dict]:
 
 
 def record(game, player_id: str, before: Optional[dict], move: dict):
-    """Append one human move (taken with the view from just before it)."""
-    if not _enabled() or not before or game.is_bot(player_id) or game.state.game_mode != "turns":
+    """Append one move (taken with the view from just before it)."""
+    if not _enabled() or not before or game.state.game_mode != "turns":
         return
     seat = {pid: p.seat for pid, p in game.state.players.items() if p.seat is not None}
     move = dict(move)
@@ -59,6 +62,22 @@ def record(game, player_id: str, before: Optional[dict], move: dict):
                                  for c in move["collaborators"] or [] if isinstance(c, dict)]
     line = {"t": round(time.time()), "room": game.state.room_id, "deal": getattr(game, "deal_seed", None),
             "view": before, "move": move}
+    if game.is_bot(player_id):
+        line["bot"] = getattr(game, "bot_levels", {}).get(player_id, "medium")
+    _write(line)
+
+
+def record_result(game, result: dict):
+    """One line per finished game: the final scores, so moves can be weighed by the outcome."""
+    if not _enabled() or game.state.game_mode != "turns":
+        return
+    _write({"t": round(time.time()), "room": game.state.room_id, "deal": getattr(game, "deal_seed", None),
+            "result": {"winner": result.get("winner"), "scores": {"A": result.get("team_a_score"), "B": result.get("team_b_score")},
+                       "bots": {str(p.seat): getattr(game, "bot_levels", {}).get(pid) for pid, p in game.state.players.items()
+                                if p.seat is not None and game.is_bot(pid)}}})
+
+
+def _write(line: dict):
     try:
         path = _path()
         os.makedirs(os.path.dirname(path), exist_ok=True)
