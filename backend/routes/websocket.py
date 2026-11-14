@@ -532,6 +532,13 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
                 else:
                     await WebSocketService.send_to_player(room_id, player_id, "error", {"message": res["message"]})
 
+            elif t == "set_language":
+                res = game.set_language(player_id, str(p.get("lang") or ""))
+                if res["success"]:
+                    await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
+                else:
+                    await WebSocketService.send_to_player(room_id, player_id, "error", {"message": res["message"]})
+
             elif t == "set_voice_turns":
                 res = game.set_voice_turns(player_id, bool(p.get("on")))
                 if res["success"]:

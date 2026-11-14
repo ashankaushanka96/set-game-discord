@@ -279,7 +279,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .club-bubble--success { --bubble-border: #94cbaa88; }
 .club-bubble--error { --bubble-border: #dda19b88; }
 .club-bubble--info { --bubble-border: #a7c9d866; }
-.laydown-bubble-cards > div { height: 56px !important; }
+.laydown-bubble-cards > div { height: 80px !important; }   /* bubble cards (50x68) plus the fan's lift */
 
 .table-chat { position: fixed; bottom: 16px; left: 16px; z-index: 60; }
 .table-chat__toggle { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; border: 1px solid #d7c18a55; background: #263a32; font-size: 20px; box-shadow: 0 4px 16px #0005; }

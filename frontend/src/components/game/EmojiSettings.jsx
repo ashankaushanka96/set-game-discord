@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useStore } from '../../store';
 import emojiSoundManager from '../../utils/sounds';
-import { setTTSEnabled, isTTSAvailable } from '../../utils/tts';
+import { setTTSEnabled } from '../../utils/tts';
 import { getQuality, setQuality, isPhoneLike, getView, setView } from './table3d/graphicsQuality';
 import GlassmorphismModal from '../ui/GlassmorphismModal';
 
@@ -117,7 +117,7 @@ export default function EmojiSettings({ isOpen, onClose }) {
   return (
     <GlassmorphismModal isOpen={isOpen} onClose={onClose} size="md">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-2">
         <h3 className="text-lg font-semibold text-white">Settings</h3>
         <button
           onClick={onClose}
@@ -128,9 +128,9 @@ export default function EmojiSettings({ isOpen, onClose }) {
       </div>
 
       {/* Settings Content */}
-      <div className="space-y-4">
+      <div className="space-y-3">
         {/* Table view (per device) */}
-        <div className="space-y-3">
+        <div className="space-y-1.5">
           <h4 className="text-sm font-medium text-white/80">Table view</h4>
           <div className="graphics-quality graphics-quality--two" role="radiogroup" aria-label="Table view">
             {[
@@ -148,7 +148,7 @@ export default function EmojiSettings({ isOpen, onClose }) {
 
         {/* Table sharpness (per device, 3D only) */}
         {view === '3d' && 
-        <div className="space-y-3">
+        <div className="space-y-1.5">
           <h4 className="text-sm font-medium text-white/80">Table sharpness</h4>
           <div className="graphics-quality" role="radiogroup" aria-label="Table sharpness">
             {[
@@ -163,19 +163,17 @@ export default function EmojiSettings({ isOpen, onClose }) {
               </button>
             ))}
           </div>
-          <p className="text-xs text-white/60">Saved on this device only.</p>
         </div>}
 
         {/* Sound Settings */}
-        <div className="space-y-3">
+        <div className="space-y-1.5">
           <h4 className="text-sm font-medium text-white/80">Sound Effects</h4>
           
-          <div className="flex items-center justify-between p-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl">
+          <div className="flex items-center justify-between px-3 py-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl">
               <div className="flex items-center gap-3">
                 <div className="text-xl">🔊</div>
                 <div>
                   <div className="text-sm font-medium text-white">Enable Sounds</div>
-                  <div className="text-xs text-white/70">Play sound effects for emoji animations</div>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -193,119 +191,11 @@ export default function EmojiSettings({ isOpen, onClose }) {
                     `}
                   />
                 </button>
-                {settings.soundEnabled && (
-                  <button
-                    onClick={() => emojiSoundManager.playSound('🔨')}
-                    className="text-xs px-2 py-1 bg-gradient-to-r from-accent-blue to-accent-purple hover:shadow-glow-blue text-white rounded-xl transition-all duration-200 border border-accent-blue/30"
-                    title="Test sound"
-                  >
-                    🔊 Test
-                  </button>
-                )}
               </div>
             </div>
           </div>
 
-        {/* Animation Settings */}
-        <div className="space-y-3">
-          <h4 className="text-sm font-medium text-white/80">Animations</h4>
-          
-          <div className="flex items-center justify-between p-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl">
-              <div className="flex items-center gap-3">
-                <div className="text-xl">✨</div>
-                <div>
-                  <div className="text-sm font-medium text-white">Enable Animations</div>
-                  <div className="text-xs text-white/70">Show emoji flying animations</div>
-                </div>
-              </div>
-              <button
-                onClick={handleAnimationToggle}
-                className={`
-                  relative w-12 h-6 rounded-full transition-colors
-                  ${settings.animationsEnabled ? 'bg-gradient-to-r from-accent-blue to-blue-500' : 'bg-white/20'}
-                `}
-              >
-                <div
-                  className={`
-                    absolute top-1 w-4 h-4 bg-white rounded-full transition-transform
-                    ${settings.animationsEnabled ? 'translate-x-7' : 'translate-x-1'}
-                  `}
-                />
-              </button>
-            </div>
 
-          <div className="flex items-center justify-between p-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl">
-            <div className="flex items-center gap-3">
-              <div className="text-xl">♿</div>
-              <div>
-                <div className="text-sm font-medium text-white">Reduce Motion</div>
-                <div className="text-xs text-white/70">Minimize animations for accessibility</div>
-              </div>
-            </div>
-            <button
-              onClick={handleReduceMotionToggle}
-              className={`
-                relative w-12 h-6 rounded-full transition-colors
-                ${settings.reduceMotion ? 'bg-gradient-to-r from-accent-blue to-blue-500' : 'bg-white/20'}
-              `}
-              >
-                <div
-                  className={`
-                    absolute top-1 w-4 h-4 bg-white rounded-full transition-transform
-                    ${settings.reduceMotion ? 'translate-x-7' : 'translate-x-1'}
-                  `}
-                />
-              </button>
-            </div>
-
-          {/* TTS Settings */}
-          {isTTSAvailable() && (
-            <div className="flex items-center justify-between p-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl">
-              <div className="flex items-center gap-3">
-                <div className="text-xl">🗣️</div>
-                <div>
-                <div className="text-sm font-medium text-white">Voice Announcements</div>
-                <div className="text-xs text-white/70">Announce game over results</div>
-                </div>
-              </div>
-              <button
-                onClick={handleTTSToggle}
-                className={`
-                  relative w-12 h-6 rounded-full transition-colors
-                  ${settings.ttsEnabled ? 'bg-gradient-to-r from-accent-blue to-blue-500' : 'bg-white/20'}
-                `}
-                >
-                  <div
-                    className={`
-                      absolute top-1 w-4 h-4 bg-white rounded-full transition-transform
-                      ${settings.ttsEnabled ? 'translate-x-7' : 'translate-x-1'}
-                    `}
-                  />
-                </button>
-              </div>
-            )}
-          </div>
-
-        {/* Info Section */}
-        <div className="p-3 bg-accent-blue/10 backdrop-blur-sm border border-accent-blue/30 rounded-xl">
-          <div className="flex items-start gap-2">
-            <div className="text-accent-blue text-sm">ℹ️</div>
-            <div className="text-xs text-accent-blue">
-              <p className="font-medium mb-1">Accessibility Note:</p>
-              <p>These settings help make the game more accessible. Reduced motion settings will minimize animations while keeping the core gameplay intact.</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="pt-4">
-          <button
-            onClick={onClose}
-            className="w-full py-2 px-4 bg-gradient-to-r from-accent-blue to-accent-purple hover:shadow-glow-blue text-white rounded-xl transition-all duration-200 border border-accent-blue/30"
-          >
-            Done
-          </button>
-        </div>
       </div>
     </GlassmorphismModal>
   );

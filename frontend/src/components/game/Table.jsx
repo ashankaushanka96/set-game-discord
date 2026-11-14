@@ -16,6 +16,7 @@ import { markReactionUsed } from './ReactionTray';
 import EmojiPassAnimation from './EmojiPassAnimation';
 import { FlowArrows } from './AskPointer';
 import SeatRings from './SeatRings';
+import { useT } from '../../i18n';
 import LastAskReplay from './LastAskReplay';
 import BotWaitPill from './BotWaitPill';
 import EmojiSettings from './EmojiSettings';
@@ -58,6 +59,7 @@ function SetChip({ suit, set_type, owner }) {
 const RESULTS_PROMPT_SECONDS = 10;
 
 export default function Table() {
+  const t = useT();
   const navigate = useNavigate();
   const { state, me, ws, gameResult, abortVoting, dealingAnimation, pendingLay, votingResult, closeVotingResult, backToLobbyVoting, speakingUsers, laydownResult, clearLaydownResult } = useStore();
   const reactionAim = useStore(s => s.reactionAim);
@@ -133,6 +135,18 @@ export default function Table() {
   }, [pendingResult]);
   // Nobody opened the laydown results within 10s of the prompt showing: put it away so play can go on.
   // The prompt counts down like the bot-wait pill (a draining bar and the seconds left).
+  // The score pills hold the old total while the "+N" flies up, and only count it once it lands
+  // (score_landed from LaydownAnimation). A drop (new game) or a missed landing still shows within 4.5s.
+  const liveScores = state.team_scores || {};
+  const [shownScores, setShownScores] = useState(liveScores);
+  useEffect(() => {
+    const rose = ['A', 'B'].some(k => (liveScores[k] ?? 0) > (shownScores[k] ?? 0));
+    if (!rose) { setShownScores(liveScores); return; }
+    const land = () => setShownScores(state.team_scores || {});
+    window.addEventListener('score_landed', land);
+    const fallback = setTimeout(land, 4500);
+    return () => { window.removeEventListener('score_landed', land); clearTimeout(fallback); };
+  }, [liveScores.A, liveScores.B]); // eslint-disable-line react-hooks/exhaustive-deps
   const resultsPromptShown = !!pendingResult && resultsReady && !layAnimActive;
   const [promptLeft, setPromptLeft] = useState(RESULTS_PROMPT_SECONDS);
   const [promptRun, setPromptRun] = useState(0);   // restarts the draining bar each time the countdown starts
@@ -145,6 +159,13 @@ export default function Table() {
     const id = setInterval(tick, 250);
     const timer = setTimeout(() => clearLaydownResult(), RESULTS_PROMPT_SECONDS * 1000);
     return () => { clearInterval(id); clearTimeout(timer); };
+  }, [laydownResult, resultsOpen, resultsPromptShown, clearLaydownResult]);
+  // A tap anywhere outside the prompt closes it, same as waiting out the timer.
+  useEffect(() => {
+    if (!laydownResult || resultsOpen || !resultsPromptShown) return;
+    const close = (e) => { if (!e.target.closest?.('.laydown-results-prompt')) clearLaydownResult(); };
+    const id = setTimeout(() => document.addEventListener('pointerdown', close, true), 0);
+    return () => { clearTimeout(id); document.removeEventListener('pointerdown', close, true); };
   }, [laydownResult, resultsOpen, resultsPromptShown, clearLaydownResult]);
   useEffect(() => {
     if (state.phase === 'ready' || state.phase === 'lobby') clearLaydownResult();
@@ -448,8 +469,8 @@ export default function Table() {
           {/* Watching happens from the browser spectator page; in Discord an unseated player just waits */}
           <div className="spectator-wait">
             <div className="spectator-wait__icon" aria-hidden="true">⏳</div>
-            <h2>Game in progress</h2>
-            <p>You can pick a seat when the table returns to the lobby.</p>
+            <h2>{t('Game in progress')}</h2>
+            <p>{t('You can pick a seat when the table returns to the lobby.')}</p>
           </div>
         </div>
         
@@ -489,7 +510,7 @@ export default function Table() {
           onFail={() => setUse3d(false)}
         />
       </Suspense>}
-      <div className="game-room-heading"><span className="club-eyebrow">SET CLUB <i className="room-live-dot" /></span><span>{state.phase === 'playing' ? 'Round in play' : state.phase === 'ready' ? 'Waiting for the deal' : 'Round complete'}</span></div>
+      <div className="game-room-heading"><span className="club-eyebrow">SET CLUB <i className="room-live-dot" /></span><span>{t(state.phase === 'playing' ? 'Round in play' : state.phase === 'ready' ? 'Waiting for the deal' : 'Round complete')}</span></div>
       {/* (no confetti on laydowns in either view: it covered the laid cards) */}
       <DealingAnimation cardsIn3d={use3d} />
       {!use3d && <PassedCardsAnimation seatEls={seatEls} phase={state.phase} />}
@@ -511,8 +532,8 @@ export default function Table() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
             <span className="text-sm font-medium">
-              <span className="hidden sm:inline">Back to Lobby</span>
-              <span className="sm:hidden">Lobby</span>
+              <span className="hidden sm:inline">{t('Back to Lobby')}</span>
+              <span className="sm:hidden">{t('Lobby')}</span>
             </span>
           </button>
         </div>
@@ -533,8 +554,8 @@ export default function Table() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
             <span className="text-sm font-medium">
-              <span className="hidden sm:inline">New Game</span>
-              <span className="sm:hidden">New</span>
+              <span className="hidden sm:inline">{t('New Game')}</span>
+              <span className="sm:hidden">{t('New')}</span>
             </span>
           </button>
         </div>
@@ -564,7 +585,7 @@ export default function Table() {
       {state.phase === 'playing' && players[me.id]?.seat != null && !players[me.id]?.is_spectator && (
         <div className="game-side-controls">
           {!state.paused_by && <button type="button" className="game-pause-btn" disabled={ws?.readyState !== 1}
-            onClick={() => send(ws, 'pause_game', {})} title="Pause the game while you step away">⏸ Pause</button>}
+            onClick={() => send(ws, 'pause_game', {})} title={t('Pause the game while you step away')}>⏸ {t('Pause')}</button>}
           {isTurnPlay && <LastAskReplay players={players} />}
         </div>
       )}
@@ -575,7 +596,7 @@ export default function Table() {
           <div className="text-sm font-semibold">
             {selectedCardsToPass.length} card{selectedCardsToPass.length !== 1 ? 's' : ''} selected
           </div>
-          <div className="text-xs opacity-80">{voiceTurns ? `Drag up onto ${players[voiceSpot?.asker_id]?.name || 'the asker'}, or tap their seat` : use3d ? "Drag up onto an opponent, or tap their seat" : "Drag onto an opponent to pass, or click their seat"}</div>
+          <div className="text-xs opacity-80">{voiceTurns ? t('Drag up onto {name}, or tap their seat', { name: players[voiceSpot?.asker_id]?.name || t('the asker') }) : use3d ? t('Drag up onto an opponent, or tap their seat') : t('Drag onto an opponent to pass, or click their seat')}</div>
         </div>
       )}
 
@@ -597,7 +618,7 @@ export default function Table() {
             <span className="hidden sm:inline">Team A</span>
             <span className="sm:hidden">A</span>
             <span className="text-text-secondary">—</span>
-            <span className="text-text-primary font-semibold">{state.team_scores?.A ?? 0}</span>
+            <span className="text-text-primary font-semibold">{shownScores.A ?? 0}</span>
             <span className="hidden sm:inline">pts</span>
             <span className="text-text-muted"> ({(state.table_sets||[]).filter(s=>s.owner_team==='A').length})</span>
           </span>
@@ -608,14 +629,14 @@ export default function Table() {
             <span className="hidden sm:inline">Team B</span>
             <span className="sm:hidden">B</span>
             <span className="text-text-secondary">—</span>
-            <span className="text-text-primary font-semibold">{state.team_scores?.B ?? 0}</span>
+            <span className="text-text-primary font-semibold">{shownScores.B ?? 0}</span>
             <span className="hidden sm:inline">pts</span>
             <span className="text-text-muted"> ({(state.table_sets||[]).filter(s=>s.owner_team==='B').length})</span>
           </span>
         </div>
       </div>
 
-         <div className="match-score-strip" aria-label="Match round wins"><span>Round {(state.completed_rounds || 0) + (state.phase === 'ended' ? 0 : 1)}</span><strong>Rounds won</strong><span>A: {state.round_wins?.A || 0}</span><span>B: {state.round_wins?.B || 0}</span>{state.tied_rounds > 0 && <span>Tied: {state.tied_rounds}</span>}</div>
+         <div className="match-score-strip" aria-label="Match round wins"><span>{t('Round {n}', { n: (state.completed_rounds || 0) + (state.phase === 'ended' ? 0 : 1) })}</span><strong>{t('Rounds won')}</strong><span>A: {state.round_wins?.A || 0}</span><span>B: {state.round_wins?.B || 0}</span>{state.tied_rounds > 0 && <span>{t('Tied')}: {state.tied_rounds}</span>}</div>
 
        </div>
        {/* Main game area - takes up most of the viewport */}
@@ -645,7 +666,7 @@ export default function Table() {
                   className="bg-gradient-warm hover:shadow-glow-amber text-white px-6 py-3 rounded-lg font-semibold shadow-lg transition-all duration-200 border border-accent-amber/30"
                   onClick={() => send(ws, 'shuffle_deal', {})}
                 >
-                  Shuffle & Deal
+                  {t("Shuffle & Deal")}
                 </button>
               )}
               
@@ -663,9 +684,9 @@ export default function Table() {
 
             {resultsPromptShown && <div className={`laydown-results-prompt ${laydownResult ? 'laydown-results-prompt--timed' : ''}`} role="status">
               {laydownResult && !resultsOpen && <span key={promptRun} className="bot-wait__bar laydown-results-prompt__bar" style={{ animationDuration: `${RESULTS_PROMPT_SECONDS}s` }} aria-hidden="true" />}
-              <span>{laydownResult ? (laydownResult.success ? 'Set complete' : 'Declaration checked') : 'Round complete'}</span>
-              <button type="button" className="club-primary" onClick={event => {event.stopPropagation();setResultsOpen(true);}}>View results</button>
-              {laydownResult && !resultsOpen && <small className="laydown-results-prompt__left">Closes in {promptLeft}s</small>}
+              <span>{t(laydownResult ? (laydownResult.success ? 'Set complete' : 'Declaration checked') : 'Round complete')}</span>
+              <button type="button" className="club-primary" onClick={event => {event.stopPropagation();setResultsOpen(true);}}>{t('View results')}</button>
+              {laydownResult && !resultsOpen && <small className="laydown-results-prompt__left">{t('Closes in {n}s', { n: promptLeft })}</small>}
             </div>}
 
             {Object.keys(seats).map((k) => {
@@ -703,7 +724,7 @@ export default function Table() {
                       isAsked={!!p && !!(pendingAsk || voiceSpot) && (pendingAsk || voiceSpot).target_id === p.id}
                       askMode={isTurnPlay || myVoiceTurn}
                       reactEmoji={reactionAim?.emoji}
-                      pickLabel={laydownPick ? `Has the ${laydownPick.rank}${SUIT_GLYPH[laydownPick.suit] || ''}` : null}
+                      pickLabel={laydownPick ? t('Has the {card}', { card: `${laydownPick.rank}${SUIT_GLYPH[laydownPick.suit] || ''}` }) : null}
                       team={p?.team}
                       isMe={isMe}
                       isLaydownPlayer={isLaydownPlayer}
@@ -755,17 +776,17 @@ export default function Table() {
          {turnPlayer && !awaitingStart && !botWait && (
         <div className={`turn-banner ${(turnPlayer.id === me.id && !pendingAsk && !voiceSpot) || askedMe ? 'turn-banner--mine' : ''}`} role="status" aria-live="polite">
           {pendingHandoff
-            ? <span>{pendingHandoff.who_id === me.id ? 'Choose a teammate to play next' : `${players[pendingHandoff.who_id]?.name || 'Declarer'} is choosing who plays next…`}</span>
+            ? <span>{pendingHandoff.who_id === me.id ? t('Choose a teammate to play next') : t('{name} is choosing who plays next…', { name: players[pendingHandoff.who_id]?.name || t('Declarer') })}</span>
             : voiceSpot
-            ? <span>{voiceSpot.asker_id === me.id ? 'You are asking' : `${players[voiceSpot.asker_id]?.name || 'Someone'} is asking`} {askedMe ? 'you' : players[voiceSpot.target_id]?.name}
-                {askedMe && <> — send the cards, or <button type="button" className="turn-banner__btn" onClick={() => send(ws, 'voice_no_card', {})}>I don't have it</button></>}
-                {voiceSpot.asker_id === me.id && <> <button type="button" className="turn-banner__btn turn-banner__btn--ghost" onClick={() => send(ws, 'voice_spot', { target_id: null })}>Change</button></>}
+            ? <span>{voiceSpot.asker_id === me.id ? t('You are asking {who}', { who: askedMe ? t('you') : players[voiceSpot.target_id]?.name }) : t('{name} is asking {who}', { name: players[voiceSpot.asker_id]?.name || t('Someone'), who: askedMe ? t('you') : players[voiceSpot.target_id]?.name })}
+                {askedMe && <> — {t('send the cards, or')} <button type="button" className="turn-banner__btn" onClick={() => send(ws, 'voice_no_card', {})}>{t("I don't have it")}</button></>}
+                {voiceSpot.asker_id === me.id && <> <button type="button" className="turn-banner__btn turn-banner__btn--ghost" onClick={() => send(ws, 'voice_spot', { target_id: null })}>{t('Change')}</button></>}
               </span>
             : pendingAsk
-            ? <span>{pendingAsk.asker_id === me.id ? 'Waiting for' : `${players[pendingAsk.asker_id]?.name || 'Someone'} asked`} {pendingAsk.target_id === me.id ? 'you' : players[pendingAsk.target_id]?.name}…</span>
+            ? <span>{pendingAsk.asker_id === me.id ? t('Waiting for {who}…', { who: pendingAsk.target_id === me.id ? t('you') : players[pendingAsk.target_id]?.name }) : t('{name} asked {who}…', { name: players[pendingAsk.asker_id]?.name || t('Someone'), who: pendingAsk.target_id === me.id ? t('you') : players[pendingAsk.target_id]?.name })}</span>
             : turnPlayer.id === me.id
-              ? <span>{laydownPick ? `Tap the teammate who has the ${laydownPick.rank}${SUIT_GLYPH[laydownPick.suit] || ''}` : voiceTurns ? 'Your turn — tap who you\'re asking, or lay down' : 'Your turn — tap an opponent to ask for a card'}</span>
-              : <span>{turnPlayer.name}'s turn</span>}
+              ? <span>{laydownPick ? t('Tap the teammate who has the {card}', { card: `${laydownPick.rank}${SUIT_GLYPH[laydownPick.suit] || ''}` }) : voiceTurns ? t("Your turn — tap who you're asking, or lay down") : t('Your turn — tap an opponent to ask for a card')}</span>
+              : <span>{t("{name}'s turn", { name: turnPlayer.name })}</span>}
         </div>
       )}
          </BannerSlot>
@@ -809,7 +830,7 @@ export default function Table() {
          <div className="game-hand-status flex items-center justify-center gap-3">
          {/* Show current phase and dealer info */}
          <div className="text-xs text-text-muted">
-           {state.phase === 'playing' ? 'Round in play' : state.phase === 'ready' ? 'Ready for the deal' : 'Round complete'}
+           {t(state.phase === 'playing' ? 'Round in play' : state.phase === 'ready' ? 'Ready for the deal' : 'Round complete')}
            {state.phase === 'ready' && state.current_dealer && (
              <span className="ml-2 text-blue-400">
                • Dealer: {(() => {
@@ -825,8 +846,8 @@ export default function Table() {
       {penaltyPick && !isTurnPlay && state.phase === 'playing' && (
         <div className="laydown-tablepick laydown-tablepick--penalty" role="dialog" aria-label="Confirm penalty laydown">
           <div className="laydown-tablepick__head laydown-tablepick__head--plain">
-            <strong>Penalty: give up <span className="capitalize">{penaltyPick.suit}</span> {penaltyPick.setType}?</strong>
-            <span>The whole set goes to the other team. This can't be undone.</span>
+            <strong>{t('Penalty: give up {set}?', { set: `${t(penaltyPick.suit)} ${t(penaltyPick.setType)}` })}</strong>
+            <span>{t("The whole set goes to the other team. This can't be undone.")}</span>
           </div>
           <div className="laydown-tablepick__foot">
             <button type="button" className="club-secondary laydown-tablepick__no" onClick={() => { setPenaltyPick(null); send(ws, 'clear_bubble_messages', { player_id: me.id }); }}>Cancel</button>
@@ -834,7 +855,7 @@ export default function Table() {
               send(ws, 'penalty_laydown', { suit: penaltyPick.suit, set_type: penaltyPick.setType });
               send(ws, 'clear_bubble_messages', { player_id: me.id });
               setPenaltyPick(null); setSelectedCardsToPass([]);
-            }} disabled={paused}>Yes, penalty laydown</button>
+            }} disabled={paused}>{t('Yes, penalty laydown')}</button>
           </div>
         </div>
       )}
@@ -842,12 +863,12 @@ export default function Table() {
 
       {paused && (
         <div className="game-paused" role="status" aria-live="polite">
-          <strong>Game paused</strong>
-          {pausedFor.length > 0 && <span>Waiting for {pausedFor.map((p) => p.name || 'a player').join(', ')} to reconnect. You can look at your cards and talk.</span>}
-          {pausedByName && <span>{state.paused_by === me.id ? 'You paused the game.' : `${pausedByName} paused the game.`} You can look at your cards and talk.</span>}
+          <strong>{t('Game paused')}</strong>
+          {pausedFor.length > 0 && <span>{t('Waiting for {names} to reconnect.', { names: pausedFor.map((p) => p.name || t('a player')).join(', ') })} {t('You can look at your cards and talk.')}</span>}
+          {pausedByName && <span>{state.paused_by === me.id ? t('You paused the game.') : t('{name} paused the game.', { name: pausedByName })} {t('You can look at your cards and talk.')}</span>}
           {pausedByName && players[me.id]?.seat != null && !players[me.id]?.is_spectator && (
             <button type="button" className="club-primary game-paused__resume" disabled={ws?.readyState !== 1}
-              onClick={() => send(ws, 'resume_game', {})}>▶ Resume</button>
+              onClick={() => send(ws, 'resume_game', {})}>▶ {t('Resume')}</button>
           )}
         </div>
       )}
@@ -919,7 +940,7 @@ export default function Table() {
        {/* Laydown Button - Fixed in bottom right corner */}
        {(state.phase === 'playing' || state.phase === 'ready') && (<>
          {layHint && !layOpen && <div className="lay-hint" role="status">
-           <span>{layHint === 'mixed' ? 'Select cards from one set only, then tap Lay.' : layHint === 'partial' ? 'Select all of your cards of that set, then tap Lay.' : 'Select a card of the set you want to lay down, then tap Lay.'}</span>
+           <span>{t(layHint === 'mixed' ? 'Select cards from one set only, then tap Lay.' : layHint === 'partial' ? 'Select all of your cards of that set, then tap Lay.' : 'Select a card of the set you want to lay down, then tap Lay.')}</span>
          </div>}
          <div className="game-laydown-action">
            <button
@@ -931,10 +952,10 @@ export default function Table() {
              }`}
              disabled={layLocked}
              aria-disabled={!layReady}
-             title={layLocked ? "You can lay down on your turn" : layReady ? "Lay down this set" : "Select all of your cards of one set first"}
+             title={t(layLocked ? 'You can lay down on your turn' : layReady ? 'Lay down this set' : 'Select all of your cards of one set first')}
            >
-             <span className="hidden sm:inline">Laydown</span>
-             <span className="sm:hidden">Lay</span>
+             <span className="hidden sm:inline">{t('Laydown')}</span>
+             <span className="sm:hidden">{t('Lay')}</span>
            </button>
          </div>
        </>)}

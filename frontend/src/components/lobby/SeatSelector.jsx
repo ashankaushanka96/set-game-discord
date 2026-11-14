@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useStore } from '../../store';
 import { send } from '../../ws';
 
+import { useT } from '../../i18n';
+
 function Avatar({ player }) {
   return player.avatar?.startsWith('http')
     ? <img src={player.avatar} alt="" referrerPolicy="no-referrer" />
@@ -12,21 +14,23 @@ function Avatar({ player }) {
 function MakeAdmin({ player, me, adminId }) {
   const ws = useStore(state => state.ws);
   const [asking, setAsking] = useState(false);
+  const t = useT();
   useEffect(() => { if (!asking) return; const t = setTimeout(() => setAsking(false), 4000); return () => clearTimeout(t); }, [asking]);
   if (!me || adminId !== me.id || player.id === me.id || player.connected === false || String(player.id).startsWith('ai_')) return null;
   return <button type="button" className={`make-admin ${asking ? 'make-admin--asking' : ''}`}
     title={`Make ${player.name} the admin`} aria-label={asking ? `Confirm: make ${player.name} the admin` : `Make ${player.name} the admin`}
     onClick={(e) => { e.stopPropagation(); if (asking) { send(ws, 'transfer_admin', { target_id: player.id }); setAsking(false); } else setAsking(true); }}>
-    {asking ? 'Make admin?' : '👑'}
+    {asking ? t('Make admin?') : '👑'}
   </button>;
 }
 
 // The two teams side by side, three seats each, like a match lobby's roster.
 export default function SeatSelector({ players, me, speakingUsers, adminId }) {
   const ws = useStore(state => state.ws);
+  const t = useT();
   return <div className="lobby-teams">
     {['A', 'B'].map(team => <section key={team} className={`team-panel team-panel--${team.toLowerCase()}`}>
-      <header><span className="team-panel__symbol" aria-hidden="true">{team === 'A' ? '♠' : '♥'}</span><h3>Team {team}</h3><span>{players.filter(p => p.team === team).length}/3</span></header>
+      <header><span className="team-panel__symbol" aria-hidden="true">{team === 'A' ? '♠' : '♥'}</span><h3>{t('Team {team}', { team })}</h3><span>{players.filter(p => p.team === team).length}/3</span></header>
       <div className="team-panel__seats">
         {(team === 'A' ? [0,2,4] : [1,3,5]).map(seat => {
           const player = players.find(p => p.seat === seat);
@@ -35,13 +39,13 @@ export default function SeatSelector({ players, me, speakingUsers, adminId }) {
             <div className={`club-avatar ${speakingUsers?.[player.id] ? 'club-avatar--speaking' : ''}`}><Avatar player={player} /></div>
             <div className="lobby-seat__identity">
               <strong>{player.id === adminId && <span className="lobby-seat__crown" title="Admin">👑</span>}{player.name}</strong>
-              <span><i className={player.connected !== false ? 'status-dot' : 'status-dot status-dot--offline'} />{isMe ? 'You' : player.connected !== false ? 'Ready' : 'Reconnecting…'}</span>
+              <span><i className={player.connected !== false ? 'status-dot' : 'status-dot status-dot--offline'} />{t(isMe ? 'You' : player.connected !== false ? 'Ready' : 'Reconnecting…')}</span>
             </div>
             {isMe && <button type="button" className="club-text-button" onClick={() => send(ws, 'leave_seat', { player_id: me.id })}>Leave</button>}
             <MakeAdmin player={player} me={me} adminId={adminId} />
           </div> : <button key={seat} type="button" className="lobby-seat lobby-seat--empty" disabled={!me}
             onClick={() => send(ws, 'select_seat', { player_id: me.id, seat, team })}>
-            <span className="lobby-seat__plus" aria-hidden="true"><svg viewBox="0 0 16 16" width="45%" height="45%"><path d="M8 2v12M2 8h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg></span><span><strong>Join</strong><small>Seat {seat + 1}</small></span>
+            <span className="lobby-seat__plus" aria-hidden="true"><svg viewBox="0 0 16 16" width="45%" height="45%"><path d="M8 2v12M2 8h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg></span><span><strong>{t('Join')}</strong><small>{t('Seat {n}', { n: seat + 1 })}</small></span>
           </button>;
         })}
       </div>
@@ -52,10 +56,11 @@ export default function SeatSelector({ players, me, speakingUsers, adminId }) {
 // Players in the room without a seat yet.
 export function Lounge({ players, me, adminId }) {
   const waiting = players.filter(p => !p.team && !p.is_spectator);
+  const t = useT();
   return <div className="lobby-lounge" aria-label="In the lounge">
-    <span className="lobby-lounge__label">Lounge</span>
+    <span className="lobby-lounge__label">{t('Lounge')}</span>
     {waiting.length
       ? <div className="lobby-lounge__players">{waiting.map(p => <span key={p.id} className="waiting-player" title={p.name}><span className="club-avatar"><Avatar player={p} /></span><span>{p.name}</span><MakeAdmin player={p} me={me} adminId={adminId} /></span>)}</div>
-      : <span className="lobby-lounge__empty">Everyone is seated</span>}
+      : <span className="lobby-lounge__empty">{t('Everyone is seated')}</span>}
   </div>;
 }

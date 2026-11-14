@@ -1,7 +1,7 @@
 // A playing card face. Every card on screen (hands, modals, chat bubbles, animations) uses the
 // same real card artwork as the 3D table: "Vectorized Playing Cards 1.3" by Chris Aguilar
 // (LGPL 3, see public/cards/LICENSE.txt), served as public/cards/<suit>-<rank>.png.
-const SIZES = { xs: [32,44], bubble: [44,60],   // cards in speech bubbles: the same size as passed cards (sm)
+const SIZES = { xs: [32,44], bubble: [50,68],   // cards in speech bubbles: they fill the bubble (its padding is kept small)
   'sm-xs': [38,52], sm: [44,60], md: [64,88], lg: [96,132] };
 
 export const cardImageUrl = (suit, rank) => `${import.meta.env.BASE_URL}cards/${suit}-${rank}.png`;

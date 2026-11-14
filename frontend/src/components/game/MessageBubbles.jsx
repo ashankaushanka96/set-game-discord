@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useState, useRef } from "react";
 import { useStore } from "../../store";
 import { Card, FannedCards } from "../cards";
+import { t } from "../../i18n";
 
 // Attach the tail to the outer border, with its tip aligned to the seat even
 // when the bubble has been shifted inward to fit a narrow screen.
@@ -27,7 +28,7 @@ function SeatMessageBubble({ message, anchor, theme, ownerName, children }) {
   const edge = above ? 0 : reach;
   const tipY = above ? reach : 0;
   return <div ref={bubbleRef}
-    className={`fixed z-[90] pointer-events-none rounded-2xl border ${theme} text-white px-4 py-3 shadow-lg`}
+    className={`fixed z-[90] pointer-events-none rounded-2xl border ${theme} text-white px-2.5 py-2 shadow-lg`}
     aria-label={message.variant?.startsWith('laydown_') ? `Laydown from ${ownerName}` : undefined}
     style={{ left: Math.round(tail.left), top: anchor.y,
       transform: above ? 'translateY(-100%)' : undefined,
@@ -62,7 +63,7 @@ function AskedCards({ m }) {
   if (!cards.length) return null;
   return <span className="inline-flex items-center gap-1 align-middle flex-wrap">
     {cards.map((c) => <Card key={`${c.suit}-${c.rank}`} suit={c.suit} rank={c.rank} size="bubble" />)}
-    <span className="text-xs opacity-80">({cards.map((c) => c.rank).join(", ")} of {cards[0].suit})</span>
+    <span className="text-xs opacity-80">({cards.map((c) => c.rank).join(", ")} · {t(cards[0].suit)})</span>
   </span>;
 }
 
@@ -139,42 +140,43 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
         if (m.variant === "ask") {
           content = (
             // Just the asked card(s) and a question mark: the tail shows who is asking.
-            <div className="ask-bubble flex items-center gap-1.5">
-              {(m.cards?.length ? m.cards : m.card ? [m.card] : []).map((c) => <Card key={`${c.suit}-${c.rank}`} suit={c.suit} rank={c.rank} size="bubble" />)}
+            // 4+ cards overlap like a hand, so the row stays inside the bubble.
+            <div className={`ask-bubble flex items-center gap-1.5${(m.cards?.length || 0) > 3 ? " ask-bubble--many" : ""}`}>
+              {(m.cards?.length ? m.cards : m.card ? [m.card] : []).map((c) => <span key={`${c.suit}-${c.rank}`} className="ask-bubble__card"><Card suit={c.suit} rank={c.rank} size="bubble" /></span>)}
               <span className="ask-bubble__q">?</span>
             </div>
           );
         } else if (m.variant === "yes") {
           content = (
             <div className="text-sm">
-              <span>Yes, I have.</span>{" "}
+              <span>{t("Yes, I have.")}</span>{" "}
               <AskedCards m={m} />
             </div>
           );
         } else if (m.variant === "no") {
           content = (
             <div className="text-sm">
-              <span>No.</span>
+              <span>{t(m.text === "No cards!" ? "No cards!" : "No.", { seed: m.id })}</span>
             </div>
           );
         } else if (m.variant === "laydown_start") {
           content = (
             <div className="text-sm font-medium">
-              Going to Laydown
+              {t("Going to Laydown")}
             </div>
           );
         } else if (m.variant === "laydown_set") {
           content = (
             <div className="text-sm font-medium">
-              Selected{" "}
-              <span className="capitalize font-semibold text-blue-200">{m.suit} {m.set_type}</span>
+              {t("Selected")}{" "}
+              <span className="capitalize font-semibold text-blue-200">{t(m.suit)} {t(m.set_type)}</span>
             </div>
           );
         } else if (m.variant === "penalty_set") {
           content = (
             <div className="text-sm font-medium">
-              Penalty:{" "}
-              <span className="capitalize font-semibold">{m.suit} {m.set_type}</span>
+              {t("Penalty")}:{" "}
+              <span className="capitalize font-semibold">{t(m.suit)} {t(m.set_type)}</span>
             </div>
           );
         } else if (m.variant === "laydown_cards") {
@@ -182,7 +184,7 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
             <div className="laydown-bubble-cards flex justify-center">
               <FannedCards 
                 cards={m.cards || []} 
-                size="xs" 
+                size="bubble" 
                 maxCards={7}
               />
             </div>
@@ -192,7 +194,7 @@ export default function MessageBubbles({ seatEls, seatVersion, hideLaydownBubble
             <div className="laydown-bubble-cards flex justify-center">
               <FannedCards 
                 cards={m.cards || []} 
-                size="xs" 
+                size="bubble" 
                 maxCards={7}
               />
             </div>

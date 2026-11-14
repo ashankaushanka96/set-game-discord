@@ -83,7 +83,7 @@ function PointsToScore({ scene }) {
     ], { duration: reduced ? 1 : 420, delay: reduced ? 0 : 1100, easing: 'cubic-bezier(.2,.9,.3,1.2)', fill: 'both' });
     let fly, pulse;
     pop.onfinish = () => {
-      if (!pill) { fly = el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 400, delay: 1400, fill: 'both' }); return; }
+      if (!pill) { window.dispatchEvent(new CustomEvent('score_landed', { detail: { team: scene.team } })); fly = el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 400, delay: 1400, fill: 'both' }); return; }
       const r = pill.getBoundingClientRect();
       const dx = r.left + r.width / 2 - scene.x, dy = r.top + r.height / 2 - scene.y;
       fly = el.animate([
@@ -93,10 +93,11 @@ function PointsToScore({ scene }) {
       ], { duration: reduced ? 1 : 750, delay: reduced ? 600 : 1000, easing: 'cubic-bezier(.5,0,.6,1)', fill: 'both' });
       fly.onfinish = () => {
         el.style.visibility = 'hidden';
+        window.dispatchEvent(new CustomEvent('score_landed', { detail: { team: scene.team } }));
         if (!reduced) pulse = pill.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.15)', offset: .35 }, { transform: 'scale(1)' }], { duration: 450, easing: 'ease-out' });
       };
     };
-    return () => { pop.cancel(); fly?.cancel(); pulse?.cancel(); };
+    return () => { pop.cancel(); fly?.cancel(); pulse?.cancel(); window.dispatchEvent(new CustomEvent('score_landed', { detail: { team: scene.team } })); };
   }, [scene]);
   return <div ref={ref} className={`laydown-points3d laydown-points3d--${(scene.team || 'a').toLowerCase()}`}
     style={{ left: scene.x, top: scene.y }} role="status">+{scene.points} <span>Team {scene.team}</span></div>;

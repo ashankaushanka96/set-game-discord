@@ -4,12 +4,14 @@ import { send } from "../../ws";
 import { Toast } from "../ui";
 import { ConfirmUnassignModal, ConfirmSpectatorStartModal } from "../modals";
 import SeatSelector, { Lounge } from "./SeatSelector";
+import { useT } from "../../i18n";
 import GameModePicker, { isRoomAdmin } from "./GameModePicker";
 import BotLevelPicker from "./BotLevelPicker";
 import { TEST_MODE_ENABLED } from "../../config";
 import useDiscordSession from "./useDiscordSession";
 
 export default function Lobby() {
+  const t = useT();
   const { me, roomId, state, speakingUsers } = useStore();
   const { profileLoaded, checkingReconnection, redirectingToGame, error } = useDiscordSession();
   const [unassignModal, setUnassignModal] = useState({ open: false, player: null });
@@ -223,8 +225,8 @@ export default function Lobby() {
       <div className="lobby-shell">
         <div className="lobby-header">
           <div className="club-brand"><span className="club-brand__mark" aria-hidden="true">♠</span><h1>Set Club</h1></div>
-          <div className="lobby-connection"><i className={roomId ? 'status-dot' : 'status-dot status-dot--offline'} />{roomId ? `${players.length}/6 in room` : 'Connecting…'}</div>
-          {state?.admin_player_id === me?.id && <span className="lobby-admin-badge">👑 Admin</span>}
+          <div className="lobby-connection"><i className={roomId ? 'status-dot' : 'status-dot status-dot--offline'} />{roomId ? t('{n}/6 in room', { n: players.length }) : t('Connecting…')}</div>
+          {state?.admin_player_id === me?.id && <span className="lobby-admin-badge">👑 {t('Admin')}</span>}
         </div>
 
         {error && (
@@ -277,7 +279,7 @@ export default function Lobby() {
           <div className="mb-6 text-sm bg-amber-600/20 border border-amber-500/40 px-4 py-3 rounded-lg backdrop-blur-sm">
             <div className="flex items-center gap-2">
               <span className="text-amber-400">🔒</span>
-              <span>Lobby is locked - game in progress. New players cannot join until the game ends.</span>
+              <span>{t('Lobby is locked - game in progress. New players cannot join until the game ends.')}</span>
             </div>
           </div>
         )}
@@ -288,7 +290,7 @@ export default function Lobby() {
             <div className="max-w-md mx-auto">
               <div className="text-6xl mb-4">🔒</div>
               <h2 className="text-2xl font-bold text-amber-400 mb-4">
-                {state?.phase === "lobby" ? "Lobby Locked" : "Game In Progress"}
+                {t(state?.phase === "lobby" ? "Lobby Locked" : "Game In Progress")}
               </h2>
               <p className="text-zinc-300 mb-6">
                 {state?.phase === "lobby" 
@@ -315,7 +317,7 @@ export default function Lobby() {
             <div className="lobby-bottom">
               <Lounge players={players} me={me} adminId={state?.admin_player_id} />
               {players.length >= 6 && players.filter((p) => p.team).length < 6 && (
-                <div className="lobby-warning">⚠️ Some players still need a seat.</div>
+                <div className="lobby-warning">⚠️ {t('Some players still need a seat.')}</div>
               )}
               {isRoomAdmin(state, me) ? (
                 <button
@@ -324,14 +326,14 @@ export default function Lobby() {
                   disabled={!roomId || (!TEST_MODE_ENABLED && players.filter((p)=>p.connected!==false && !p.is_spectator && (p.seat != null || p.id === me?.id)).length !== 6)}
                 >
                   {!roomId
-                    ? "No Room Connected"
+                    ? t("No Room Connected")
                     : TEST_MODE_ENABLED && players.filter((p)=>p.connected!==false).length < 6
-                      ? `Start Game · ${6 - players.filter((p)=>p.connected!==false).length} bot${6 - players.filter((p)=>p.connected!==false).length > 1 ? "s" : ""}`
-                      : "Start Game"}
+                      ? t(6 - players.filter((p)=>p.connected!==false).length > 1 ? "Start Game · {n} bots" : "Start Game · {n} bot", { n: 6 - players.filter((p)=>p.connected!==false).length })
+                      : t("Start Game")}
                 </button>
               ) : (
                 <div className="lobby-start lobby-start--waiting" role="status">
-                  Waiting for {state?.players?.[state?.admin_player_id]?.name || "the admin"} to start
+                  {t("Waiting for {name} to start", { name: state?.players?.[state?.admin_player_id]?.name || t("the admin") })}
                 </div>
               )}
             </div>

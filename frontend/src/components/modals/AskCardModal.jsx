@@ -10,6 +10,8 @@ import { RANKS_LOWER, RANKS_UPPER, SUITS, SUIT_SYMBOL } from "../../lib/deck";
 // working on the same set; if that set has been laid down since, it falls back to the first.
 let lastAskedSet = null;
 
+import { t } from "../../i18n";
+
 export default function AskCardModal({ open, target, tableSets = [], onAsk, onClose }) {
   const sets = useMemo(() => {
     const out = [];
@@ -63,37 +65,38 @@ export default function AskCardModal({ open, target, tableSets = [], onAsk, onCl
     const dock = cardsRef.current?.closest(".club-dock-area");
     const ro = new ResizeObserver(measure);
     if (dock) ro.observe(dock);
+    if (cardsRef.current) ro.observe(cardsRef.current);   // the Ask button grows as cards are picked, narrowing this row
     window.addEventListener("resize", measure);
     return () => { ro.disconnect(); window.removeEventListener("resize", measure); };
-  }, [open, count, setKey]);
+  }, [open, count, setKey, picked.length]);
 
   if (!open || !target) return null;
   const chosen = sets.find((s) => `${s.suit}-${s.type}` === setKey);
 
   return (
-    <GlassmorphismModal isOpen={open} onClose={onClose} size="md" docked peekLabel={`Ask ${target.name} for a card`}>
+    <GlassmorphismModal isOpen={open} onClose={onClose} size="md" docked peekLabel={t('Ask {name} for a card', { name: target.name })}>
       <div className="ask-sheet">
         <div>
-          <h2>Ask {target.name} for a card</h2>
-          <p>Pick a set, then one or more cards. They must have <em>all</em> of them, or the turn passes. Watch your own hand!</p>
+          <h2>{t('Ask {name} for a card', { name: target.name })}</h2>
+          <p>{t('Pick a set, then one or more cards. They must have all of them, or the turn passes. Watch your own hand!')}</p>
         </div>
 
         {sets.length === 0 ? (
-          <p>Every set is already on the table.</p>
+          <p>{t('Every set is already on the table.')}</p>
         ) : (
           <>
             <div className="ask-sheet__grid" role="group" aria-label="Choose a set">
-              <span /><span className="ask-sheet__colhead">Lower</span><span className="ask-sheet__colhead">Upper</span>
+              <span /><span className="ask-sheet__colhead">{t('Lower')}</span><span className="ask-sheet__colhead">{t('Upper')}</span>
               {SUITS.map((suit) => <Fragment key={suit}>
-                <span className={`ask-sheet__rowhead ask-sheet__rowhead--${suit}`}><i className={`suit-glyph suit-glyph--${suit}`}>{SUIT_SYMBOL[suit]}{"\uFE0E"}</i> <span>{suit}</span></span>
+                <span className={`ask-sheet__rowhead ask-sheet__rowhead--${suit}`}><i className={`suit-glyph suit-glyph--${suit}`}>{SUIT_SYMBOL[suit]}{"\uFE0E"}</i> <span>{t(suit)}</span></span>
                 {["lower", "upper"].map((type) => {
                   const key = `${suit}-${type}`;
                   const laid = tableSets.some((t) => t.suit === suit && t.set_type === type);
                   return (
-                    <button key={key} type="button" disabled={laid} title={laid ? "Already laid down" : undefined}
+                    <button key={key} type="button" disabled={laid} title={laid ? t('Already laid down') : undefined}
                       className={`ask-sheet__set ${key === setKey ? "ask-sheet__set--on" : ""}`}
                       onClick={() => { setSetKey(key); setPicked([]); }}>
-                      {laid ? "Laid" : <><i className={`suit-glyph suit-glyph--${suit}`}>{SUIT_SYMBOL[suit]}{"\uFE0E"}</i> {type}</>}
+                      {laid ? t('Laid') : <><i className={`suit-glyph suit-glyph--${suit}`}>{SUIT_SYMBOL[suit]}{"\uFE0E"}</i> {t(type)}</>}
                     </button>
                   );
                 })}
@@ -113,10 +116,10 @@ export default function AskCardModal({ open, target, tableSets = [], onAsk, onCl
         )}
 
         <div className="ask-sheet__actions">
-          <button type="button" className="ask-sheet__secondary" onClick={onClose}>Cancel</button>
+          <button type="button" className="ask-sheet__secondary" onClick={onClose}>{t('Cancel')}</button>
           <button type="button" className="club-primary" disabled={!chosen || !picked.length}
             onClick={() => { lastAskedSet = setKey; onAsk({ target_id: target.id, suit: chosen.suit, set_type: chosen.type, ranks: chosen.missing.filter((r) => picked.includes(r)) }); }}>
-            Ask{picked.length && chosen ? ` for ${chosen.missing.filter((r) => picked.includes(r)).map((r) => r + SUIT_SYMBOL[chosen.suit]).join(" ")}` : ""}
+            {picked.length > 2 && chosen ? t('Ask for {n} cards', { n: picked.length }) : picked.length && chosen ? t('Ask for {cards}', { cards: chosen.missing.filter((r) => picked.includes(r)).map((r) => r + SUIT_SYMBOL[chosen.suit]).join(" ") }) : t('Ask')}
           </button>
         </div>
       </div>

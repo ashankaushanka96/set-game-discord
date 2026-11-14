@@ -28,6 +28,8 @@ export function clearLaydownDraft(roomId, playerId) {
 // the table sees the same three bubbles as a bot's laydown:
 //   "Going to Laydown" -> the chosen set (after confirming it) -> my cards of it (after confirming the laydown).
 // Then the player taps each missing card and the teammate at the table who holds it.
+import { t } from "../../i18n";
+
 export default function LaydownModal({ onClose, initialPick, restore = false }) {
   const { state, me, ws } = useStore();
   const players = state?.players || {};
@@ -154,7 +156,13 @@ export default function LaydownModal({ onClose, initialPick, restore = false }) 
       const bar = barRef.current, cards = cardsRef.current;
       if (!bar || !cards) return;
       const cover = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--hand-cover")) || window.innerHeight * 0.3;
-      const maxBar = cover * 0.7 - 12;   // the top ~30% of the hand (ranks and suits) stays clear
+      // 3D: the top ~30% of the hand (ranks and suits) stays clear. 2D has the room to use the
+      // whole hand area, for bigger cards.
+      const flat = !bar.closest(".room-3d");
+      // 2D: up to the line where the hand area starts (its divider), and no higher.
+      const dock = flat && document.querySelector(".game-hand-dock");
+      const toDivider = dock ? bar.getBoundingClientRect().bottom - dock.getBoundingClientRect().top - 8 : 0;
+      const maxBar = flat && toDivider > 60 ? toDivider : cover * (flat ? 1 : 0.7) - 12;
       const bs = getComputedStyle(bar);
       const head = bar.querySelector(".laydown-tablepick__head"), foot = bar.querySelector(".laydown-tablepick__foot");
       const btn = foot?.querySelector("button"), status = foot?.querySelector("span");
@@ -166,7 +174,7 @@ export default function LaydownModal({ onClose, initialPick, restore = false }) 
       const footW = statusShown ? Math.max(btnW, 200) : btnW;
       const footH = btnH + (statusShown ? 20 : 0);
       const pad = 8, label = 14, edge = 4, gap = 4;
-      const size = (availH, W) => Math.min((availH - pad - label - edge) * 0.727, (W - (cardCount - 1) * gap) / cardCount - pad, 84);
+      const size = (availH, W) => Math.min((availH - pad - label - edge) * 0.727, (W - (cardCount - 1) * gap) / cardCount - pad, flat ? 130 : 84);
       // cards beside the button, or above it: whichever gives bigger cards
       const beside = size(maxBar - base, innerW - footW - 12);
       const above = size(maxBar - base - footH - 6, innerW);
@@ -183,10 +191,10 @@ export default function LaydownModal({ onClose, initialPick, restore = false }) 
 
   if (step === 1) {
     const [title, text, yes, onYes] = setConfirmed
-      ? [<>Lay down <span className="capitalize">{pick.suit}</span> {pick.setType}?</>,
-         "Your cards of this set will be shown to the table. After that you must finish the laydown.", "Yes, lay down", confirmStart]
-      : [<>Is the set <span className="capitalize">{pick.suit}</span> {pick.setType}?</>,
-         "The table will see which set you are laying down.", "Yes, this set", confirmSet];
+      ? [t('Lay down {set}?', { set: `${t(pick.suit)} ${t(pick.setType)}` }),
+         t("Your cards of this set will be shown to the table. After that you must finish the laydown."), t("Yes, lay down"), confirmStart]
+      : [t('Is the set {set}?', { set: `${t(pick.suit)} ${t(pick.setType)}` }),
+         t("The table will see which set you are laying down."), t("Yes, this set"), confirmSet];
     return (
       <div className="laydown-tablepick" role="dialog" aria-label={setConfirmed ? "Confirm laydown" : "Confirm the set"}>
         <div className="laydown-tablepick__head laydown-tablepick__head--plain">
@@ -194,7 +202,7 @@ export default function LaydownModal({ onClose, initialPick, restore = false }) 
           <span>{text}</span>
         </div>
         <div className="laydown-tablepick__foot">
-          <button type="button" className="club-secondary laydown-tablepick__no" onClick={handleClose}>Cancel</button>
+          <button type="button" className="club-secondary laydown-tablepick__no" onClick={handleClose}>{t('Cancel')}</button>
           <button type="button" className="club-primary" onClick={onYes} disabled={paused}>{yes}</button>
         </div>
       </div>
@@ -205,8 +213,8 @@ export default function LaydownModal({ onClose, initialPick, restore = false }) 
   return (
     <div className={`laydown-tablepick ${fitLay.stacked ? "is-stacked" : ""}`} role="dialog" aria-label="Choose who holds each card" ref={barRef}>
       <div className="laydown-tablepick__head">
-        <strong><span className="capitalize">{pick.suit}</span> {pick.setType}: who holds each card?</strong>
-        <span>{!neededRanks.length ? "You hold the whole set." : !mateIds.length ? "No teammate has cards." : "Tap a card, then tap your teammate at the table."}</span>
+        <strong>{t('{set}: who holds each card?', { set: `${t(pick.suit)} ${t(pick.setType)}` })}</strong>
+        <span>{t(!neededRanks.length ? "You hold the whole set." : !mateIds.length ? "No teammate has cards." : "Tap a card, then tap your teammate at the table.")}</span>
       </div>
       {neededRanks.length > 0 && <div className="laydown-tablepick__cards" ref={cardsRef} style={{ "--lw": `${cardW}px` }}>
         {neededRanks.map((r) => {
@@ -219,8 +227,8 @@ export default function LaydownModal({ onClose, initialPick, restore = false }) 
         })}
       </div>}
       <div className="laydown-tablepick__foot">
-        <span className={left ? "is-warning" : ""}>{neededRanks.length ? (left ? `${left} card${left > 1 ? "s" : ""} not assigned: the set would go to the other team` : "All cards assigned ✓") : "Ready"}</span>
-        <button type="button" className={`club-primary ${left ? "is-risky" : ""}`} onClick={submitLaydown} disabled={paused}>{left ? "Lay down anyway" : "Confirm laydown"}</button>
+        <span className={left ? "is-warning" : ""}>{neededRanks.length ? (left ? t(left > 1 ? "{n} cards not assigned: the set would go to the other team" : "{n} card not assigned: the set would go to the other team", { n: left }) : t("All cards assigned ✓")) : t("Ready")}</span>
+        <button type="button" className={`club-primary ${left ? "is-risky" : ""}`} onClick={submitLaydown} disabled={paused}>{t(left ? "Lay down anyway" : "Confirm laydown")}</button>
       </div>
     </div>
   );

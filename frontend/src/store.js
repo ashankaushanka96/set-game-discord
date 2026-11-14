@@ -1,4 +1,5 @@
 import { stopCardFoley, playCue } from './utils/sounds';
+import { t as tr } from './i18n';
 import { SHUFFLE_DURATION, DEAL_DURATION, DEAL_COMPLETE_BUFFER } from './components/game/dealTiming';
 import { createSpeakingActions } from './utils/speaking';
 import { create } from "zustand";
@@ -16,6 +17,10 @@ const mid = () => `${Date.now()}-${uid++}`;
 
 const setLabel = (t) => (t === "lower" ? "Lower" : "Upper");
 const cardLabel = (c) => (c ? `${c.rank} of ${c.suit}` : "card");
+
+// Asked cards in rank order (2…A), so a multi-card ask reads Q 10 A as 10 Q A.
+const RANK_ORDER = ["2","3","4","5","6","7","8","9","10","J","Q","K","A"];
+export const byRank = (ranks) => [...(ranks || [])].sort((a, b) => RANK_ORDER.indexOf(a) - RANK_ORDER.indexOf(b));
 
 export const useStore = create((set, get) => ({
   me: getMe(),
@@ -238,7 +243,7 @@ export const useStore = create((set, get) => ({
         variant: "ask",
         text: "Do you have…",
         card: rank && suit ? { suit, rank } : undefined,
-        cards: (msg.payload.ranks || []).map((r) => ({ suit, rank: r })),
+        cards: byRank(msg.payload.ranks).map((r) => ({ suit, rank: r })),
         sticky: true,
         tag: `ask-${askerId}`,
       });
@@ -295,7 +300,7 @@ export const useStore = create((set, get) => ({
         if (msg.payload.reason === "no_card") {
           const rank = msg.payload.ranks?.[0];
           const suit = msg.payload.suit;
-          get().addMessage({ player_id: msg.payload.target_id, variant: "no", text: "No.", card: { suit, rank }, cards: (msg.payload.ranks || []).map((r) => ({ suit, rank: r })) });
+          get().addMessage({ player_id: msg.payload.target_id, variant: "no", text: "No.", card: { suit, rank }, cards: byRank(msg.payload.ranks).map((r) => ({ suit, rank: r })) });
           const nextName = players[msg.payload.next_turn || msg.payload.target_id]?.name || target;
           get().setGameMessage("REPLY", [
             `Who: ${target} → ${asker}`,
@@ -336,9 +341,9 @@ export const useStore = create((set, get) => ({
         try { (m.playKey || m.default?.playKey)?.('lay_unsuccess'); } catch {}
       }).catch(() => {});
       if (pl.mistake === "penalty") {
-        const setName = `${pl.suit[0].toUpperCase()}${pl.suit.slice(1)} ${pl.set_type === "lower" ? "Lower" : "Upper"}`;
-        get().addMessage({ player_id: pl.asker_id, variant: "event_bad", title: "Penalty laydown",
-          text: `${setName} goes to Team ${pl.owner_team} (+${pl.points}).` });
+        const setName = `${tr(pl.suit)} ${tr(pl.set_type)}`;
+        get().addMessage({ player_id: pl.asker_id, variant: "event_bad", title: tr("Penalty laydown"),
+          text: tr("{set} goes to Team {team} (+{pts}).", { set: setName, team: pl.owner_team, pts: pl.points }) });
         if (pl.game_end?.game_ended) set({ gameResult: pl.game_end });
         return;
       }
@@ -346,14 +351,14 @@ export const useStore = create((set, get) => ({
       const asker = players[pl.asker_id]?.name || "Someone";
       const target = players[pl.target_id]?.name || "an opponent";
       const symbol = { hearts: "♥", diamonds: "♦", clubs: "♣", spades: "♠" }[pl.suit] || "";
-      const card = (pl.ranks || []).map((r) => `${r}${symbol}`).join(", ");
-      const setName = `${pl.suit[0].toUpperCase()}${pl.suit.slice(1)} ${pl.set_type === "lower" ? "Lower" : "Upper"}`;
+      const card = byRank(pl.ranks).map((r) => `${r}${symbol}`).join(", ");
+      const setName = `${tr(pl.suit)} ${tr(pl.set_type)}`;
       const why = pl.mistake === "own_card" ? `but already had it` : `with no ${setName} card in hand`;
       const nextName = players[pl.next_turn]?.name;
       get().removeMessageByTag(`ask-${pl.asker_id}`);
       get().addMessage({ player_id: pl.asker_id, variant: "event_bad",
-        title: `Wrong ask! ${target}, the ${card}?`,
-        text: `${pl.mistake === "own_card" ? "Already had it" : `No ${setName} card in hand`}. ${setName} goes to Team ${pl.owner_team} (+${pl.points}).` });
+        title: tr("Wrong ask! {name}, the {card}?", { name: target, card }),
+        text: `${pl.mistake === "own_card" ? tr("Already had it") : tr("No {set} card in hand", { set: setName })}. ${tr("{set} goes to Team {team} (+{pts}).", { set: setName, team: pl.owner_team, pts: pl.points })}` });
       get().setGameMessage("WRONG ASK", [
         `Who: ${asker} → ${target}`,
         `Asked: ${card} (${pl.mistake === "own_card" ? "already in their hand" : "no card of that set"})`,
@@ -408,17 +413,7 @@ export const useStore = create((set, get) => ({
                 else if (m.default && typeof m.default.playKey === 'function') m.default.playKey('game_over');
               } catch {}
             }).catch(()=>{});
-            
-            // Add voice announcement after game over sound
-            import('./utils/tts').then((tts) => {
-              try {
-                tts.speakGameOver(
-                  msg.payload.game_end.winner,
-                  msg.payload.game_end.team_a_score,
-                  msg.payload.game_end.team_b_score
-                );
-              } catch {}
-            }).catch(()=>{});
+
           }
         }, 1500); // Wait for laydown animation to complete (1000ms + 500ms buffer)
       }
@@ -489,7 +484,7 @@ export const useStore = create((set, get) => ({
         // Show laydown result modal with detailed information
         get().setLaydownResult(laydownData);
         
-        get().addMessage({ player_id: msg.payload.who_id, kind: "laydown", variant: "event_good", title: `Laid down ${setName}!`, text: `+${pts} for Team ${msg.payload.owner_team}` });
+        get().addMessage({ player_id: msg.payload.who_id, kind: "laydown", variant: "event_good", title: tr("Laid down {set}!", { set: `${tr(msg.payload.suit)} ${tr(msg.payload.set_type)}` }), text: tr("+{pts} for Team {team}", { pts, team: msg.payload.owner_team }) });
         
         if (msg.payload?.who_id === get().me?.id && (msg.payload.handoff_eligible || []).length) {
           set({ handoffFor: { who_id: msg.payload.who_id, eligible: msg.payload.handoff_eligible } });
@@ -510,7 +505,7 @@ export const useStore = create((set, get) => ({
         // Show laydown result modal with detailed information
         get().setLaydownResult(laydownData);
         
-        get().addMessage({ player_id: msg.payload.who_id, kind: "laydown", variant: "event_bad", title: `Laydown failed: ${setName}`, text: `Goes to Team ${msg.payload.owner_team}` });
+        get().addMessage({ player_id: msg.payload.who_id, kind: "laydown", variant: "event_bad", title: tr("Laydown failed: {set}", { set: `${tr(msg.payload.suit)} ${tr(msg.payload.set_type)}` }), text: tr("Goes to Team {team}", { team: msg.payload.owner_team }) });
         
         set({ handoffFor: null });
       }
@@ -821,7 +816,7 @@ export const useStore = create((set, get) => ({
           variant: "ask",
           text: "Do you have…",
           card: rank && pending_ask.suit ? { suit: pending_ask.suit, rank } : undefined,
-          cards: (pending_ask.ranks || []).map((r) => ({ suit: pending_ask.suit, rank: r })),
+          cards: byRank(pending_ask.ranks).map((r) => ({ suit: pending_ask.suit, rank: r })),
           sticky: true, silent: true,
           tag: `ask-${pending_ask.asker_id}`,
         });

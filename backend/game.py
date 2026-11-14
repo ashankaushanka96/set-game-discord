@@ -936,6 +936,14 @@ class Game:
         self.state.voice_turns = bool(on)
         return {"success": True}
 
+    def set_language(self, requester_id: str, lang: str) -> dict:
+        if lang not in ("en", "si"):
+            return {"success": False, "message": "Unknown language"}
+        if self.state.admin_player_id and requester_id != self.state.admin_player_id:
+            return {"success": False, "message": "Only the room admin can change the language"}
+        self.state.language = lang
+        return {"success": True}
+
     def _voice_tracked(self) -> bool:
         return self.state.game_mode == "voice" and self.state.voice_turns and self.state.phase == "playing"
 

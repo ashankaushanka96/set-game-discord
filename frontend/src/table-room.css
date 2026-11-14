@@ -529,7 +529,7 @@
 .game-pause-btn { font-size:11px; font-weight:600; padding:6px 10px; border-radius:999px; background:#243b33e6; color:#e8e5d5; border:1px solid #bac3a540; box-shadow:0 3px 10px #0004; backdrop-filter:blur(8px); white-space:nowrap; }
 .game-pause-btn:hover:not(:disabled) { border-color:#e3c89099; color:#fff; }
 .game-pause-btn:disabled { opacity:.6; }
-.game-paused__resume { margin-top:8px; pointer-events:auto; }
+.game-paused__resume { margin-top:8px; pointer-events:auto; border-radius:999px; padding:6px 18px; }
 .game-replay-control > button { font-size:11px; font-weight:600; padding:6px 10px; border-radius:999px; background:#243b33e6; color:#e8e5d5; border:1px solid #bac3a540; box-shadow:0 3px 10px #0004; backdrop-filter:blur(8px); white-space:nowrap; }
 .game-replay-control > button:hover:not(:disabled) { border-color:#e3c89099; color:#fff; }
 .game-replay-control > button:disabled { opacity:.6; cursor:default; }
@@ -597,3 +597,5 @@
 .card-room:not(.room-3d) .game-seat--turn .game-seat__avatar::after { animation-name:seatTurnTint; }
 @keyframes seatTurnTint { from { opacity:0; } to { opacity:1; } }
 @media (prefers-reduced-motion: reduce) { .card-room:not(.room-3d) .game-seat--turn::before, .card-room:not(.room-3d) .game-seat--turn .game-seat__avatar::after, .card-room:not(.room-3d) .game-seat--turn .game-seat__badge { animation:none; } }
+/* While the results prompt is up, the laid sets under it must not take its taps. */
+body:has(.laydown-results-prompt) .collected-set-hit { pointer-events:none; }

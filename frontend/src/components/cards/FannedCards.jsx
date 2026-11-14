@@ -15,7 +15,7 @@ export default function FannedCards({ cards, size = "sm", maxCards = 7, reserveF
   // Limit the number of cards to display
   const displayCards = sortedCards.slice(0, maxCards);
   const hasMore = cards.length > maxCards;
-  const [cardWidth, cardHeight] = ({ xs: [32, 44], 'sm-xs': [38, 52], sm: [44, 60], md: [64, 88], lg: [96, 132] })[size] || [64, 88];
+  const [cardWidth, cardHeight] = ({ xs: [32, 44], 'sm-xs': [38, 52], bubble: [50, 68], sm: [44, 60], md: [64, 88], lg: [96, 132] })[size] || [64, 88];
   const fanAngle = displayCards.length > 1 ? Math.min(displayCards.length * 3, 20) / 2 * Math.PI / 180 : 0;
   // Rotated cards extend beyond their unrotated height. Reserve their full
   // bounds plus shadow clearance when content follows beneath the fan.
@@ -42,7 +42,7 @@ export default function FannedCards({ cards, size = "sm", maxCards = 7, reserveF
                       transform: `translateX(${offsetX}px) rotate(${rotation}deg)`,
                       zIndex: index + 1,
                       left: '50%',
-                      marginLeft: size === 'sm' ? '-22px' : '-19px', // Half of card width
+                      marginLeft: `${-cardWidth / 2}px`, // half of the card's real width, so the fan is centred
                       filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))',
                       transformOrigin: 'center center'
                     }}

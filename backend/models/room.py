@@ -37,6 +37,8 @@ class RoomState(BaseModel):
     # Voice Play option: the game tracks turns. The turn player (blue spotlight) picks who they ask
     # (gold spotlight, voice_spot); only the asked player can then send cards, only to the asker.
     voice_turns: bool = False
+    # Language of the table for everyone in the room, chosen by the admin in the lobby: "en" or "si"
+    language: str = "en"
     voice_spot: Optional[dict] = None   # {"asker_id": ..., "target_id": ...}
     # Turns mode with bots filling empty seats: how clever they are. Set by the admin in the lobby.
     bot_level: Literal["easy", "medium", "hard", "expert"] = "medium"
