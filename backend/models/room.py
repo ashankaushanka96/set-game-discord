@@ -48,3 +48,6 @@ class RoomState(BaseModel):
     # Turns mode: cards are dealt but play is held until a seated player presses Start,
     # so everyone has time to look at (and memorise) their hand.
     awaiting_start: bool = False
+    # A seated player pressed Pause (to step away): the game holds like a disconnect pause
+    # until someone presses Resume. Holds that player's id.
+    paused_by: Optional[str] = None

@@ -14,7 +14,8 @@ import LaydownAnimation from './LaydownAnimation';
 import ChatBubble from './ChatBubble';
 import { markReactionUsed } from './ReactionTray';
 import EmojiPassAnimation from './EmojiPassAnimation';
-import AskPointer, { FlowArrows } from './AskPointer';
+import { FlowArrows } from './AskPointer';
+import SeatRings from './SeatRings';
 import LastAskReplay from './LastAskReplay';
 import BotWaitPill from './BotWaitPill';
 import EmojiSettings from './EmojiSettings';
@@ -348,7 +349,9 @@ export default function Table() {
   // miss nothing. Everyone can still look at their cards and talk.
   const pausedFor = state.phase === 'playing' ? Object.values(players).filter((p) => p.team && p.seat != null && !p.is_spectator &&
     !String(p.id).startsWith('ai_') && p.connected === false) : [];
-  const paused = pausedFor.length > 0;
+  // Or someone pressed Pause to step away: the same hold, until anyone seated presses Resume.
+  const pausedByName = state.phase === 'playing' && state.paused_by ? (players[state.paused_by]?.name || 'A player') : null;
+  const paused = pausedFor.length > 0 || !!pausedByName;
   useEffect(() => { if (paused) setSelectedCardsToPass([]); }, [paused]);
   const botWait = useStore((st) => st.botWait);
   const laydownPick = useStore((st) => st.laydownPick); // laying down: tap the teammate who holds this card
@@ -372,6 +375,10 @@ export default function Table() {
   // After a laydown the turn waits on the declarer until the laydown has played out (as on the 3D
   // table), then moves. The store's turn arrow says when.
   const flowArrows = useStore((st) => st.flowArrows);
+  // 2D: everyone taking part in a laydown (the declarer and the teammates putting cards in) gets a
+  // green ring, like the 3D table, instead of green arrows.
+  const layingIds = new Set();
+  { const t = Date.now(); (flowArrows || []).forEach((a) => { if (a.tone === 'lay' && (a.start || 0) <= t && a.until > t) { layingIds.add(a.from); layingIds.add(a.to); } }); }
   const [turnClock, setTurnClock] = useState(() => Date.now());
   const heldTurnArrow = (flowArrows || []).find((a) => a.tone === 'turn' && a.to === turnPlayer?.id && (a.start || 0) > turnClock && a.until > turnClock);
   useEffect(() => {
@@ -554,7 +561,13 @@ export default function Table() {
       </div>
 
       {/* Replay of the last ask in its own small panel (doesn't touch the table) */}
-      {isTurnPlay && state.phase === 'playing' && <LastAskReplay players={players} />}
+      {state.phase === 'playing' && players[me.id]?.seat != null && !players[me.id]?.is_spectator && (
+        <div className="game-side-controls">
+          {!state.paused_by && <button type="button" className="game-pause-btn" disabled={ws?.readyState !== 1}
+            onClick={() => send(ws, 'pause_game', {})} title="Pause the game while you step away">⏸ Pause</button>}
+          {isTurnPlay && <LastAskReplay players={players} />}
+        </div>
+      )}
 
       {/* Card Passing Indicator */}
       {selectedCardsToPass.length > 0 && !isDraggingCards && !isTurnPlay && (!voiceTurns || askedMe) && (
@@ -566,8 +579,8 @@ export default function Table() {
         </div>
       )}
 
-       {!use3d && <AskPointer seatEls={seatEls} seatVersion={seatVersion} ask={pendingAsk || voiceSpot} />}
-       {!use3d && <FlowArrows seatEls={seatEls} seatVersion={seatVersion} />}
+       {!use3d && <SeatRings seatEls={seatEls} seatVersion={seatVersion} turnId={turnPlayer?.id} ask={pendingAsk || voiceSpot} />}
+       {!use3d && <FlowArrows seatEls={seatEls} seatVersion={seatVersion} skipTones={['turn', 'lay']} />}
        <MessageBubbles seatEls={seatEls} seatVersion={seatVersion} />
        <ChatBubble selectedCardsToPass={selectedCardsToPass} />
        {reactionAim && <div className="reaction-aim" role="status">
@@ -668,7 +681,7 @@ export default function Table() {
               const isSpeaking = p && speakingUsers && speakingUsers[p.id];   // a still green ring on the seat (cheap; the 3D bubbles kept redrawing the table)
               
               return (
-                <div key={`seatwrap-${i}-${pid || 'empty'}`} className="table-seat-position absolute" style={seatPlace[i]} ref={p ? setSeatRef(p.id) : undefined} data-seat={i} data-player-id={p?.id} data-team={p?.team || 'none'}>
+                <div key={`seatwrap-${i}-${pid || 'empty'}`} className={`table-seat-position absolute${!use3d && p && layingIds.has(p.id) ? ' is-laying' : ''}`} style={seatPlace[i]} ref={p ? setSeatRef(p.id) : undefined} data-seat={i} data-player-id={p?.id} data-team={p?.team || 'none'}>
                   <div className={[
                       'seat-frame relative',
                       isSpeaking ? 'seat-frame--speaking' : '', // talking lights the chair, not the player circle
@@ -830,7 +843,12 @@ export default function Table() {
       {paused && (
         <div className="game-paused" role="status" aria-live="polite">
           <strong>Game paused</strong>
-          <span>Waiting for {pausedFor.map((p) => p.name || 'a player').join(', ')} to reconnect. You can look at your cards and talk.</span>
+          {pausedFor.length > 0 && <span>Waiting for {pausedFor.map((p) => p.name || 'a player').join(', ')} to reconnect. You can look at your cards and talk.</span>}
+          {pausedByName && <span>{state.paused_by === me.id ? 'You paused the game.' : `${pausedByName} paused the game.`} You can look at your cards and talk.</span>}
+          {pausedByName && players[me.id]?.seat != null && !players[me.id]?.is_spectator && (
+            <button type="button" className="club-primary game-paused__resume" disabled={ws?.readyState !== 1}
+              onClick={() => send(ws, 'resume_game', {})}>▶ Resume</button>
+          )}
         </div>
       )}
 

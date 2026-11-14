@@ -148,6 +148,10 @@ class EmojiSoundManager {
       this.playLaydownCue(key === 'lay_success');
       return;
     }
+    if (key === 'pass') {        // there's no recording for this one: use the synthesized slide
+      this.playCue('card');
+      return;
+    }
     if (key === 'deal' || key === 'shuffle') {
       this.playCardFoley(key === 'shuffle' ? 'riffle' : 'slide');
       return;
@@ -226,6 +230,55 @@ class EmojiSoundManager {
         });
       }
       setTimeout(() => { try { master.disconnect(); comp.disconnect(); } catch (_) {} }, 4000);
+    } catch (_) {}
+  }
+
+  // Short synthesized table cues (no files): bubbles popping in, the turn spotlight moving, your
+  // turn, being asked. Kept quiet and soft so they sit under voice chat.
+  playCue(name) {
+    if (this.isMuted || !this._unlocked) return;
+    try {
+      const Context = globalThis.window?.AudioContext || globalThis.window?.webkitAudioContext;
+      if (!this.audioContext && Context) this.audioContext = new Context();
+      const ctx = this.audioContext;
+      if (!ctx || ctx.state !== 'running') return;   // never queue stale cues for later
+      const now = this._cueAt?.[name];
+      const t = ctx.currentTime;
+      if (now && t - now < .12) return;               // the same cue twice at once: play it once
+      (this._cueAt ||= {})[name] = t;
+      const out = ctx.createGain(); out.gain.value = this.volume * .5; out.connect(ctx.destination);
+      const tone = (at, dur, f, type = 'sine', peak = .2, glide) => {
+        const o = ctx.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, t + at);
+        if (glide) o.frequency.exponentialRampToValueAtTime(glide, t + at + dur);
+        const g = ctx.createGain(); g.gain.setValueAtTime(0, t + at);
+        g.gain.linearRampToValueAtTime(peak, t + at + .008); g.gain.exponentialRampToValueAtTime(.0001, t + at + dur);
+        o.connect(g); g.connect(out); o.start(t + at); o.stop(t + at + dur + .03);
+      };
+      const air = (at, dur, f, peak = .12) => {
+        const buf = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * dur), ctx.sampleRate);
+        const d = buf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+        const src = ctx.createBufferSource(); src.buffer = buf;
+        const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = .9;
+        bp.frequency.setValueAtTime(f, t + at); bp.frequency.exponentialRampToValueAtTime(f * 2.4, t + at + dur);
+        const g = ctx.createGain(); g.gain.setValueAtTime(0, t + at);
+        g.gain.linearRampToValueAtTime(peak, t + at + dur * .4); g.gain.exponentialRampToValueAtTime(.0001, t + at + dur);
+        src.connect(bp); bp.connect(g); g.connect(out); src.start(t + at); src.stop(t + at + dur + .02);
+      };
+      switch (name) {
+        case 'bubble': tone(0, .09, 620, 'sine', .16, 980); break;                              // soft pop
+        case 'ask': tone(0, .1, 540, 'triangle', .16, 760); tone(.09, .14, 820, 'sine', .1); break; // "hm?"
+        case 'yes': tone(0, .12, 660, 'triangle', .16); tone(.08, .2, 990, 'triangle', .14); break; // up
+        case 'no': tone(0, .14, 440, 'triangle', .14); tone(.1, .2, 330, 'triangle', .12); break;   // down
+        case 'chat': tone(0, .07, 900, 'sine', .1, 1200); break;                                   // tick
+        case 'turn': air(0, .32, 700, .1); tone(.18, .3, 880, 'sine', .07); break;                // spotlight glides
+        case 'my_turn': [523.25, 659.25, 783.99].forEach((f, i) => tone(i * .07, .45, f, 'triangle', .15)); break;
+        case 'asked_me': tone(0, .16, 988, 'sine', .16); tone(.16, .26, 1318.5, 'sine', .14); break; // ding-ding
+        case 'card': air(0, .12, 1400, .2); air(.06, .1, 1800, .14); break;                     // card slides over
+        case 'pause': tone(0, .22, 523.25, 'sine', .14, 392); break;
+        case 'resume': tone(0, .22, 392, 'sine', .14, 587.33); break;
+        default: break;
+      }
+      setTimeout(() => { try { out.disconnect(); } catch (_) {} }, 1500);
     } catch (_) {}
   }
 
@@ -321,6 +374,9 @@ export const playEmojiSound = (emoji) => {
 };
 export const playKey = (key) => {
   try { emojiSoundManager.playKey(key); } catch (_) {}
+};
+export const playCue = (name) => {
+  try { emojiSoundManager.playCue(name); } catch (_) {}
 };
 export const playCardFoley = kind => emojiSoundManager.playCardFoley(kind);
 export const stopCardFoley = () => emojiSoundManager.stopCardFoley();

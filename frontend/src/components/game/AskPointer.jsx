@@ -56,7 +56,7 @@ export default function AskPointer({ seatEls, seatVersion, ask }) {
 
 // Laydown and turn arrows queued by the store: who is putting cards into a declaration,
 // and who the turn passes to afterwards. Each one removes itself when its time is up.
-export function FlowArrows({ seatEls, seatVersion }) {
+export function FlowArrows({ seatEls, seatVersion, skipTones = [] }) {
   const arrows = useStore((s) => s.flowArrows);
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -71,7 +71,7 @@ export function FlowArrows({ seatEls, seatVersion }) {
     return () => clearInterval(id);
   }, [arrows]);
   const now = Date.now();
-  return (arrows || []).filter((a) => a.from !== a.to && (a.start || 0) <= now && a.until > now).map((a) =>
+  return (arrows || []).filter((a) => a.from !== a.to && !skipTones.includes(a.tone) && (a.start || 0) <= now && a.until > now).map((a) =>
     <SeatArrow key={a.id} seatEls={seatEls} seatVersion={seatVersion} fromId={a.from} toId={a.to} tone={a.tone} label={a.label} />);
 }
 

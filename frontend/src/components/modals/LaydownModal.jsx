@@ -34,8 +34,8 @@ export default function LaydownModal({ onClose, initialPick, restore = false }) 
   const my = players[me.id];
   const pick = initialPick;
   // game paused for a player who dropped out: the laydown waits (the server would refuse it)
-  const paused = state?.phase === "playing" && Object.values(players).some((p) => p.team && p.seat != null && !p.is_spectator &&
-    !String(p.id).startsWith("ai_") && p.connected === false);
+  const paused = state?.phase === "playing" && (!!state.paused_by || Object.values(players).some((p) => p.team && p.seat != null && !p.is_spectator &&
+    !String(p.id).startsWith("ai_") && p.connected === false));
 
   const draft = useRef(restore ? loadLaydownDraft(state?.room_id, me?.id) : null).current;
   const setRanks = SETS[pick.setType] || [];

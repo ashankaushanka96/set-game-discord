@@ -524,12 +524,17 @@
 }
 
 /* Replay the last asks: a small pill under Back to Lobby (2D and 3D; the right side has the 3D view reset). */
-.game-replay-control { position:fixed; left:12px; top:64px; z-index:40; }
+.game-side-controls { position:fixed; left:12px; top:64px; z-index:40; display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
+.game-replay-control { position:relative; }
+.game-pause-btn { font-size:11px; font-weight:600; padding:6px 10px; border-radius:999px; background:#243b33e6; color:#e8e5d5; border:1px solid #bac3a540; box-shadow:0 3px 10px #0004; backdrop-filter:blur(8px); white-space:nowrap; }
+.game-pause-btn:hover:not(:disabled) { border-color:#e3c89099; color:#fff; }
+.game-pause-btn:disabled { opacity:.6; }
+.game-paused__resume { margin-top:8px; pointer-events:auto; }
 .game-replay-control > button { font-size:11px; font-weight:600; padding:6px 10px; border-radius:999px; background:#243b33e6; color:#e8e5d5; border:1px solid #bac3a540; box-shadow:0 3px 10px #0004; backdrop-filter:blur(8px); white-space:nowrap; }
 .game-replay-control > button:hover:not(:disabled) { border-color:#e3c89099; color:#fff; }
 .game-replay-control > button:disabled { opacity:.6; cursor:default; }
 @media (max-width:767px), (pointer:coarse) {
-  .game-replay-control { top:calc(var(--game-safe-top,44px) + 56px); left:8px; }
+  .game-side-controls { top:calc(var(--game-safe-top,44px) + 56px); left:8px; }
 }
 
 /* "Last ask" replay panel: floats on its own, the table is untouched */
@@ -552,3 +557,43 @@
 .game-replay-menu { margin-top:6px; display:flex; flex-direction:column; gap:4px; }
 .game-replay-control .game-replay-menu > button { font-size:11px; font-weight:600; padding:6px 10px; border-radius:999px; background:#243b33f2; color:#e8e5d5; border:1px solid #bac3a540; box-shadow:0 3px 10px #0004; text-align:left; white-space:nowrap; }
 .game-replay-control .game-replay-menu > button:hover { border-color:#e3c89099; color:#fff; }
+
+/* 2D: moving seat rings (like the 3D spotlights). Purple = turn, gold = being asked. */
+.seat-ring { position:fixed; left:0; top:0; z-index:35; pointer-events:none; border-radius:50%; box-sizing:border-box;
+  transition:opacity .35s ease; will-change:transform; }
+.seat-ring::before { content:''; position:absolute; inset:-7px; border-radius:50%; border:4px solid var(--ring); box-shadow:0 0 16px 4px var(--ring-glow), inset 0 0 10px var(--ring-glow); }
+.seat-ring::after { content:''; position:absolute; inset:-16px; border-radius:50%; background:radial-gradient(circle, transparent 52%, var(--ring-glow) 64%, transparent 74%); opacity:.7; animation:seatRingPulse 1.8s ease-in-out infinite; }
+.seat-ring.is-moving::before { box-shadow:0 0 26px 8px var(--ring-glow), inset 0 0 12px var(--ring-glow); }
+.seat-ring--turn { --ring:#b98cff; --ring-glow:#b98cff88; }
+.seat-ring--ask { --ring:#ffd34d; --ring-glow:#ffc44699; z-index:36; }
+.seat-ring--ask::before { inset:-12px; }
+@keyframes seatRingPulse { 0%, 100% { transform:scale(.96); opacity:.45; } 50% { transform:scale(1.06); opacity:.85; } }
+@media (prefers-reduced-motion: reduce) { .seat-ring::after { animation:none; } }
+/* Settled rings live on the seat itself, under the badges; they fade in as the flying ring lands. */
+.card-room:not(.room-3d) .game-seat--turn, .card-room:not(.room-3d) .game-seat--asked { box-shadow:none !important; }
+.card-room:not(.room-3d) .game-seat--turn::before, .card-room:not(.room-3d) .game-seat--asked::before {
+  content:''; position:absolute; inset:-6px; border-radius:50%; border:4px solid var(--ring); pointer-events:none; z-index:0;
+  box-shadow:0 0 16px 4px var(--ring-glow), inset 0 0 10px var(--ring-glow); animation:seatRingLand .3s ease .65s both; }
+.card-room:not(.room-3d) .game-seat--turn { --ring:#b98cff; --ring-glow:#b98cff88; }
+.card-room:not(.room-3d) .game-seat--asked { --ring:#ffd34d; --ring-glow:#ffc44699; }
+.card-room:not(.room-3d) .game-seat--asked::before { inset:-10px; }
+@keyframes seatRingLand { from { opacity:0; } to { opacity:1; } }
+@media (prefers-reduced-motion: reduce) { .card-room:not(.room-3d) .game-seat--turn::before, .card-room:not(.room-3d) .game-seat--asked::before { animation:none; } }
+/* Nothing shows on the target seat until the flying ring lands: no early border, the tint fades in with the ring. */
+.card-room:not(.room-3d) .game-seat.game-seat--turn, .card-room:not(.room-3d) .game-seat.game-seat--asked { border-color:#0000 !important; }
+.card-room:not(.room-3d) .game-seat--turn .game-seat__avatar::after,
+.card-room:not(.room-3d) .game-seat--asked .game-seat__avatar::after { animation:seatRingLand .3s ease .65s both; }
+@media (prefers-reduced-motion: reduce) { .card-room:not(.room-3d) .game-seat--turn .game-seat__avatar::after, .card-room:not(.room-3d) .game-seat--asked .game-seat__avatar::after { animation:none; } }
+/* 2D laydown: a green ring around everyone taking part, outside the turn/ask rings so they never clash. */
+.card-room:not(.room-3d) .table-seat-position.is-laying .game-seat { outline:3px solid #6ee7a8; outline-offset:12px; animation:seatLayPulse 1.4s ease-in-out infinite; }
+@keyframes seatLayPulse { 0%, 100% { outline-color:#6ee7a8cc; } 50% { outline-color:#22c55e; } }
+@media (prefers-reduced-motion: reduce) { .card-room:not(.room-3d) .table-seat-position.is-laying .game-seat { animation:none; } }
+
+/* The turn ring and the ask ring each replay their own fade-in, so a seat that was being asked
+   (gold) and now gets the turn (purple) waits for the flying purple ring too. */
+.card-room:not(.room-3d) .game-seat--turn::before, .card-room:not(.room-3d) .game-seat--turn .game-seat__avatar::after { animation:seatTurnLand .3s ease .65s both; }
+.card-room:not(.room-3d) .game-seat--turn .game-seat__badge { animation:seatTurnTint .3s ease .65s both; }
+@keyframes seatTurnLand { from { opacity:0; transform:scale(.85); } to { opacity:1; transform:scale(1); } }
+.card-room:not(.room-3d) .game-seat--turn .game-seat__avatar::after { animation-name:seatTurnTint; }
+@keyframes seatTurnTint { from { opacity:0; } to { opacity:1; } }
+@media (prefers-reduced-motion: reduce) { .card-room:not(.room-3d) .game-seat--turn::before, .card-room:not(.room-3d) .game-seat--turn .game-seat__avatar::after, .card-room:not(.room-3d) .game-seat--turn .game-seat__badge { animation:none; } }

@@ -58,6 +58,7 @@ class Game:
         self.state.deck_count = len(self._deck)
 
     def deal_all(self, start_from_seat: int = 0):
+        self.state.paused_by = None   # a new deal starts unpaused
         """Deal cards starting from the specified seat (clockwise)"""
         # Create dealing order starting from the specified seat
         order = [(start_from_seat + i) % 6 for i in range(6)]

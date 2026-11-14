@@ -122,11 +122,15 @@ PAUSE_BLOCKED = {"ask", "penalty_laydown", "begin_play", "bot_continue", "answer
 
 
 def paused_by(game) -> list:
+    """Who the game is waiting for: players who dropped out, and whoever pressed Pause."""
     st = game.state
     if st.phase != "playing":
         return []
-    return [pid for pid, p in st.players.items()
-            if p.team and p.seat is not None and not p.is_spectator and not game.is_bot(pid) and not p.connected]
+    out = [pid for pid, p in st.players.items()
+           if p.team and p.seat is not None and not p.is_spectator and not game.is_bot(pid) and not p.connected]
+    if st.paused_by and st.paused_by in st.players and st.paused_by not in out:
+        out.append(st.paused_by)
+    return out
 
 
 async def run_bots(game, room_id: str):
@@ -178,8 +182,8 @@ async def run_bots(game, room_id: str):
             move = await game.bot_decide_async(bot_id)
             if not move:
                 return
-            if game.state.turn_player != bot_id or game.state.pending_ask or game.state.pending_handoff:
-                continue  # the table moved on while Claude was thinking
+            if game.state.turn_player != bot_id or game.state.pending_ask or game.state.pending_handoff or paused_by(game):
+                continue  # the table moved on (or was paused) while Claude was thinking
             move_log.record(game, bot_id, move_log.view(game, bot_id), move)
             if move["action"] == "laydown":
                 await bot_laydown(game, room_id, bot_id, move)
@@ -393,9 +397,31 @@ async def ws_endpoint(ws: WebSocket, room_id: str, player_id: str):
             logger.debug(f"Received message from {player_id} in room {room_id}: type={t}")
 
             if t in PAUSE_BLOCKED and paused_by(game):
-                names = ", ".join(game.state.players[pid].name for pid in paused_by(game))
-                await WebSocketService.send_to_player(room_id, player_id, "error", {
-                    "message": f"Game paused: waiting for {names} to reconnect."})
+                st = game.state
+                msg = (f"Game paused by {st.players[st.paused_by].name}. Press Resume to carry on." if st.paused_by in st.players
+                       else f"Game paused: waiting for {', '.join(st.players[pid].name for pid in paused_by(game))} to reconnect.")
+                await WebSocketService.send_to_player(room_id, player_id, "error", {"message": msg})
+                continue
+
+            if t in ("pause_game", "resume_game"):
+                # Any seated player can pause the round to step away, and anyone seated can resume it.
+                st = game.state
+                me = st.players.get(player_id)
+                if not me or me.seat is None or me.is_spectator or st.phase != "playing":
+                    continue
+                if t == "pause_game" and not st.paused_by:
+                    st.paused_by = player_id
+                    go = getattr(game, "bot_go", None)
+                    if go:
+                        go.set()          # end a bot's countdown now; it re-checks the pause and waits
+                elif t == "resume_game" and st.paused_by:
+                    st.paused_by = None
+                else:
+                    continue
+                logger.info(f"{me.name} {'paused' if st.paused_by else 'resumed'} the game in room {room_id}")
+                await WebSocketService.broadcast(room_id, "state", game.state.model_dump())
+                if not st.paused_by:
+                    maybe_run_bots(game, room_id)
                 continue
 
             if t == "select_team":

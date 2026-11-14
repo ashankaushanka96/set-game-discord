@@ -1,4 +1,4 @@
-import { stopCardFoley } from './utils/sounds';
+import { stopCardFoley, playCue } from './utils/sounds';
 import { SHUFFLE_DURATION, DEAL_DURATION, DEAL_COMPLETE_BUFFER } from './components/game/dealTiming';
 import { createSpeakingActions } from './utils/speaking';
 import { create } from "zustand";
@@ -67,6 +67,11 @@ export const useStore = create((set, get) => ({
   // --- seat bubbles helpers ---
   addMessage: (m) => {
     const withId = { ...m, id: mid() };
+    if (!m.replay && !m.silent && m.kind !== 'laydown') {   // laydowns have their own result sound
+      const v = m.variant;
+      playCue(v === 'ask' ? 'ask' : v === 'yes' || v === 'event_good' ? 'yes' : v === 'no' || v === 'event_bad' || v === 'penalty_set' ? 'no'
+        : v === 'chat' ? 'chat' : 'bubble');
+    }
     set((state) => {
       const existing = state.messages || [];
       // Remove any existing messages from the same player to prevent stacking
@@ -805,7 +810,7 @@ export const useStore = create((set, get) => ({
     if (msg.type === "bubble_replay") {
       const { bubbles = [], pending_ask } = msg.payload || {};
       bubbles.forEach(({ player_id, variant, ...data }) => {
-        get().addMessage({ player_id, variant, ...data, sticky: true, tag: `laydown-${player_id}` });
+        get().addMessage({ player_id, variant, ...data, sticky: true, silent: true, tag: `laydown-${player_id}` });
       });
       if (pending_ask) {
         const rank = pending_ask.ranks?.[0];
@@ -817,7 +822,7 @@ export const useStore = create((set, get) => ({
           text: "Do you have…",
           card: rank && pending_ask.suit ? { suit: pending_ask.suit, rank } : undefined,
           cards: (pending_ask.ranks || []).map((r) => ({ suit: pending_ask.suit, rank: r })),
-          sticky: true,
+          sticky: true, silent: true,
           tag: `ask-${pending_ask.asker_id}`,
         });
       }
@@ -988,3 +993,14 @@ function syncVotes(st, get, set) {
   } else if (abortVoting) next.abortVoting = null;
   if (Object.keys(next).length) set(next);
 }
+
+// Table cues: the turn spotlight moving, your turn, an ask aimed at you, a pause.
+useStore.subscribe((s, prev) => {
+  const a = s.state, b = prev.state;
+  if (!a || !b || a.phase !== 'playing' || b.phase !== 'playing') return;
+  const me = s.me?.id;
+  if (a.turn_player && b.turn_player && a.turn_player !== b.turn_player) playCue(a.turn_player === me ? 'my_turn' : 'turn');
+  const ask = a.pending_ask;
+  if (ask && ask.target_id === me && (!b.pending_ask || b.pending_ask.target_id !== me)) playCue('asked_me');
+  if (!!a.paused_by !== !!b.paused_by) playCue(a.paused_by ? 'pause' : 'resume');
+});
